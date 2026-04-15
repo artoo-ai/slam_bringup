@@ -86,6 +86,39 @@ ping -c 3 192.168.1.202    # Mid-360 reachable (powered + cabled)
 - **Both interfaces show `NO-CARRIER`** — the cable is unplugged or dead.
 - **Multiple LiDARs on the same subnet** — only one can be connected at a time unless you set up host-side routing (VLP-16, Mid-360, and Pandar40P all share `192.168.1.0/24`).
 
+## Shell environment (source before `ros2` commands)
+
+Two `setup.bash` files in order — base ROS2 first, then the workspace overlay:
+
+```bash
+source /opt/ros/humble/setup.bash              # base ROS2 Humble
+source ~/slam_ws/install/setup.bash            # workspace overlay (slam_bringup + vendor drivers)
+```
+
+Order matters; the workspace overlay must come second so it layers on top of base ROS2.
+
+**Make it permanent** — append both lines (and confirm the CycloneDDS export is there) to `~/.bashrc` so every new shell is ready:
+
+```bash
+cat >> ~/.bashrc <<'EOF'
+source /opt/ros/humble/setup.bash
+source ~/slam_ws/install/setup.bash
+EOF
+
+# Apply to the current shell without opening a new terminal:
+source ~/.bashrc
+```
+
+`install.sh` already appended `export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp` to `~/.bashrc`; these two `source` lines complete the environment.
+
+**Verify:**
+
+```bash
+echo $ROS_DISTRO                               # humble
+echo $RMW_IMPLEMENTATION                       # rmw_cyclonedds_cpp
+ros2 pkg prefix slam_bringup                   # /home/rico/slam_ws/install/slam_bringup
+```
+
 ## Dev loop (after edits)
 
 ```bash
