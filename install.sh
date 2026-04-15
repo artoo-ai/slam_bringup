@@ -123,6 +123,18 @@ clone_if_missing https://github.com/Livox-SDK/livox_ros_driver2.git      livox_r
 clone_if_missing https://github.com/ElettraSciComp/witmotion_IMU_ros.git witmotion_ros       ros2
 clone_if_missing https://github.com/Ericsii/FAST_LIO_ROS2.git            FAST_LIO_ROS2
 
+# livox_ros_driver2 ships package_ROS1.xml + package_ROS2.xml (dual-distro repo).
+# Upstream build.sh selects one before building; replicate that for colcon.
+LIVOX_DIR="$SRC_DIR/livox_ros_driver2"
+if [ -f "$LIVOX_DIR/package_ROS2.xml" ]; then
+  echo "  livox_ros_driver2: selecting ROS2 package.xml + launch files"
+  cp -f "$LIVOX_DIR/package_ROS2.xml" "$LIVOX_DIR/package.xml"
+  if [ -d "$LIVOX_DIR/launch_ROS2" ]; then
+    rm -rf "$LIVOX_DIR/launch"
+    cp -rf "$LIVOX_DIR/launch_ROS2" "$LIVOX_DIR/launch"
+  fi
+fi
+
 # realsense-ros + rtabmap_ros installed via apt above — no git clone needed
 
 # ---------------------------------------------------------------------------
