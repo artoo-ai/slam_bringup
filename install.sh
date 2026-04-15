@@ -100,16 +100,27 @@ cd "$SRC_DIR"
 clone_if_missing() {
   local url="$1"
   local dir="$2"
+  local branch="${3:-}"
   if [ ! -d "$dir" ]; then
-    git clone --recursive "$url" "$dir"
+    if [ -n "$branch" ]; then
+      git clone --recursive -b "$branch" "$url" "$dir"
+    else
+      git clone --recursive "$url" "$dir"
+    fi
   else
-    echo "  $dir exists, updating submodules"
-    (cd "$dir" && git submodule update --init --recursive)
+    if [ -n "$branch" ]; then
+      echo "  $dir exists, ensuring branch $branch + updating submodules"
+      (cd "$dir" && git fetch origin "$branch" && git checkout "$branch" && git pull --ff-only origin "$branch" && git submodule update --init --recursive)
+    else
+      echo "  $dir exists, updating submodules"
+      (cd "$dir" && git submodule update --init --recursive)
+    fi
   fi
 }
 
 clone_if_missing https://github.com/Livox-SDK/livox_ros_driver2.git      livox_ros_driver2
-clone_if_missing https://github.com/ElettraSciComp/witmotion_IMU_ros.git witmotion_ros
+# witmotion_IMU_ros: default branch is ROS1 (catkin); ROS2 code lives on the `ros2` branch
+clone_if_missing https://github.com/ElettraSciComp/witmotion_IMU_ros.git witmotion_ros       ros2
 clone_if_missing https://github.com/Ericsii/FAST_LIO_ROS2.git            FAST_LIO_ROS2
 
 # realsense-ros + rtabmap_ros installed via apt above — no git clone needed
