@@ -25,19 +25,75 @@ Each platform ships its own `urdf/<platform>.urdf.xacro` with measured offsets a
 - **RTABMap** — graph SLAM with visual loop closure via D435 front RGB + depth
 - Output: `/Odometry`, `/cloud_registered_body`, `/map`, `/octomap_full`, persistent `~/.ros/rtabmap.db`
 
-## Quick start (once implemented)
+## First-time setup (on the Jetson)
 
 ```bash
-# On gizmo (Jetson), after clone + ./install.sh + source
-ros2 launch slam_bringup perception.launch.py platform:=go2   # sensors + URDF + rviz
-ros2 launch slam_bringup slam.launch.py       platform:=go2   # full SLAM stack
+mkdir -p ~/slam_ws/src && cd ~/slam_ws/src
+git clone <this-repo-url> slam_bringup
+cd slam_bringup
+./install.sh
+```
+
+`install.sh` clones the three vendor drivers (`livox_ros_driver2`, `witmotion_ros@ros2`, `FAST_LIO_ROS2`), builds Livox-SDK2, apt-installs RealSense + RTABMap + Nav2 + CycloneDDS, runs `rosdep`, adds the user to `dialout`, exports `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`, and runs the first `colcon build` with the livox-required cmake args.
+
+One-time per platform: network interfaces (`eth0` Go2 control, `eth1` LiDAR on `192.168.1.0/24`) — see PLAN.md §6.1.
+
+## Dev loop (after edits)
+
+```bash
+cd ~/slam_ws/src/slam_bringup
+git pull
+./build.sh                        # fast rebuild of slam_bringup only
+source ~/slam_ws/install/setup.bash
+```
+
+`build.sh` flags:
+
+| Command | Purpose |
+|---------|---------|
+| `./build.sh` | Build only `slam_bringup` — fast |
+| `./build.sh --all` | Build the whole workspace (vendor + `slam_bringup`) |
+| `./build.sh --clean` | `rm -rf build/slam_bringup install/slam_bringup` first |
+| `./build.sh --clean --all` | Full clean workspace rebuild |
+| `./build.sh <pkg> [<pkg> ...]` | Build specific packages |
+| `./build.sh --help` | Show help |
+
+After each build the script runs package / launch / config sanity checks with ✓ / ✗ output so you know the new setup is good before sourcing.
+
+## Running
+
+```bash
+# Mid-360 standalone (Phase 1.3 — works today)
+ros2 launch slam_bringup mid360.launch.py                   # xfer_format=0, RViz-viewable
+ros2 launch slam_bringup mid360.launch.py xfer_format:=1    # CustomMsg for FAST-LIO2
+
+# Planned (not yet implemented — see PLAN.md phases below)
+ros2 launch slam_bringup d435.launch.py      enable_rear:=true        # Phase 1.4
+ros2 launch slam_bringup witmotion.launch.py                          # Phase 1.5
+ros2 launch slam_bringup sensors.launch.py                            # Phase 1.6
+ros2 launch slam_bringup perception.launch.py platform:=go2           # Phase 1.7
+ros2 launch slam_bringup slam.launch.py       platform:=go2           # Phase 2.5
 ```
 
 Swap `platform:=r2d2|roboscout|mecanum` when the rig moves. `enable_rear:=true` adds the D435i rear camera.
 
 ## Status
 
-**Planning phase.** See [PLAN.md](./PLAN.md) for the full multi-phase implementation plan (Phase 0.5 repo/sync, Phase 1 raw sensors, Phase 2 SLAM, Phase 2.5 recording/playback).
+Phase 1 in progress. Detailed task checklist in [PLAN.md](./PLAN.md).
+
+- [x] Phase 0 — hardware + Jetson prereqs
+- [x] Phase 0.5 — repo + Mac↔Jetson workflow
+- [x] Phase 1.1–1.2 — `install.sh` + package skeleton
+- [x] Phase 1.3 — Mid-360 standalone
+- [ ] Phase 1.4 — D435 (front + optional rear)
+- [ ] Phase 1.5 — WitMotion
+- [ ] Phase 1.6 — `sensors.launch.py` integration
+- [ ] Phase 1.7 — URDF (`go2`, `r2d2`, `roboscout`, `mecanum`) + `perception.launch.py` + rviz
+- [ ] Phase 1.8 — Go2 SDK integration check
+- [ ] Phase 1.9 — `install.sh` smoke test
+- [ ] Phase 1.10 — Dual camera (rear D435i)
+- [ ] Phase 2 — FAST-LIO2 + RTABMap SLAM
+- [ ] Phase 2.5 — MCAP recording / playback / Foxglove
 
 ## Source note
 
