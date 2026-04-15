@@ -36,7 +36,55 @@ cd slam_bringup
 
 `install.sh` clones the three vendor drivers (`livox_ros_driver2`, `witmotion_ros@ros2`, `FAST_LIO_ROS2`), builds Livox-SDK2, apt-installs RealSense + RTABMap + Nav2 + CycloneDDS, runs `rosdep`, adds the user to `dialout`, exports `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`, and runs the first `colcon build` with the livox-required cmake args.
 
-One-time per platform: network interfaces (`eth0` Go2 control, `eth1` LiDAR on `192.168.1.0/24`) — see PLAN.md §6.1.
+## Network setup (one-time, per Jetson)
+
+The Mid-360 broadcasts LiDAR + IMU data on `192.168.1.0/24`. The Jetson needs a dedicated ethernet interface on that subnet — a USB-to-Gigabit-Ethernet adapter with the Realtek RTL8153 chipset is recommended (the `r8152` driver ships in the mainline kernel and JetPack 6.x).
+
+### 1. Identify the USB-to-GbE adapter
+
+Plug the adapter in, then:
+
+```bash
+lsusb | grep Realtek       # should list the adapter
+dmesg | grep r8152         # driver bound cleanly
+ip -br link                # list all interfaces — find the new one
+```
+
+The new interface usually shows up as `eth1`, `enp*s0`, or `enx<MAC>` depending on systemd's naming policy. Note the exact name — below it's referred to as `<IFACE>`.
+
+### 2. Create the LiDAR connection profile
+
+```bash
+sudo nmcli con add type ethernet ifname <IFACE> con-name lidar \
+  ipv4.method manual ipv4.addresses 192.168.1.100/24
+sudo nmcli con up lidar
+```
+
+The Jetson's address can be anything on `192.168.1.0/24` **except** `.0`, `.201`, `.202`, `.203`, or `.255` (those are reserved: network/broadcast + the three LiDAR IPs documented in PLAN.md §3.5 — VLP-16, Mid-360, Pandar40P).
+
+### 3. Go2 control network (Go2 only — harmless idle on other platforms)
+
+```bash
+sudo nmcli con add type ethernet ifname eth0 con-name go2 \
+  ipv4.method manual ipv4.addresses 192.168.123.XX/24
+sudo nmcli con up go2
+```
+
+Pick a free `.XX` on the Go2's internal subnet. Leaving the profile configured with the cable unplugged on R2D2 / Roboscout / mecanum is a no-op.
+
+### 4. Verify
+
+```bash
+ip -br addr show <IFACE>   # shows 192.168.1.100/24 — UP
+ping -c 3 192.168.1.202    # Mid-360 reachable (powered + cabled)
+```
+
+### Troubleshooting
+
+- **Interface disappears on reboot** — plug order changes the systemd name. Pin it by its MAC with a udev rule, or rely on the nmcli `con-name` (which binds by name, not MAC — so pinning is optional).
+- **`ping` hangs** — check the cable, Mid-360 power, and that `<IFACE>` actually corresponds to the USB adapter (not `eth0`).
+- **Both interfaces show `NO-CARRIER`** — the cable is unplugged or dead.
+- **Multiple LiDARs on the same subnet** — only one can be connected at a time unless you set up host-side routing (VLP-16, Mid-360, and Pandar40P all share `192.168.1.0/24`).
 
 ## Dev loop (after edits)
 
