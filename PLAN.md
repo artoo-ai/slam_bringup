@@ -21,7 +21,7 @@ At launch, a `platform:=<name>` argument selects the per-platform URDF and any p
 
 **Target hardware:** NVIDIA Jetson Orin Nano Super (8 GB, hostname `gizmo`), JetPack 6.x on NVMe SSD.
 
-**Development workflow:** initial code is authored on Mac (`/Users/rico/Documents/Robots/slam/`, acting as the `slam_bringup` package root), committed to git, cloned onto the Jetson at `~/go2_ws/src/slam_bringup/`, and built with `colcon`. (Workspace dir remains `go2_ws` for continuity with the source note; rename is optional.)
+**Development workflow:** initial code is authored on Mac (`/Users/rico/Documents/Robots/slam/`, acting as the `slam_bringup` package root), committed to git, cloned onto the Jetson at `~/slam_ws/src/slam_bringup/`, and built with `colcon`. (Workspace directory was renamed from `go2_ws` to `slam_ws` to match the platform-agnostic scope; the source note references the old `go2_ws` name.)
 
 ## 2. Hardware Baseline
 
@@ -61,7 +61,7 @@ All four platforms share:
 ### 3.1 Package layout
 
 ```
-~/go2_ws/src/
+~/slam_ws/src/
 ├── slam_bringup/                      # this package — all configs live here
 │   ├── launch/
 │   │   ├── mid360.launch.py          # direct Node() — NOT IncludeLaunchDescription
@@ -202,7 +202,7 @@ These are Jetson-level (not platform-level) prereqs. The Jetson lives on the sen
 
 ## 5. Phase 0.5 — Repo & Mac↔Jetson Workflow
 
-**Goal:** Initial code authored on Mac lives in a git repo cloned onto `gizmo` at `~/go2_ws/src/slam_bringup/`. Edits flow Mac → git remote → Jetson via `git pull` + `colcon build`.
+**Goal:** Initial code authored on Mac lives in a git repo cloned onto `gizmo` at `~/slam_ws/src/slam_bringup/`. Edits flow Mac → git remote → Jetson via `git pull` + `colcon build`.
 
 ### 5.1 — Initialize repo on Mac
 
@@ -245,9 +245,9 @@ These are Jetson-level (not platform-level) prereqs. The Jetson lives on the sen
 ### 5.3 — Clone on gizmo
 
 - [ ] SSH in: `ssh gizmo`
-- [ ] `mkdir -p ~/go2_ws/src && cd ~/go2_ws/src`
+- [ ] `mkdir -p ~/slam_ws/src && cd ~/slam_ws/src`
 - [ ] `git clone <remote-url> slam_bringup`
-- [ ] **Verify:** `ls ~/go2_ws/src/slam_bringup/` shows this repo's contents
+- [ ] **Verify:** `ls ~/slam_ws/src/slam_bringup/` shows this repo's contents
 
 ### 5.4 — Sync loop
 
@@ -261,9 +261,9 @@ git push
 
 # ── On gizmo ───────────────────────────────────────────
 ssh gizmo
-cd ~/go2_ws/src/slam_bringup
+cd ~/slam_ws/src/slam_bringup
 git pull
-cd ~/go2_ws
+cd ~/slam_ws
 colcon build --packages-select slam_bringup --symlink-install
 source install/setup.bash
 ros2 launch slam_bringup <target>.launch.py
@@ -274,7 +274,7 @@ With `--symlink-install`, subsequent edits to launch files / configs are picked 
 ### Phase 0.5 Exit Criteria
 
 - [ ] Repo pushed to remote
-- [ ] `~/go2_ws/src/slam_bringup/` cloned on gizmo
+- [ ] `~/slam_ws/src/slam_bringup/` cloned on gizmo
 - [ ] Round-trip tested: edit on Mac → push → pull on gizmo → file is present
 
 ## 6. Phase 1 — Raw Sensors Baseline
@@ -292,13 +292,13 @@ Runs once on the Jetson. Clones vendor drivers alongside `slam_bringup/`, builds
 # install.sh — one-time setup for the slam_bringup workspace.
 # Clones vendor drivers into the workspace, installs system deps, builds everything.
 # Assumes: Ubuntu 22.04, ROS2 Humble already installed (/opt/ros/humble).
-# Run from the slam_bringup repo root (anywhere under go2_ws/src/slam_bringup).
+# Run from the slam_bringup repo root (anywhere under slam_ws/src/slam_bringup).
 
 set -euo pipefail
 
 ROS_DISTRO="${ROS_DISTRO:-humble}"
 
-# Resolve workspace root — this script lives at go2_ws/src/slam_bringup/install.sh
+# Resolve workspace root — this script lives at slam_ws/src/slam_bringup/install.sh
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WS_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SRC_DIR="$WS_ROOT/src"
@@ -434,10 +434,10 @@ EOF
 
 **Tasks:**
 
-- [ ] Repo already cloned via Phase 0.5 at `~/go2_ws/src/slam_bringup/`
-- [ ] `cd ~/go2_ws/src/slam_bringup && chmod +x install.sh`
+- [ ] Repo already cloned via Phase 0.5 at `~/slam_ws/src/slam_bringup/`
+- [ ] `cd ~/slam_ws/src/slam_bringup && chmod +x install.sh`
 - [ ] Run `./install.sh`
-- [ ] **Verify:** `rosdep install --from-paths ~/go2_ws/src --ignore-src -r -y` runs clean with no missing deps
+- [ ] **Verify:** `rosdep install --from-paths ~/slam_ws/src --ignore-src -r -y` runs clean with no missing deps
 - [ ] Configure Ethernet interfaces via nmcli:
   - [ ] **`eth1` LiDAR (all platforms):** `sudo nmcli con add type ethernet ifname eth1 con-name lidar ipv4.method manual ipv4.addresses 192.168.1.100/24`
   - [ ] **`eth0` Go2 control (Go2 only, still configure on the Jetson — harmless idle on non-Go2 platforms):** `sudo nmcli con add type ethernet ifname eth0 con-name go2 ipv4.method manual ipv4.addresses 192.168.123.XX/24` (pick a free `.XX`)
@@ -504,13 +504,13 @@ setup(
 
 **Tasks:**
 
-- [ ] Create directory structure inside `~/go2_ws/src/slam_bringup/`:
+- [ ] Create directory structure inside `~/slam_ws/src/slam_bringup/`:
   - [ ] `package.xml` (above)
   - [ ] `setup.py` (above)
   - [ ] `resource/slam_bringup` (empty marker file for ament_python — `touch resource/slam_bringup`)
   - [ ] Empty `launch/`, `config/`, `urdf/`, `rviz/` directories
   - [ ] Empty package module: `mkdir slam_bringup && touch slam_bringup/__init__.py`
-- [ ] Build: `cd ~/go2_ws && colcon build --packages-select slam_bringup --symlink-install`
+- [ ] Build: `cd ~/slam_ws && colcon build --packages-select slam_bringup --symlink-install`
 - [ ] Source: `source install/setup.bash`
 - [ ] **Verify:** `ros2 pkg list | grep slam_bringup` shows the package
 - [ ] **Verify:** `ros2 pkg prefix slam_bringup` points into the install tree
@@ -1078,8 +1078,8 @@ Per platform. Confirms the robot driver's TF root matches the URDF's `base_link`
 `install.sh` already apt-installs `ros-humble-rtabmap-ros`, `ros-humble-navigation2`, `ros-humble-nav2-bringup`, `ros-humble-cyclonedds`, `ros-humble-rmw-cyclonedds-cpp` and git-clones `FAST_LIO_ROS2` (Ericsii fork) with submodules. If skipped:
 
 - [ ] `apt install ros-humble-rtabmap-ros ros-humble-navigation2 ros-humble-nav2-bringup`
-- [ ] `git clone --recursive https://github.com/Ericsii/FAST_LIO_ROS2.git ~/go2_ws/src/FAST_LIO_ROS2`
-- [ ] Rebuild: `cd ~/go2_ws && colcon build`
+- [ ] `git clone --recursive https://github.com/Ericsii/FAST_LIO_ROS2.git ~/slam_ws/src/FAST_LIO_ROS2`
+- [ ] Rebuild: `cd ~/slam_ws && colcon build`
 - [ ] **Verify:** `ros2 pkg list | grep fast_lio` exists
 - [ ] **Verify:** `ros2 pkg list | grep rtabmap` shows `rtabmap_launch`, `rtabmap_ros`, etc.
 
