@@ -1,0 +1,24 @@
+# ROS2 build artifacts
+build/
+install/
+log/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Editor
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Recordings — bags live on NVMe, not in repo
+bags/
+
+# RTABMap database — grows every run
+*.db
+
+# Local overrides
+*.local.yaml
