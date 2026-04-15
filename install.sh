@@ -101,22 +101,16 @@ clone_if_missing() {
   local url="$1"
   local dir="$2"
   if [ ! -d "$dir" ]; then
-    git clone "$url" "$dir"
+    git clone --recursive "$url" "$dir"
   else
-    echo "  $dir exists, skipping"
+    echo "  $dir exists, updating submodules"
+    (cd "$dir" && git submodule update --init --recursive)
   fi
 }
 
-clone_if_missing https://github.com/Livox-SDK/livox_ros_driver2.git   livox_ros_driver2
+clone_if_missing https://github.com/Livox-SDK/livox_ros_driver2.git      livox_ros_driver2
 clone_if_missing https://github.com/ElettraSciComp/witmotion_IMU_ros.git witmotion_ros
-
-# FAST-LIO2 (ROS2 port by Ericsii) — needs submodules
-if [ ! -d "FAST_LIO_ROS2" ]; then
-  git clone --recursive https://github.com/Ericsii/FAST_LIO_ROS2.git
-else
-  echo "  FAST_LIO_ROS2 exists, updating submodules"
-  (cd FAST_LIO_ROS2 && git submodule update --init --recursive)
-fi
+clone_if_missing https://github.com/Ericsii/FAST_LIO_ROS2.git            FAST_LIO_ROS2
 
 # realsense-ros + rtabmap_ros installed via apt above — no git clone needed
 
