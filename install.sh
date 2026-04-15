@@ -12,6 +12,33 @@ ROS_DISTRO="${ROS_DISTRO:-humble}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WS_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SRC_DIR="$WS_ROOT/src"
+
+# Layout sanity check — catch clone-location mistakes before failing mid-build
+if [ "$(basename "$(dirname "$SCRIPT_DIR")")" != "src" ] || [ ! -d "$SRC_DIR" ]; then
+  PARENT_DIR="$(dirname "$SCRIPT_DIR")"
+  REPO_NAME="$(basename "$SCRIPT_DIR")"
+  cat <<EOF >&2
+
+ERROR: install.sh is not in the expected workspace layout.
+
+  Found:    $SCRIPT_DIR
+  Expected: <ws_root>/src/$REPO_NAME/install.sh
+
+A ROS2 workspace must have a src/ directory between the workspace root and
+your package. You likely cloned directly into the workspace root.
+
+Fix — move the clone into src/:
+
+  cd $PARENT_DIR
+  mkdir -p src
+  mv $REPO_NAME src/
+  cd src/$REPO_NAME
+  ./install.sh
+
+EOF
+  exit 1
+fi
+
 echo "==> Workspace: $WS_ROOT"
 echo "==> ROS distro: $ROS_DISTRO"
 
