@@ -175,7 +175,11 @@ cd "$WS_ROOT"
 set +u
 source /opt/ros/${ROS_DISTRO}/setup.bash
 set -u
-colcon build --symlink-install
+# livox_ros_driver2 requires -DROS_EDITION=ROS2 -DDISTRO_ROS=<distro> to pick
+# the humble/jazzy branch in its CMakeLists (upstream build.sh passes these).
+# Other packages ignore unused cmake vars, so it's safe to pass globally.
+colcon build --symlink-install \
+  --cmake-args -DROS_EDITION=ROS2 "-DDISTRO_ROS=${ROS_DISTRO}"
 
 cat <<EOF
 
