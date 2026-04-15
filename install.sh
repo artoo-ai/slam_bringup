@@ -153,7 +153,11 @@ export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 # ---------------------------------------------------------------------------
 echo "==> colcon build --symlink-install"
 cd "$WS_ROOT"
+# ROS2's setup.bash references unbound vars (e.g. AMENT_TRACE_SETUP_FILES) on a
+# fresh shell — relax `set -u` while sourcing, then restore.
+set +u
 source /opt/ros/${ROS_DISTRO}/setup.bash
+set -u
 colcon build --symlink-install
 
 cat <<EOF
