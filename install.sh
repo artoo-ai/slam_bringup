@@ -74,6 +74,16 @@ sudo apt install -y \
   ros-${ROS_DISTRO}-rmw-cyclonedds-cpp
 
 # ---------------------------------------------------------------------------
+# Remote viewing — foxglove_bridge lets a MacBook / Foxglove Studio client
+# connect to ROS2 topics over WebSocket (ws://<jetson-ip>:8765). Useful for
+# headless Jetsons with no display attached.
+#   ros2 launch foxglove_bridge foxglove_bridge_launch.xml
+# ---------------------------------------------------------------------------
+echo "==> apt: foxglove_bridge (remote viewing)"
+sudo apt install -y \
+  ros-${ROS_DISTRO}-foxglove-bridge
+
+# ---------------------------------------------------------------------------
 # Livox-SDK2 — C++ SDK that livox_ros_driver2 links against.
 # MUST be installed before building livox_ros_driver2.
 # ---------------------------------------------------------------------------
