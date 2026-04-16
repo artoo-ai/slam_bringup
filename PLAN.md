@@ -519,7 +519,10 @@ setup(
 
 **Critical:** Livox's vendor launch files (`rviz_MID360_launch.py` / `msg_MID360_launch.py`) hardcode `user_config_path` — it is **not** a `DeclareLaunchArgument`, so passing `user_config_path:=...` through `IncludeLaunchDescription` is silently ignored. Instantiate the driver node directly to get full control.
 
-**`config/mid360.json`** — Mid-360 static IP `192.168.1.202` on `192.168.1.0/24`, host destination set to broadcast (`255.255.255.255`) so the same config works across every platform's closed LiDAR network AND a home LAN without reconfiguring per host:
+**`config/mid360.json`** — Mid-360 static IP `192.168.1.202` on `192.168.1.0/24`. **Two sides to get right, don't confuse them:**
+
+- **Lidar-side (configured once in Livox Viewer 2, stored on the device):** outbound destination set to broadcast `255.255.255.255` so the lidar's on-device config is portable across any network where the Jetson has a different IP — you don't re-flash the lidar when moving between robots.
+- **Driver-side (this JSON's `host_net_info.*_ip`):** must be the **Jetson's real interface IP** (`192.168.1.100`, which §6.1 reserves as the fixed LiDAR-network host IP). The driver `bind()`s UDP listener sockets to these addresses — a socket cannot bind to `255.255.255.255`, and the driver silently fails to open its host-side listeners if you try, so no data ever arrives even though the init log prints "successfully enable Livox Lidar imu". Match the vendor sample at `livox_ros_driver2/config/MID360_config.json` which uses a concrete host IP. See `README.md` §5 for how to change this if the Jetson IP ever differs.
 
 ```json
 {
@@ -533,13 +536,13 @@ setup(
       "log_data_port":   56500
     },
     "host_net_info": {
-      "cmd_data_ip":     "255.255.255.255",
+      "cmd_data_ip":     "192.168.1.100",
       "cmd_data_port":   56101,
-      "push_msg_ip":     "255.255.255.255",
+      "push_msg_ip":     "192.168.1.100",
       "push_msg_port":   56201,
-      "point_data_ip":   "255.255.255.255",
+      "point_data_ip":   "192.168.1.100",
       "point_data_port": 56301,
-      "imu_data_ip":     "255.255.255.255",
+      "imu_data_ip":     "192.168.1.100",
       "imu_data_port":   56401,
       "log_data_ip":     "",
       "log_data_port":   56501
@@ -1489,6 +1492,7 @@ ros2 bag record \
 - `xfer_format: 1` = `livox_ros_driver2/msg/CustomMsg` (FAST-LIO2 requires)
 - Livox Viewer 2 is x86-only — won't run on Jetson; use Mac/PC for sensor config
 - RViz2 decay time for Mid-360: **1.0 s stationary** (non-repetitive needs ~5× VLP-16's decay)
+- **`mid360.json` `host_net_info.*_ip` must be the Jetson's real IP (`192.168.1.100`), NOT `255.255.255.255`** — the driver `bind()`s sockets to these addresses; broadcast is not bindable and the driver silently never opens its host-side listeners. Symptom: init log prints through "successfully enable Livox Lidar imu" but `/livox/lidar` / `/livox/imu` never publish and `ss -uln | grep 5630` shows no listener. (Broadcast destination on the *lidar's* own config is fine — see §6.3.)
 
 ### RealSense
 - Two cameras = two namespaces (`d435_front`, `d435_rear`) to keep topics separate
@@ -1506,7 +1510,7 @@ ros2 bag record \
 
 ### Network
 - Two interfaces: `eth0` (Go2 control, `192.168.123.0/24`) and `eth1` (LiDAR, `192.168.1.0/24`)
-- Mid-360 host dest is `255.255.255.255` broadcast — same config works across closed-net and home-LAN without reconfiguring
+- Mid-360's *on-device* outbound destination is `255.255.255.255` broadcast (set once in Livox Viewer 2) — keeps the lidar's config portable across networks. This does NOT mean the ROS driver's `host_net_info.*_ip` should be broadcast — those must be the Jetson's real IP; see Livox gotcha above.
 - The Jetson's `eth1` IP (e.g., `192.168.1.100`) can be anything on `192.168.1.0/24` **except** `.0`, `.201`, `.202`, `.203`, `.255`
 
 ### SLAM (FAST-LIO2 + RTABMap)
