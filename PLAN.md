@@ -716,6 +716,8 @@ Namespaces keep topics separate: `/d435_front/camera/depth/*` vs `/d435_rear/cam
 - [x] **Verify:** depth at ~30 Hz (`/d435_front/camera/depth/camera_info` → 28.74 Hz measured)
 - [ ] **Verify:** `jtop` → single-camera CPU ~10% (realsense node steady-state)
 
+**Bench visualization with Mid-360:** Phase 1.7 will publish the full TF tree via `robot_state_publisher`, but until then `start_bench_tf.sh` (repo root) publishes a single `livox_frame → camera_link` static TF — enough for Foxglove / RViz to render `/livox/lidar` and `/d435_front/camera/depth/color/points` in the same 3D panel. Offsets default to rough Go2 figures from §6.7; edit in place and re-run (idempotent). Verified end-to-end on the bench: both point clouds align in a Foxglove 3D panel with `Display frame = livox_frame`.
+
 ### 6.5 — WitMotion launch
 
 **`config/witmotion.yaml`:**

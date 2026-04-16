@@ -174,6 +174,37 @@ ros2 launch slam_bringup slam.launch.py       platform:=go2           # Phase 2.
 
 Swap `platform:=r2d2|roboscout|mecanum` when the rig moves. `enable_rear:=true` adds the D435i rear camera.
 
+### Helper start/kill scripts
+
+One-liner wrappers around the launches that also handle "the driver got wedged and is still holding sockets/USB" — each `start_*.sh` detects an existing instance and invokes the matching `kill_*.sh` before relaunching:
+
+| Script | Purpose |
+|--------|---------|
+| `./start_mid360.sh` | Launch Mid-360; auto-clean a stale `livox_ros_driver2_node` first |
+| `./kill_mid360.sh` | Force-kill the Mid-360 driver + its launch wrapper + `ros2 daemon stop` |
+| `./start_d435.sh` | Launch D435 front; auto-clean a stale `realsense2_camera_node` first |
+| `./kill_d435.sh` | Force-kill the D435 driver + its launch wrapper |
+| `./start_bench_tf.sh` | Publish `livox_frame → camera_link` static TF for multi-sensor visualization (see below) |
+| `./start_foxglove.sh` | Start `foxglove_bridge` on the Jetson for remote Studio/App connections |
+
+### View Mid-360 + D435 together in Foxglove / RViz
+
+The Mid-360 publishes clouds in `livox_frame`; the D435 publishes depth + pointcloud under `camera_link`. Until Phase 1.7 wires up a full URDF-driven TF tree via `robot_state_publisher`, those frames are disconnected and a 3D panel will only render one at a time (with a "transform not available" warning on the other). `start_bench_tf.sh` publishes a single static TF between them as a stopgap:
+
+```bash
+./start_mid360.sh &                  # terminal 1 — Mid-360 driver
+./start_d435.sh &                    # terminal 2 — D435 driver (raw mode → pointcloud on)
+./start_bench_tf.sh                  # terminal 3 — livox_frame → camera_link static TF
+```
+
+In Foxglove's 3D panel set **Display frame** to `livox_frame`, then add topics:
+
+- `/livox/lidar` — Mid-360 PointCloud2
+- `/d435_front/camera/depth/color/points` — D435 depth-projected PointCloud2 (raw mode only)
+- `/d435_front/camera/color/image_raw` — optional RGB image overlay
+
+Edit the `X/Y/Z/ROLL/PITCH/YAW` constants at the top of `start_bench_tf.sh` to match your measured rig offsets. Re-run the script after each edit — the idempotency check swaps the new transform in cleanly without leaving the old publisher around.
+
 ### Stopping the Mid-360 driver
 
 Ctrl-C does not always fully stop `livox_ros_driver2_node` — it can leave an orphan process holding UDP ports 56101/56201/56301/56401. Symptoms: the next `ros2 launch slam_bringup mid360.launch.py` starts but `ros2 topic info /livox/lidar` shows two publishers, or the driver fails to bind its listener sockets. Clean kill:
