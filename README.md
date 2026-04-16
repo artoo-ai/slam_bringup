@@ -79,6 +79,19 @@ ip -br addr show <IFACE>   # shows 192.168.1.100/24 — UP
 ping -c 3 192.168.1.202    # Mid-360 reachable (powered + cabled)
 ```
 
+### 5. Mid-360 driver host IP — keep in sync with step 2
+
+`config/mid360.json` has a `host_net_info` block with four `*_ip` fields (`cmd_data_ip`, `push_msg_ip`, `point_data_ip`, `imu_data_ip`). These are the addresses the **driver binds its UDP listener sockets to** — they must exactly equal the Jetson's IP chosen in step 2 (default `192.168.1.100`). They cannot be `255.255.255.255` or `0.0.0.0`; the driver silently fails to open its listeners and no `/livox/*` topics ever publish. The committed value is `192.168.1.100` — matches the default in step 2, so for most installs this just works.
+
+If you need to run on a Jetson with a different LiDAR-network IP (e.g. multi-Jetson rig, alternate subnet, home LAN), edit all four fields and rebuild:
+
+```bash
+sed -i 's/192\.168\.1\.100/<NEW_HOST_IP>/g' ~/slam_ws/src/slam_bringup/config/mid360.json
+cd ~/slam_ws && colcon build --packages-select slam_bringup --symlink-install
+```
+
+The lidar's own on-device destination (set once via Livox Viewer 2) is already broadcast `255.255.255.255`, so the lidar itself doesn't need reconfiguring when the host IP changes — only this file does.
+
 ### Troubleshooting
 
 - **Interface disappears on reboot** — plug order changes the systemd name. Pin it by its MAC with a udev rule, or rely on the nmcli `con-name` (which binds by name, not MAC — so pinning is optional).
