@@ -158,6 +158,28 @@ ros2 launch slam_bringup slam.launch.py       platform:=go2           # Phase 2.
 
 Swap `platform:=r2d2|roboscout|mecanum` when the rig moves. `enable_rear:=true` adds the D435i rear camera.
 
+### Stopping the Mid-360 driver
+
+Ctrl-C does not always fully stop `livox_ros_driver2_node` — it can leave an orphan process holding UDP ports 56101/56201/56301/56401. Symptoms: the next `ros2 launch slam_bringup mid360.launch.py` starts but `ros2 topic info /livox/lidar` shows two publishers, or the driver fails to bind its listener sockets. Clean kill:
+
+```bash
+pkill -SIGINT -f livox_ros_driver2_node     # try graceful first
+sleep 2
+pkill -9      -f livox_ros_driver2_node     # nuke if still alive
+pkill -9      -f "ros2 launch slam_bringup" # and the launch wrapper
+ros2 daemon stop                            # clear stale DDS discovery cache
+```
+
+Verify everything is gone:
+
+```bash
+pgrep -af livox                                    # no output = clean
+ss -uln | grep -E ':5610|:5620|:5630|:5640'        # no listeners = sockets released
+ros2 topic list | grep livox                       # (after re-sourcing) nothing
+```
+
+If `ss` still shows sockets held after the `pkill -9`, wait 30–60 s for the kernel's `SO_REUSEADDR` `TIME_WAIT` window to expire, or change the host ports in `config/mid360.json` as a last resort.
+
 ## Status
 
 Phase 1 in progress. Detailed task checklist in [PLAN.md](./PLAN.md).
