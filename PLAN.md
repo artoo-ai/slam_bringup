@@ -632,7 +632,6 @@ from launch.actions import IncludeLaunchDescription, GroupAction, DeclareLaunchA
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PythonExpression
-from launch_ros.actions import PushRosNamespace
 from ament_index_python.packages import get_package_share_directory
 
 
@@ -676,11 +675,11 @@ def generate_launch_description():
     front = GroupAction(
         condition=IfCondition(LaunchConfiguration('enable_front')),
         actions=[
-            PushRosNamespace('d435_front'),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(rs_launch),
                 launch_arguments={
-                    'camera_name':          'd435_front',
+                    'camera_namespace':     'd435_front',
+                    'camera_name':          'camera',
                     'device_type':          LaunchConfiguration('device_type_front'),
                     'enable_depth':         'true',
                     'enable_color':         'true',
@@ -688,8 +687,9 @@ def generate_launch_description():
                     'align_depth.enable':   slam,
                     'enable_gyro':          'false',
                     'enable_accel':         'false',
-                    'pointcloud.enable':    pc_enable,
-                    'depth_module.profile': '848x480x30',
+                    'pointcloud.enable':          pc_enable,
+                    'depth_module.depth_profile': '848x480x30',
+                    'rgb_camera.color_profile':   '848x480x30',
                 }.items(),
             ),
         ],
@@ -699,11 +699,11 @@ def generate_launch_description():
     rear = GroupAction(
         condition=IfCondition(LaunchConfiguration('enable_rear')),
         actions=[
-            PushRosNamespace('d435_rear'),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(rs_launch),
                 launch_arguments={
-                    'camera_name':          'd435_rear',
+                    'camera_namespace':     'd435_rear',
+                    'camera_name':          'camera',
                     'device_type':          LaunchConfiguration('device_type_rear'),
                     'enable_depth':         'true',
                     'enable_color':         'true',
@@ -711,8 +711,9 @@ def generate_launch_description():
                     'align_depth.enable':   slam,
                     'enable_gyro':          'false',     # D435i BMI055 disabled — WitMotion wins
                     'enable_accel':         'false',
-                    'pointcloud.enable':    pc_enable,
-                    'depth_module.profile': '848x480x30',
+                    'pointcloud.enable':          pc_enable,
+                    'depth_module.depth_profile': '848x480x30',
+                    'rgb_camera.color_profile':   '848x480x30',
                 }.items(),
             ),
         ],
@@ -731,15 +732,22 @@ def generate_launch_description():
 
 Namespaces keep topics separate: `/d435_front/camera/depth/*` vs `/d435_rear/camera/depth/*`. The D435i rear's BMI055 is disabled explicitly — running two IMU streams confuses state estimators.
 
+**Gotchas hit during bringup (realsense-ros 4.x on Humble):**
+
+- `depth_module.profile` is the realsense-ros **3.x** arg name. In 4.x it silently falls back to the default with a "Parameter not supported" warning. Use `depth_module.depth_profile` for depth and `rgb_camera.color_profile` for color — both set to `848x480x30` so depth/color are resolution-matched for `align_depth`.
+- `PushRosNamespace('d435_front')` + `camera_name='d435_front'` produces triple-nested topics like `/d435_front/camera/d435_front/color/image_raw` because rs_launch.py's default `camera_namespace` is `'camera'`. Set `camera_namespace='d435_front'` and leave `camera_name='camera'` instead — no PushRosNamespace needed.
+- Our top-level `DeclareLaunchArgument`s (`slam_mode`, `enable_front`, etc.) get forwarded through `IncludeLaunchDescription(rs_launch)` and land on the realsense node as unknown params, producing "Parameter not supported" warnings at startup. Cosmetic — the node ignores them. Fixing would require invoking `realsense2_camera_node` directly (skipping rs_launch.py), which is a future refactor.
+- `ros2 topic hz` on an Image topic doesn't work out-of-the-box: it subscribes with RELIABLE QoS while realsense publishes BEST_EFFORT — no QoS match, no rate. Verify rate via the matching `*/camera_info` topic (tiny messages, same publish cadence) or a QoS-matched rclpy subscriber.
+
 **Tasks:**
 
-- [ ] Create `launch/d435.launch.py` exactly as above
-- [ ] Rebuild + source
-- [ ] Launch single (default, front only): `ros2 launch slam_bringup d435.launch.py`
-- [ ] **Verify:** `ros2 topic list` shows only `/d435_front/...` topics (no `/d435_rear/`)
-- [ ] **Verify:** `ros2 topic hz /d435_front/camera/color/image_raw` → ~30 Hz
-- [ ] **Verify:** `ros2 topic hz /d435_front/camera/depth/image_rect_raw` → ~30 Hz
-- [ ] **Verify:** `jtop` → single-camera CPU ~10%
+- [x] Create `launch/d435.launch.py` exactly as above
+- [x] Rebuild + source
+- [x] Launch single (default, front only): `ros2 launch slam_bringup d435.launch.py`
+- [x] **Verify:** `ros2 topic list` shows only `/d435_front/...` topics (no `/d435_rear/`)
+- [x] **Verify:** color at ~30 Hz (`/d435_front/camera/color/camera_info` → 29.93 Hz measured)
+- [x] **Verify:** depth at ~30 Hz (`/d435_front/camera/depth/camera_info` → 28.74 Hz measured)
+- [ ] **Verify:** `jtop` → single-camera CPU ~10% (realsense node steady-state)
 
 ### 6.5 — WitMotion launch
 

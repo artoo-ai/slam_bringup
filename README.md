@@ -161,8 +161,11 @@ After each build the script runs package / launch / config sanity checks with �
 ros2 launch slam_bringup mid360.launch.py                   # xfer_format=0, RViz-viewable
 ros2 launch slam_bringup mid360.launch.py xfer_format:=1    # CustomMsg for FAST-LIO2
 
+# D435 front (Phase 1.4 — works today; rear defaults off, SLAM mode toggles align_depth)
+ros2 launch slam_bringup d435.launch.py                     # front-only, raw mode (pointcloud on)
+ros2 launch slam_bringup d435.launch.py slam_mode:=true     # front-only, SLAM mode (align_depth on, pointcloud off)
+
 # Planned (not yet implemented — see PLAN.md phases below)
-ros2 launch slam_bringup d435.launch.py      enable_rear:=true        # Phase 1.4
 ros2 launch slam_bringup witmotion.launch.py                          # Phase 1.5
 ros2 launch slam_bringup sensors.launch.py                            # Phase 1.6
 ros2 launch slam_bringup perception.launch.py platform:=go2           # Phase 1.7
@@ -201,7 +204,7 @@ Phase 1 in progress. Detailed task checklist in [PLAN.md](./PLAN.md).
 - [x] Phase 0.5 — repo + Mac↔Jetson workflow
 - [x] Phase 1.1–1.2 — `install.sh` + package skeleton
 - [x] Phase 1.3 — Mid-360 standalone
-- [ ] Phase 1.4 — D435 (front + optional rear)
+- [x] Phase 1.4 — D435 front standalone (rear launch scaffolded; dual is Phase 1.10)
 - [ ] Phase 1.5 — WitMotion
 - [ ] Phase 1.6 — `sensors.launch.py` integration
 - [ ] Phase 1.7 — URDF (`go2`, `r2d2`, `roboscout`, `mecanum`) + `perception.launch.py` + rviz
