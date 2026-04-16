@@ -182,7 +182,7 @@ Ctrl-C does not always fully stop `livox_ros_driver2_node` — it can leave an o
 pkill -SIGINT -f livox_ros_driver2_node     # try graceful first
 sleep 2
 pkill -9      -f livox_ros_driver2_node     # nuke if still alive
-pkill -9      -f "ros2 launch slam_bringup" # and the launch wrapper
+pkill -9      -f "ros2 launch slam_bringup mid360" # and the launch wrapper
 ros2 daemon stop                            # clear stale DDS discovery cache
 ```
 
