@@ -624,119 +624,86 @@ def generate_launch_description():
 
 Three independent launch arguments: `enable_front` (default `true`), `enable_rear` (default `false`), `slam_mode` (default `false`). Default is **front-only in raw mode** — add the second camera only when ready to measure bandwidth. `device_type_front` / `device_type_rear` are parameterized now so a D435→D455 swap later is a launch-arg change only.
 
+We invoke `realsense2_camera_node` directly with `Node()` rather than including the vendor's `rs_launch.py`. `rs_launch.py` maintains a hard-coded `configurable_parameters` list and silently drops any launch argument not in it — notably `pointcloud__neon_.enable`, the ARM NEON-accelerated pointcloud filter name that realsense2_camera v4.57.7 actually declares on Jetson (see gotchas). Going direct also removes rs_launch.py's "Parameter not supported" spam for every top-level `DeclareLaunchArgument` (`slam_mode`, `enable_front`, etc.).
+
 **`launch/d435.launch.py`:**
 
 ```python
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, GroupAction, DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, GroupAction
 from launch.conditions import IfCondition
-from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PythonExpression
-from ament_index_python.packages import get_package_share_directory
+from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    realsense_share = get_package_share_directory('realsense2_camera')
-    rs_launch = f'{realsense_share}/launch/rs_launch.py'
-
     slam_mode_arg = DeclareLaunchArgument(
         'slam_mode',
         default_value='false',
         description='true = align_depth on, own pointcloud off (for RTABMap); false = raw mode',
     )
-    enable_front_arg = DeclareLaunchArgument(
-        'enable_front',
-        default_value='true',
-        description='Launch the D435 front camera',
-    )
-    enable_rear_arg = DeclareLaunchArgument(
-        'enable_rear',
-        default_value='false',
-        description='Launch the D435i rear camera (default off — enable when ready to test dual-camera)',
-    )
-    device_type_front_arg = DeclareLaunchArgument(
-        'device_type_front',
-        default_value='d435',
-        description='Front camera device_type (d435, d455 for outdoor swap)',
-    )
-    device_type_rear_arg = DeclareLaunchArgument(
-        'device_type_rear',
-        default_value='d435i',
-        description='Rear camera device_type',
-    )
+    enable_front_arg = DeclareLaunchArgument('enable_front', default_value='true')
+    enable_rear_arg  = DeclareLaunchArgument('enable_rear',  default_value='false')
+    device_type_front_arg = DeclareLaunchArgument('device_type_front', default_value='d435',
+        description='Front camera device_type (d435, d455 for outdoor swap)')
+    device_type_rear_arg  = DeclareLaunchArgument('device_type_rear',  default_value='d435i')
 
     slam = LaunchConfiguration('slam_mode')
 
-    # In SLAM mode: align_depth ON, RealSense pointcloud OFF (RTABMap builds its own)
-    # In raw mode: align_depth OFF, RealSense pointcloud ON (for direct RViz use)
+    # Raw mode: pointcloud ON (direct Foxglove/RViz use).
+    # SLAM mode: pointcloud OFF (RTABMap builds its own), align_depth ON.
     pc_enable = PythonExpression(["'false' if '", slam, "' == 'true' else 'true'"])
 
-    # Front camera — D435 (no IMU in sensor)
+    def realsense_node(namespace, device_type_arg):
+        return Node(
+            package='realsense2_camera',
+            executable='realsense2_camera_node',
+            namespace=namespace,
+            name='camera',
+            output='screen',
+            emulate_tty=True,
+            parameters=[{
+                'device_type':                LaunchConfiguration(device_type_arg),
+                'enable_depth':               True,
+                'enable_color':               True,
+                'enable_infra':               False,  # left IR + right IR not needed —
+                'enable_infra1':              False,  # bypassing rs_launch.py means we
+                'enable_infra2':              False,  # inherit the node's own defaults
+                'enable_sync':                True,
+                'align_depth.enable':         slam,
+                'enable_gyro':                False,  # D435 has no IMU; D435i's BMI055 is disabled —
+                'enable_accel':               False,  # WitMotion is the authoritative IMU.
+                'pointcloud__neon_.enable':   pc_enable,  # Jetson NEON filter name
+                'pointcloud.enable':          pc_enable,  # x86 / generic name
+                'depth_module.depth_profile': '848x480x30',
+                'rgb_camera.color_profile':   '848x480x30',
+            }],
+        )
+
     front = GroupAction(
         condition=IfCondition(LaunchConfiguration('enable_front')),
-        actions=[
-            IncludeLaunchDescription(
-                PythonLaunchDescriptionSource(rs_launch),
-                launch_arguments={
-                    'camera_namespace':     'd435_front',
-                    'camera_name':          'camera',
-                    'device_type':          LaunchConfiguration('device_type_front'),
-                    'enable_depth':         'true',
-                    'enable_color':         'true',
-                    'enable_sync':          'true',
-                    'align_depth.enable':   slam,
-                    'enable_gyro':          'false',
-                    'enable_accel':         'false',
-                    'pointcloud.enable':          pc_enable,
-                    'depth_module.depth_profile': '848x480x30',
-                    'rgb_camera.color_profile':   '848x480x30',
-                }.items(),
-            ),
-        ],
+        actions=[realsense_node('d435_front', 'device_type_front')],
     )
-
-    # Rear camera — D435i (has built-in BMI055 IMU — disable, WitMotion is authoritative)
     rear = GroupAction(
         condition=IfCondition(LaunchConfiguration('enable_rear')),
-        actions=[
-            IncludeLaunchDescription(
-                PythonLaunchDescriptionSource(rs_launch),
-                launch_arguments={
-                    'camera_namespace':     'd435_rear',
-                    'camera_name':          'camera',
-                    'device_type':          LaunchConfiguration('device_type_rear'),
-                    'enable_depth':         'true',
-                    'enable_color':         'true',
-                    'enable_sync':          'true',
-                    'align_depth.enable':   slam,
-                    'enable_gyro':          'false',     # D435i BMI055 disabled — WitMotion wins
-                    'enable_accel':         'false',
-                    'pointcloud.enable':          pc_enable,
-                    'depth_module.depth_profile': '848x480x30',
-                    'rgb_camera.color_profile':   '848x480x30',
-                }.items(),
-            ),
-        ],
+        actions=[realsense_node('d435_rear', 'device_type_rear')],
     )
 
     return LaunchDescription([
-        slam_mode_arg,
-        enable_front_arg,
-        enable_rear_arg,
-        device_type_front_arg,
-        device_type_rear_arg,
-        front,
-        rear,
+        slam_mode_arg, enable_front_arg, enable_rear_arg,
+        device_type_front_arg, device_type_rear_arg,
+        front, rear,
     ])
 ```
 
-Namespaces keep topics separate: `/d435_front/camera/depth/*` vs `/d435_rear/camera/depth/*`. The D435i rear's BMI055 is disabled explicitly — running two IMU streams confuses state estimators.
+Namespaces keep topics separate: `/d435_front/camera/depth/*` vs `/d435_rear/camera/depth/*`. The D435i rear's BMI055 is disabled explicitly — running two IMU streams confuses state estimators. IR streams (`enable_infra1` / `enable_infra2`) are disabled too; rs_launch.py turned them off by default, and when we bypass rs_launch.py we inherit the node's own defaults (which leave IR **on**), so we re-disable explicitly.
 
-**Gotchas hit during bringup (realsense-ros 4.x on Humble):**
+**Gotchas hit during bringup (realsense-ros 4.57.7 on Humble/Jetson):**
 
-- `depth_module.profile` is the realsense-ros **3.x** arg name. In 4.x it silently falls back to the default with a "Parameter not supported" warning. Use `depth_module.depth_profile` for depth and `rgb_camera.color_profile` for color — both set to `848x480x30` so depth/color are resolution-matched for `align_depth`.
-- `PushRosNamespace('d435_front')` + `camera_name='d435_front'` produces triple-nested topics like `/d435_front/camera/d435_front/color/image_raw` because rs_launch.py's default `camera_namespace` is `'camera'`. Set `camera_namespace='d435_front'` and leave `camera_name='camera'` instead — no PushRosNamespace needed.
-- Our top-level `DeclareLaunchArgument`s (`slam_mode`, `enable_front`, etc.) get forwarded through `IncludeLaunchDescription(rs_launch)` and land on the realsense node as unknown params, producing "Parameter not supported" warnings at startup. Cosmetic — the node ignores them. Fixing would require invoking `realsense2_camera_node` directly (skipping rs_launch.py), which is a future refactor.
+- `depth_module.profile` is the realsense-ros **3.x** arg name. In 4.x it silently falls back to the default with a "Parameter not supported" warning. Use `depth_module.depth_profile` + `rgb_camera.color_profile` — both set to `848x480x30` so depth/color are resolution-matched for `align_depth`.
+- `PushRosNamespace('d435_front')` + `camera_name='d435_front'` produces triple-nested topics like `/d435_front/camera/d435_front/color/image_raw` because rs_launch.py's default `camera_namespace` is `'camera'`. With direct `Node(namespace='d435_front', name='camera')` we just get `/d435_front/camera/color/image_raw`.
+- **rs_launch.py silently drops unknown launch args.** Line 119–125: it builds `supported_params = set(configurable_parameters)`, warns on any launch argument outside that set, and (crucially) only forwards the supported set to the node. Any custom param like `pointcloud__neon_.enable` passed through `IncludeLaunchDescription(launch_arguments={...})` is lost. The only safe ways around it are (a) invoke the node directly (what we do now), (b) pass a YAML via `config_file` (rs_launch.py merges YAML params into the node even if they're "unsupported"), or (c) `ros2 param set` after launch.
+- **Pointcloud filter param name is `pointcloud__neon_.enable` on Jetson**, not `pointcloud.enable`. realsense2_camera v4.57.7 on ARM NEON declares the pointcloud filter under `pointcloud__neon_.*`; `pointcloud.enable` is not declared on this build and setting it is a silent no-op. x86 builds likely declare the canonical `pointcloud.enable`. We set **both** names in the params dict so whichever the running node declares wins. Verify with `ros2 param list /d435_front/camera | grep pointcloud` after launch — on Jetson you'll see `pointcloud__neon_.*`.
 - `ros2 topic hz` on an Image topic doesn't work out-of-the-box: it subscribes with RELIABLE QoS while realsense publishes BEST_EFFORT — no QoS match, no rate. Verify rate via the matching `*/camera_info` topic (tiny messages, same publish cadence) or a QoS-matched rclpy subscriber.
 
 **Tasks:**
