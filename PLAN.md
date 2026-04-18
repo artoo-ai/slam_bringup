@@ -720,59 +720,53 @@ Namespaces keep topics separate: `/d435_front/camera/depth/*` vs `/d435_rear/cam
 
 ### 6.5 — WitMotion launch
 
-**`config/witmotion.yaml`:**
+**Driver decision (changed from original plan):** the actual sensor plate uses a **WT901C** (USB-C variant) which emits the modern WT9011-style `0x55 0x61` combined accel+gyro+angle packet (20 bytes, no checksum). The ElettraSar/witmotion_ros driver we install via `install.sh` only registers legacy packet IDs `0x51`–`0x54` (`witmotion-uart-qt/include/witmotion/types.h:44-47`) and silently drops every byte from this device. Rather than patch a Qt-heavy upstream we don't otherwise need, we ship a small Python parser inside `slam_bringup` itself.
 
-```yaml
-witmotion_imu:
-  ros__parameters:
-    port: /dev/ttyUSB0       # pin via `ls /dev/serial/by-id/` for stable path
-    baud: 9600               # WT901B default; bump to 115200 if reconfigured
-    frequency: 200
-    frame_id: imu_link
-    use_native_orientation: true
+**Live capture proves the protocol:** at 115200 baud the device emits packets like
 ```
-
-**`launch/witmotion.launch.py`:**
-
-```python
-from pathlib import Path
-from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import Node
-from ament_index_python.packages import get_package_share_directory
-
-
-def generate_launch_description():
-    bringup_share = Path(get_package_share_directory('slam_bringup'))
-    default_params = bringup_share / 'config' / 'witmotion.yaml'
-
-    params_arg = DeclareLaunchArgument('params_file', default_value=str(default_params))
-    frame_id_arg = DeclareLaunchArgument('frame_id', default_value='imu_link')
-
-    witmotion_node = Node(
-        package='witmotion_ros',
-        executable='witmotion_ros_node',
-        name='witmotion_imu',
-        output='screen',
-        parameters=[
-            LaunchConfiguration('params_file'),
-            {'frame_id': LaunchConfiguration('frame_id')},
-        ],
-        remappings=[('/imu', '/imu/data')],
-    )
-
-    return LaunchDescription([params_arg, frame_id_arg, witmotion_node])
+55 61 13 00 b2 01 dd 07 00 00 00 00 00 00 ab 08 9b ff 0a b7
 ```
+where bytes 6–7 (LE) = `0x07dd` = 2013 → 2013/32768 × 16g = 0.984 g ≈ 9.64 m/s² on Z (gravity, sensor laid flat). Per the WT9011DCL/BWT901CL spec: `header(1) + type(1) + AccXYZ(3×i16) + GyroXYZ(3×i16) + AngleXYZ(3×i16)` = 20 bytes back-to-back, no trailing checksum.
+
+**Pre-bringup gotchas (Jetson Orin Nano Super, JetPack 6 / kernel 5.15.185-tegra):**
+
+1. **No `ch341.ko` in the L4T kernel.** `lsusb` enumerates the WT901C's CH340 (`1a86:7523`) but `/dev/ttyUSB*` never appears. The Tegra kernel only ships `cp210x.ko` + `ftdi_sio.ko` for USB-serial. Build the out-of-tree module:
+   ```bash
+   git clone https://github.com/juliagoda/CH341SER.git ~/CH341SER
+   cd ~/CH341SER && make && sudo make install   # persistent across reboots
+   ```
+2. **`brltty` hijacks CH340 devices** (it thinks they're braille displays). Mask both services or the kernel module never gets to claim the device:
+   ```bash
+   sudo systemctl stop brltty.service brltty-udev.service
+   sudo systemctl mask brltty.service brltty-udev.service
+   ```
+3. **`pyserial` is not installed by default.** `sudo apt install -y python3-serial`.
+4. **WT901C ships at 10 Hz from the factory and ignores volatile rate writes** — the unlock+rate sequence has no effect unless followed by a SAVE (`0xFF 0xAA 0x00 0x00 0x00`) which writes EEPROM. We tested this: unlock+rate alone leaves the device at 10 Hz, unlock+rate+save → 200 Hz sustained. Our node defaults to `output_rate_hz: 0` (= don't reconfigure) and exposes a one-time `output_rate_hz:=200` override for explicit re-flash. EEPROM is rated ~10k writes — fine for occasional one-shot reconfiguration, not for every launch.
+5. **Python entry-point scripts land in `bin/` not `lib/<pkg>/` by default.** `ros2 launch` looks in `lib/<pkg>/`, so without a `setup.cfg` redirecting `install_scripts`, every launch fails with `libexec directory ... does not exist`. Required:
+   ```ini
+   [develop]
+   script_dir=$base/lib/slam_bringup
+   [install]
+   install_scripts=$base/lib/slam_bringup
+   ```
+
+**`config/witmotion.yaml`:** simple — port, baud, frame, topic, optional rate override (default 0 = trust EEPROM). See the file for the inline comments explaining each field.
+
+**`launch/witmotion.launch.py`:** invokes our own `slam_bringup wt901c_imu` entry point with the yaml as `params_file`. No `name=` override (the C++ ElettraSar driver hardcodes its name; we follow the same convention to keep yaml resolution simple).
+
+**Parser node:** `slam_bringup/slam_bringup/wt901c_imu_node.py` — pyserial reader, syncs on `0x55 0x61`, parses 18 bytes, converts angle triplet → quaternion, publishes `sensor_msgs/Imu` to `/imu/data`. Periodic stats log (`stats_period_sec`, default 5s) reports actual Hz and resync-byte count.
 
 **Tasks:**
 
 - [ ] Find stable serial path: `ls /dev/serial/by-id/` — note the WitMotion entry; update `config/witmotion.yaml` to use `/dev/serial/by-id/<id>` instead of `/dev/ttyUSB0` to survive reboots
-- [ ] Create `config/witmotion.yaml` and `launch/witmotion.launch.py`
-- [ ] Rebuild + source
-- [ ] Launch: `ros2 launch slam_bringup witmotion.launch.py`
-- [ ] **Verify:** `ros2 topic hz /imu/data` → ~200 Hz
-- [ ] **Verify:** `ros2 topic echo /imu/data --once` shows sane values — gravity ≈ 9.8 m/s² on Z-axis when sensor plate is level
+- [x] Build `juliagoda/CH341SER` kernel module + mask `brltty` so `/dev/ttyUSB0` appears
+- [x] `sudo apt install -y python3-serial`
+- [x] Create `config/witmotion.yaml`, `launch/witmotion.launch.py`, `slam_bringup/wt901c_imu_node.py`, `setup.cfg`
+- [x] Rebuild + source
+- [x] One-time bring-up: `ros2 launch slam_bringup witmotion.launch.py output_rate_hz:=200` to burn 200 Hz to EEPROM
+- [x] Launch: `ros2 launch slam_bringup witmotion.launch.py`
+- [x] **Verify:** `ros2 topic hz /imu/data` → ~200 Hz (measured 198.1–198.7 Hz over multiple 5s windows, 0 resync drops)
+- [x] **Verify:** `ros2 topic echo /imu/data --once` shows sane values — gravity ≈ 9.8 m/s² on Z-axis when sensor plate is level (measured `linear_acceleration.z = 9.64`, `|a| = 9.86`)
 
 ### 6.6 — sensors.launch.py integration
 
@@ -803,12 +797,20 @@ def generate_launch_description():
 
 **Tasks:**
 
-- [ ] Create `launch/sensors.launch.py`
-- [ ] Rebuild + source
-- [ ] Launch: `ros2 launch slam_bringup sensors.launch.py`
-- [ ] **Verify:** `ros2 topic list` shows expected topics from all three sensors
-- [ ] **Verify:** All Hz rates from §6.3 / §6.4 / §6.5 remain nominal when launched together
-- [ ] **Verify:** `jtop` baseline → CPU ~30%, RAM ~500 MB
+**As-built notes (deviations from the snippet above):**
+
+- The minimal `IncludeLaunchDescription`-only composition above became **`GroupAction(condition=IfCondition(...))`-wrapped includes** so each sensor can be skipped at launch time (`enable_mid360:=false`, etc.) without editing this file. Useful when isolating a single driver under load.
+- Forwards three pass-through args to per-sensor launches: `slam_mode` → d435, `lidar_xfer_format` → mid360 (renamed from `xfer_format` for clarity at the composition level), `enable_rear` → d435. These are passed via explicit `launch_arguments={...}.items()` rather than relying on LaunchConfiguration auto-propagation, so the wiring is grep-able.
+- Companion scripts: `start_sensors.sh` chains the per-sensor `kill_*.sh` for idempotent re-launch (each driver clings to its resource differently — UDP sockets, USB handle, serial port). `kill_sensors.sh` does the same teardown without re-launching.
+
+**Tasks:**
+
+- [x] Create `launch/sensors.launch.py`, `start_sensors.sh`, `kill_sensors.sh`
+- [x] Rebuild + source
+- [x] Launch: `ros2 launch slam_bringup sensors.launch.py` (or `./start_sensors.sh` for idempotent variant)
+- [x] **Verify:** `ros2 topic list` shows `/livox/lidar`, `/livox/imu`, `/d435_front/camera/{color,depth}/*`, `/imu/data` from a single launch
+- [x] **Verify:** publisher-side rates remain nominal — `/livox/imu` 199.7 Hz, wt901c_imu's internal stats log shows 198.5 Hz sustained on `/imu/data`, `/d435 color` ~29 Hz. *Caveat:* `ros2 topic hz` measured against the sensors-up Jetson while a desktop session was running (rviz2 + foxglove + rustdesk + chrome eating ~250% CPU, load avg 10.94/6) showed degraded subscriber-side rates on the bandwidth-heavy topics (`/livox/lidar` 7.6 vs 10, `/d435 depth` 23 vs 30). Re-run with the GUI tools closed for a clean measurement.
+- [ ] **Verify:** `jtop` baseline → CPU ~30%, RAM ~500 MB *(pending — needs measurement on a clean Jetson with no GUI session)*
 
 ### 6.7 — URDF / TF tree (per-platform + shared sensor macro)
 

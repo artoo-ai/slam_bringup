@@ -2,6 +2,34 @@
 
 Portable sensor-rig SLAM stack for ROS2 Humble. One NVIDIA Jetson Orin Nano Super + one sensor plate moves between multiple mobile robots; the package selects per-platform URDF + TF bridge offsets at launch time.
 
+## Startup commands (current — Phase 1.6)
+
+Each line is its own terminal (so each driver group gets its own log stream and Ctrl-C kills only that one). All commands assume `~/.bashrc` already sources `/opt/ros/humble/setup.bash` + `~/slam_ws/install/setup.bash` — see [Shell environment](#shell-environment-source-before-ros2-commands) below.
+
+```bash
+# Terminal 1 — All three sensors (Mid-360 + D435 + WitMotion) in one launch
+cd ~/slam_ws/src/slam_bringup && ./start_sensors.sh
+
+# Terminal 2 — livox_frame → camera_link static TF (bench stopgap until Phase 1.7 URDF)
+cd ~/slam_ws/src/slam_bringup && ./start_bench_tf.sh
+
+# Terminal 3 (optional) — Foxglove bridge for remote Studio/App viewing
+cd ~/slam_ws/src/slam_bringup && ./start_foxglove.sh
+```
+
+Then in Foxglove (or RViz2) set **Display Frame / Fixed Frame** to `livox_frame` and add `/livox/lidar` + `/d435_front/camera/depth/color/points` as PointCloud2 displays. RViz2 dropdown won't list `livox_frame` — type it into the field.
+
+Common `start_sensors.sh` arg overrides:
+
+```bash
+./start_sensors.sh slam_mode:=true                  # for RTABMap (D435 align_depth on, pointcloud off)
+./start_sensors.sh lidar_xfer_format:=1             # for FAST-LIO2 (Mid-360 emits CustomMsg)
+./start_sensors.sh enable_rear:=true                # bring up the D435i rear camera (Phase 1.10)
+./start_sensors.sh enable_witmotion:=false          # drop one sensor for isolated debugging
+```
+
+This section tracks the **latest working command set** for whatever phase is current. As Phase 1.7+ comes online, lines get added or replaced (eventually `slam.launch.py platform:=...`). Check the [Status](#status) section for what's wired up.
+
 ## Sensors (shared across all platforms)
 
 - **Livox Mid-360** — 360° × 59° non-repetitive LiDAR with built-in ICM40609 IMU (primary for FAST-LIO2)
@@ -184,6 +212,10 @@ One-liner wrappers around the launches that also handle "the driver got wedged a
 | `./kill_mid360.sh` | Force-kill the Mid-360 driver + its launch wrapper + `ros2 daemon stop` |
 | `./start_d435.sh` | Launch D435 front; auto-clean a stale `realsense2_camera_node` first |
 | `./kill_d435.sh` | Force-kill the D435 driver + its launch wrapper |
+| `./start_witmotion.sh` | Launch WT901C `wt901c_imu` Python node; auto-clean a stale instance first |
+| `./kill_witmotion.sh` | Force-kill the WitMotion node + its launch wrapper |
+| `./start_sensors.sh` | Launch all three sensors via `sensors.launch.py`; pre-cleans every per-sensor driver before relaunching |
+| `./kill_sensors.sh` | Chain `kill_mid360.sh` + `kill_d435.sh` + `kill_witmotion.sh`, then nuke the parent launch wrapper |
 | `./start_bench_tf.sh` | Publish `livox_frame → camera_link` static TF for multi-sensor visualization (see below) |
 | `./start_foxglove.sh` | Start `foxglove_bridge` on the Jetson for remote Studio/App connections |
 
@@ -236,8 +268,8 @@ Phase 1 in progress. Detailed task checklist in [PLAN.md](./PLAN.md).
 - [x] Phase 1.1–1.2 — `install.sh` + package skeleton
 - [x] Phase 1.3 — Mid-360 standalone
 - [x] Phase 1.4 — D435 front standalone (rear launch scaffolded; dual is Phase 1.10)
-- [ ] Phase 1.5 — WitMotion
-- [ ] Phase 1.6 — `sensors.launch.py` integration
+- [x] Phase 1.5 — WitMotion WT901C (custom 0x61 Python node, 200 Hz on `/imu/data`)
+- [x] Phase 1.6 — `sensors.launch.py` integration (single-command bring-up of all three sensors)
 - [ ] Phase 1.7 — URDF (`go2`, `r2d2`, `roboscout`, `mecanum`) + `perception.launch.py` + rviz
 - [ ] Phase 1.8 — Go2 SDK integration check
 - [ ] Phase 1.9 — `install.sh` smoke test
