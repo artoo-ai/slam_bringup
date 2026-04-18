@@ -2,9 +2,11 @@
 
 Portable sensor-rig SLAM stack for ROS2 Humble. One NVIDIA Jetson Orin Nano Super + one sensor plate moves between multiple mobile robots; the package selects per-platform URDF + TF bridge offsets at launch time.
 
-## Startup commands (current — Phase 1.6)
+## Startup commands (current — Phase 2.2)
 
 Each line is its own terminal (so each driver group gets its own log stream and Ctrl-C kills only that one). All commands assume `~/.bashrc` already sources `/opt/ros/humble/setup.bash` + `~/slam_ws/install/setup.bash` — see [Shell environment](#shell-environment-source-before-ros2-commands) below.
+
+**Sensor-only bench workflow (Foxglove visualization, no SLAM):**
 
 ```bash
 # Terminal 1 — All three sensors (Mid-360 + D435 + WitMotion) in one launch
@@ -17,7 +19,24 @@ cd ~/slam_ws/src/slam_bringup && ./start_bench_tf.sh
 cd ~/slam_ws/src/slam_bringup && ./start_foxglove.sh
 ```
 
-Then in Foxglove (or RViz2) set **Display Frame / Fixed Frame** to `livox_frame` and add `/livox/lidar` + `/d435_front/camera/depth/color/points` as PointCloud2 displays. RViz2 dropdown won't list `livox_frame` — type it into the field.
+In Foxglove: set **Display Frame / Fixed Frame** to `livox_frame` and add `/livox/lidar` + `/d435_front/camera/depth/color/points` as PointCloud2 displays.
+
+**FAST-LIO2 SLAM workflow** (odometry + incremental point-cloud map):
+
+```bash
+# Terminal 1 — Mid-360 in CustomMsg mode (FAST-LIO2 subscribes to this format,
+# not PointCloud2). Skip D435 + WitMotion since FAST-LIO2 uses the Mid-360's
+# onboard IMU only — drops CPU contention during pose bring-up.
+cd ~/slam_ws/src/slam_bringup && ./start_sensors.sh lidar_xfer_format:=1 enable_d435:=false enable_witmotion:=false
+
+# Terminal 2 — FAST-LIO2 mapping
+cd ~/slam_ws/src/slam_bringup && ./start_fast_lio.sh
+
+# Terminal 3 (optional) — Foxglove bridge
+cd ~/slam_ws/src/slam_bringup && ./start_foxglove.sh
+```
+
+In Foxglove: set **Display Frame** to `camera_init` (FAST-LIO2's world frame). Add `/cloud_registered` (PointCloud2 — accumulated map, world frame) and `/Odometry` (Pose or Path visualization) as displays. Move the rig and the cloud builds outward from origin in real time.
 
 Common `start_sensors.sh` arg overrides:
 
@@ -28,7 +47,7 @@ Common `start_sensors.sh` arg overrides:
 ./start_sensors.sh enable_witmotion:=false          # drop one sensor for isolated debugging
 ```
 
-This section tracks the **latest working command set** for whatever phase is current. As Phase 1.7+ comes online, lines get added or replaced (eventually `slam.launch.py platform:=...`). Check the [Status](#status) section for what's wired up.
+This section tracks the **latest working command set** for whatever phase is current. As Phase 2.4+ comes online, lines get added or replaced (eventually `slam.launch.py platform:=...`). Check the [Status](#status) section for what's wired up.
 
 ## Sensors (shared across all platforms)
 
@@ -216,6 +235,8 @@ One-liner wrappers around the launches that also handle "the driver got wedged a
 | `./kill_witmotion.sh` | Force-kill the WitMotion node + its launch wrapper |
 | `./start_sensors.sh` | Launch all three sensors via `sensors.launch.py`; pre-cleans every per-sensor driver before relaunching |
 | `./kill_sensors.sh` | Chain `kill_mid360.sh` + `kill_d435.sh` + `kill_witmotion.sh`, then nuke the parent launch wrapper |
+| `./start_fast_lio.sh` | Launch FAST-LIO2 (`fastlio_mapping`) against `/livox/lidar` CustomMsg + `/livox/imu`; auto-clean a stale instance first |
+| `./kill_fast_lio.sh` | Force-kill the FAST-LIO2 node + its launch wrapper |
 | `./start_bench_tf.sh` | Publish `livox_frame → camera_link` static TF for multi-sensor visualization (see below) |
 | `./start_foxglove.sh` | Start `foxglove_bridge` on the Jetson for remote Studio/App connections |
 
@@ -270,6 +291,7 @@ Phase 1 in progress. Detailed task checklist in [PLAN.md](./PLAN.md).
 - [x] Phase 1.4 — D435 front standalone (rear launch scaffolded; dual is Phase 1.10)
 - [x] Phase 1.5 — WitMotion WT901C (custom 0x61 Python node, 200 Hz on `/imu/data`)
 - [x] Phase 1.6 — `sensors.launch.py` integration (single-command bring-up of all three sensors)
+- [x] Phase 2.2 — FAST-LIO2 (`/Odometry` at 10 Hz, `/cloud_registered` accumulating in `camera_init`) *— jumped ahead of Phase 1.7–1.10 since URDF is only needed for the RTABMap bridge*
 - [ ] Phase 1.7 — URDF (`go2`, `r2d2`, `roboscout`, `mecanum`) + `perception.launch.py` + rviz
 - [ ] Phase 1.8 — Go2 SDK integration check
 - [ ] Phase 1.9 — `install.sh` smoke test

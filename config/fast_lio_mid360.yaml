@@ -1,0 +1,45 @@
+# FAST-LIO2 config for Livox Mid-360 + its built-in ICM40609 IMU.
+#
+# We use the Mid-360's onboard IMU (200 Hz, factory-calibrated extrinsic
+# to the LiDAR head), NOT the WitMotion WT901C. FAST-LIO2 needs the IMU
+# to be hardware-time-synchronized to the LiDAR scans; that's only true
+# of the Mid-360 IMU. The WitMotion is reserved for any downstream
+# consumer that wants a higher-rate independent attitude reference.
+#
+# scan_bodyframe_pub_en MUST be true — RTABMap (Phase 7.4) subscribes to
+# /cloud_registered_body. Leaving it false breaks the RTABMap integration
+# with no obvious error message.
+
+/**:
+    ros__parameters:
+        common:
+            lid_topic:  "/livox/lidar"
+            imu_topic:  "/livox/imu"
+            time_sync_en: false
+            time_offset_lidar_to_imu: 0.0
+
+        preprocess:
+            lidar_type: 1                 # 1 = Livox
+            scan_line: 4
+            blind: 0.5
+
+        mapping:
+            acc_cov: 0.1
+            gyr_cov: 0.1
+            b_acc_cov: 0.0001
+            b_gyr_cov: 0.0001
+            fov_degree: 360.0
+            det_range:  100.0
+            extrinsic_est_en: false       # set true once to auto-calibrate, then lock to false
+            # Livox Mid-360 IMU→LiDAR extrinsic, from the device datasheet
+            # (millimeters): x=-11.0, y=-23.29, z=44.12 → meters below.
+            extrinsic_T: [ -0.011, -0.02329, 0.04412 ]
+            extrinsic_R: [ 1.0, 0.0, 0.0,
+                           0.0, 1.0, 0.0,
+                           0.0, 0.0, 1.0 ]
+
+        publish:
+            path_en:  true
+            scan_publish_en:  true
+            dense_publish_en: true
+            scan_bodyframe_pub_en: true   # REQUIRED — RTABMap subscribes to /cloud_registered_body

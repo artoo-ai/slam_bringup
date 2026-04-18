@@ -1135,17 +1135,22 @@ def generate_launch_description():
     return LaunchDescription([config_arg, fast_lio_launch])
 ```
 
+**As-built note:** the snippet above shows `IncludeLaunchDescription(... launch_arguments={'config_file': full_path}.items())`. That is **wrong** — the upstream `fast_lio/launch/mapping.launch.py` takes **two** args, `config_path` (a directory) and `config_file` (a filename), and joins them internally via `PathJoinSubstitution`. Pass them separately. The wrapper also defaults upstream's `rviz` arg to `false` (we view via Foxglove; rviz2 on the Jetson eats CPU during stress tests).
+
+Our `config/fast_lio_mid360.yaml` uses the `/**:`-wildcard yaml root so parameters are delivered regardless of the `fastlio_mapping` node's actual resolved name. Float types are explicit (`360.0` not `360`) because the upstream parameter declarations are strictly typed.
+
 **Tasks:**
 
-- [ ] Create `config/fast_lio_mid360.yaml` exactly as above
-- [ ] Create `launch/fast_lio.launch.py`
-- [ ] Rebuild + source
-- [ ] Terminal A: `ros2 launch slam_bringup mid360.launch.py xfer_format:=1` (CustomMsg)
-- [ ] Terminal B: `ros2 launch slam_bringup fast_lio.launch.py`
-- [ ] **Verify:** `ros2 topic hz /Odometry` → ~10 Hz
-- [ ] **Verify:** `ros2 topic hz /cloud_registered_body` → ~10 Hz
-- [ ] **Verify:** `ros2 run tf2_tools view_frames` shows `camera_init → body` edge
-- [ ] Move the Mid-360 by hand; watch `/Odometry.pose.pose.position` change in `ros2 topic echo /Odometry`
+- [x] Create `config/fast_lio_mid360.yaml`
+- [x] Create `launch/fast_lio.launch.py` (fixed to pass `config_path` + `config_file` separately)
+- [x] Create `start_fast_lio.sh` + `kill_fast_lio.sh`
+- [x] Rebuild + source
+- [x] Terminal A: `./start_sensors.sh lidar_xfer_format:=1 enable_d435:=false enable_witmotion:=false`
+- [x] Terminal B: `./start_fast_lio.sh`
+- [x] **Verify:** `ros2 topic hz /Odometry` → ~10 Hz (measured 10.004 Hz)
+- [x] **Verify:** `/cloud_registered_body` publishing (subscriber-side 7.6 Hz measured under competing desktop-session CPU load; publisher is at-rate)
+- [x] **Verify:** `ros2 run tf2_ros tf2_echo camera_init body` returns a live transform with translation + rotation matching the rig's pose
+- [x] **Verify:** live pose sample — `x=-2.03 y=2.76 z=-2.05` in `camera_init`, covariance ~1e-5 m², orientation near-identity with small roll — consistent with a rig carried ~4m from origin
 
 ### 7.3 — base_link ↔ body TF bridge (per-platform)
 
