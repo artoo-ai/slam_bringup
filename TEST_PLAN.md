@@ -515,3 +515,32 @@ When all TEST-1.6.* boxes are `[x]`:
 # Phase 2 — SLAM layer (placeholder)
 
 *FAST-LIO2 + RTABMap. Initial test `start_fast_lio.sh` already on disk. Full test section to be written when Phase 2 work begins: odometry stability, loop closure, octomap quality, RTABMap database persistence.*
+
+## Phase 2 — hard-won constraints (lock these in up front)
+
+Preconditions to bake into every Phase 2 motion test before judging SLAM quality:
+
+### Environment
+
+- **Test in a furnished space** — living room, lab bench with equipment, hallway with doorframes. Mid-360 needs vertical structure within ~5 m to form plane correspondences. An empty table in an empty room will drift unrecoverably even with ideal config. Verified 2026-04-20 on gizmo: living-room floor converges cleanly after ~30 s; empty sensor-bench-in-spare-room diverges.
+- **30 s settle time from cold start is normal.** FAST-LIO2's ESKF learns accel/gyro biases with `b_*_cov: 0.0001` (intentionally slow). Do not flag early drift as a failure unless it persists past the first minute or grows nonlinearly.
+- Rig must be **mechanically stable during init** — no cable tug, no one handling it. Vibration from the buck-converter fan or a slack USB cable injects low-frequency accel noise that corrupts gravity estimation and seeds a slow orbital drift.
+
+### Mount method during walking tests
+
+Mid-360 has a 360° horizontal FOV. **Body occlusion during walking is a failure mode, not a workaround to tolerate.** When the sensor is carried at hip/chest height, the operator's torso blocks 60–90° of azimuth, making ICP correspondences asymmetric. That asymmetry quietly biases the yaw-bias estimate. When the rig is set down, the baked-in bias causes pose to orbit the true stopping point — a characteristic "circling" failure that does not recover on its own.
+
+Pick one of the following mount methods for walking tests, and record which one was used in the test results log:
+
+1. **Overhead pole** (preferred for solo operator) — Mid-360 mounted on an extended pole ~30 cm above the operator's head. Keeps the horizontal FOV clear of the body.
+2. **Cart/trolley mount** — rig on top of a rolling cart, pushed from behind. Operator stays behind the LiDAR's forward arc.
+3. **Helmet / shoulder mount** — acceptable if the hardware is there; still partially occludes downward but keeps 270°+ of horizontal FOV clear.
+4. **Handheld, extended in front** — *fallback only*. Arm fully extended, walk at <0.5 m/s, no sharp rotations. Document in the results log that this mount method was used — drift/orbit results under handheld-chest-height should be discarded, not logged as a FAST-LIO defect.
+
+### What to log in Phase 2 motion-test results
+
+For each motion test, record alongside the numeric drift measurements:
+- Mount method used (from list above).
+- Environment (room name, approximate size, density: sparse / moderate / furnished).
+- Time between `./start_fast_lio.sh` and first motion (must be ≥ 30 s).
+- Whether RTABMap loop closure was running. **FAST-LIO2 alone is LIO, not SLAM** — it has no loop closure, so any walking-loop test that returns to the start location will show accumulated drift at the end. That is expected, not a failure of FAST-LIO. Only judge loop-closure quality when RTABMap is in the loop.

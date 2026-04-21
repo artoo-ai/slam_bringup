@@ -1081,7 +1081,7 @@ common:
 preprocess:
     lidar_type: 1                 # 1 = Livox
     scan_line: 4
-    blind: 0.5
+    blind: 0.2                    # see "blind vs rig height" note below
 
 mapping:
     acc_cov: 0.1
@@ -1095,6 +1095,8 @@ mapping:
     extrinsic_R: [ 1, 0, 0,
                    0, 1, 0,
                    0, 0, 1 ]
+    filter_size_surf: 0.3         # overrides FAST-LIO's 0.5m default
+    filter_size_map:  0.3         # overrides FAST-LIO's 0.5m default
 
 publish:
     path_en:  true
@@ -1139,11 +1141,17 @@ def generate_launch_description():
 
 Our `config/fast_lio_mid360.yaml` uses the `/**:`-wildcard yaml root so parameters are delivered regardless of the `fastlio_mapping` node's actual resolved name. Float types are explicit (`360.0` not `360`) because the upstream parameter declarations are strictly typed.
 
+**Deviations from the Ericsii/FAST_LIO_ROS2 sample config** (validated 2026-04-20/21 on gizmo — do not revert without understanding the failure mode each fixes):
+
+- `blind: 0.2` (sample: `0.5`). Mid-360 is mounted ~0.3 m above the floor on our portable rig. With `blind: 0.5`, every ground-plane return is discarded as "too close"; FAST-LIO then has nothing constraining Z translation, the stationary accel bias (~0.02 g horizontal) integrates unchecked, and the pose dives through the floor until ICP loses correspondences — `No Effective Points!` then SIGSEGV. `0.2` keeps ground returns while still rejecting self-hits from the 2020/2040 frame (tightest frame member is >20 cm from the LiDAR head). Raise this only if the Mid-360 is mounted >0.6 m up (top of a Go2 or a tall cart).
+- `filter_size_surf: 0.3` and `filter_size_map: 0.3` (FAST-LIO defaults: `0.5` both). Mid-360's non-repetitive scan pattern delivers a sparse per-sweep cloud. At `0.5 m` voxel size, downsampling leaves too few surf points for ICP to find correspondences in indoor/cluttered spaces — same "No Effective Points!" failure mode. `0.3 m` preserves enough points per scan while still rate-limiting map growth.
+- IMU unit note for future debugging: the Livox driver publishes accel in **g-units** (comment in `livox_ros_driver2/src/comm/lidar_imu_data_queue.h`), not m/s². FAST-LIO auto-adapts via `acc_avr * G_m_s2 / mean_acc.norm()` in `IMU_Processing.hpp:260`, so this is **not** a bug. Do not "fix" the driver to multiply accel by 9.81 — doing so will double-apply the scale.
+
 **Tasks:**
 
 - [x] Create `config/fast_lio_mid360.yaml`
 - [x] Create `launch/fast_lio.launch.py` (fixed to pass `config_path` + `config_file` separately)
-- [x] Create `start_fast_lio.sh` + `kill_fast_lio.sh`
+- [x] Create `start_fast_lio.sh` + `kill_fast_lio.sh` (script preflights for Mid-360 CustomMsg publisher before launching FAST-LIO)
 - [x] Rebuild + source
 - [x] Terminal A: `./start_sensors.sh lidar_xfer_format:=1 enable_d435:=false enable_witmotion:=false`
 - [x] Terminal B: `./start_fast_lio.sh`
@@ -1151,6 +1159,7 @@ Our `config/fast_lio_mid360.yaml` uses the `/**:`-wildcard yaml root so paramete
 - [x] **Verify:** `/cloud_registered_body` publishing (subscriber-side 7.6 Hz measured under competing desktop-session CPU load; publisher is at-rate)
 - [x] **Verify:** `ros2 run tf2_ros tf2_echo camera_init body` returns a live transform with translation + rotation matching the rig's pose
 - [x] **Verify:** live pose sample — `x=-2.03 y=2.76 z=-2.05` in `camera_init`, covariance ~1e-5 m², orientation near-identity with small roll — consistent with a rig carried ~4m from origin
+- [x] **Verify (2026-04-21, living room floor):** 5-minute stationary hold after 30 s cold-start settle — pose stable to within centimeters. Empty-room bench-table test diverged; furnished-space test converges. See TEST_PLAN.md *Phase 2 — hard-won constraints* for environment/mount requirements.
 
 ### 7.3 — base_link ↔ body TF bridge (per-platform)
 

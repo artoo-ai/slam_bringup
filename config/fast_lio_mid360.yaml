@@ -21,7 +21,13 @@
         preprocess:
             lidar_type: 1                 # 1 = Livox
             scan_line: 4
-            blind: 0.5
+            # blind was 0.5 — too aggressive for a rig mounted <0.5m above
+            # the floor/table. That filtered out the ground plane, leaving
+            # FAST-LIO with no Z constraint, so accel bias drove the pose
+            # straight down. 0.2m keeps ground returns while still rejecting
+            # bumper/self-hits from the 2020/2040 frame itself (tightest
+            # frame member is >20cm from the LiDAR head).
+            blind: 0.2
 
         mapping:
             acc_cov: 0.1
@@ -30,6 +36,13 @@
             b_gyr_cov: 0.0001
             fov_degree: 360.0
             det_range:  100.0
+            # Finer voxel grid than FAST-LIO's 0.5m default. Mid-360 scans
+            # are point-sparse per sweep — with 0.5m voxels, indoor rooms
+            # downsample to too few points for ICP to find correspondences
+            # ("No Effective Points!" then drift). 0.3m keeps enough points
+            # per scan while still rate-limiting map growth.
+            filter_size_surf: 0.3
+            filter_size_map:  0.3
             extrinsic_est_en: false       # set true once to auto-calibrate, then lock to false
             # Livox Mid-360 IMU→LiDAR extrinsic, from the device datasheet
             # (millimeters): x=-11.0, y=-23.29, z=44.12 → meters below.
