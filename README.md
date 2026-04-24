@@ -287,6 +287,63 @@ ros2 topic list | grep livox                       # (after re-sourcing) nothing
 
 If `ss` still shows sockets held after the `pkill -9`, wait 30–60 s for the kernel's `SO_REUSEADDR` `TIME_WAIT` window to expire, or change the host ports in `config/mid360.json` as a last resort.
 
+### LiDAR diagnostics (`scripts/lidar_diagnostics.py`)
+
+Standalone health-check for the Mid-360 data stream. Subscribes to `/livox/lidar` (CustomMsg or PointCloud2) and `/livox/imu` for a fixed duration, then prints a six-part report. Does NOT touch FAST-LIO2 — safe to run alongside any workflow.
+
+**Prerequisites:**
+
+```bash
+source /opt/ros/humble/setup.bash
+source ~/slam_ws/install/setup.bash   # REQUIRED so livox_ros_driver2.msg.CustomMsg imports
+```
+
+**Run it:**
+
+```bash
+# Fixture on floor (LiDAR ~0.254 m above floor)
+python3 ~/slam_ws/src/slam_bringup/scripts/lidar_diagnostics.py --ros-args \
+    -p duration:=10.0 -p lidar_height:=0.254 -p blind:=0.5
+
+# Fixture on 38" table (LiDAR ~1.2 m above floor)
+python3 ~/slam_ws/src/slam_bringup/scripts/lidar_diagnostics.py --ros-args \
+    -p duration:=10.0 -p lidar_height:=1.2 -p blind:=0.5
+```
+
+Parameters:
+- `duration` — seconds to capture (default 10)
+- `lidar_height` — LiDAR height above ground in meters (used to predict blind ring radius and filter ground returns)
+- `blind` — current FAST-LIO2 `blind` setting; drives the self-hit vs. near-field classification
+
+**What each section tells you:**
+
+| Section | What it checks | How to interpret |
+|---------|----------------|------------------|
+| 1. Self-hit detection | Points inside `blind` (filtered) vs points in `blind`-`blind+0.3m` band (leaking into FAST-LIO2) | Near-field points clustered in a single azimuth sector = fixture reflections; raise `blind`. Spread evenly = legitimate room returns; leave `blind` alone. |
+| 2. Ground return analysis | Expected blind-ring radius vs. observed ground returns | `lidar_height / tan(7°)` = nearest ground radius. No returns = room smaller than that, FAST-LIO2 has no Z-constraint from ground. |
+| 3. Feature density | Raw points/scan, useful points after `blind` filter | <2000 useful = FAST-LIO2 will struggle. 15k+ = healthy. |
+| 4. IMU/LiDAR timestamps | Captured rates, period jitter, LiDAR↔IMU stamp offset | Script capture rate is GIL-limited (~100 Hz IMU, ~3 Hz LiDAR) — those numbers are lower bounds, not hardware truth. FAST-LIO2 receives full 200/10 Hz. Only flag >50 ms stamp offset if capture rate is ≥150 Hz. |
+| 5. Azimuth occlusion map | Points per 10° bin, excluding self-hits | Bins <30% of mean = occluded sector (fixture shadow, body part blocking scan, obstacle in FOV). Even distribution = clean horizontal coverage. |
+| 6. Range histogram | Point distribution by distance | Tells you the scale of the surrounding structure. Room with walls at 2-5 m will peak there; empty open space shows sparse distant bins. |
+
+**Findings from the 2040 fixture test session (2026-04-23):**
+
+Running on the benchtop (fixture LiDAR ~1.2 m above floor) with the original `blind: 0.2` revealed two real problems masked by the filter config:
+
+1. **Fixture ghost points** — 2,975 points per 10 s in the 0.2-0.5 m band were passing through `blind: 0.2` and entering the Kalman filter. The azimuth correlation showed they clustered in two sectors (-90° to -60° and +120° to +150°), which matched the 2040 extrusion frame members and the battery/buck-converter assembly. These ghost points were corrupting the pose update.
+2. **Missing ground plane** — On the table, the expected blind-ring radius was 9.77 m; the room was smaller, so zero ground returns arrived. FAST-LIO2 had no Z-constraint from floor geometry, so accelerometer bias started driving the pose downward after ~20 seconds.
+
+Fix was to raise `blind` to 0.5 in `config/fast_lio_mid360.yaml`:
+
+- Catches ALL fixture hits (verified: 0 points leak through in follow-up runs)
+- Does NOT cost any useful data — on the floor the nearest legitimate ground return is at 2.07 m (well beyond 0.5 m blind), on the table the nearest structure is ~1 m away
+- Post-fix floor test showed 8,197 ground returns detected (nearest 1.59 m, median 3.19 m) giving FAST-LIO2 a solid Z anchor
+- FAST-LIO2 then ran stable for 3+ minutes with no visible drift (vs. 20 s before)
+
+**Root-cause lesson:** `blind` is not just a self-hit filter — for a compact rig, it's the line between "noise from my own frame corrupts the state estimate" and "clean room returns drive the filter." Set `blind` ≥ the largest radial distance from the LiDAR optical center to any component in the fixture (frame, plate, battery, cabling). Verify with this diagnostic whenever the rig geometry changes.
+
+See `docs/test_fixture.md` for fixture dimensions, derived geometry at each mounting position, and test history.
+
 ## Status
 
 Phase 1 in progress. Detailed task checklist in [PLAN.md](./PLAN.md).
