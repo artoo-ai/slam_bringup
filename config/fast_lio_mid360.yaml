@@ -21,13 +21,11 @@
         preprocess:
             lidar_type: 1                 # 1 = Livox
             scan_line: 4
-            # blind was 0.5 — too aggressive for a rig mounted <0.5m above
-            # the floor/table. That filtered out the ground plane, leaving
-            # FAST-LIO with no Z constraint, so accel bias drove the pose
-            # straight down. 0.2m keeps ground returns while still rejecting
-            # bumper/self-hits from the 2020/2040 frame itself (tightest
-            # frame member is >20cm from the LiDAR head).
-            blind: 0.2
+            # 0.5m filters fixture self-hits (2040 frame, battery, buck
+            # converter) confirmed at 0.2-0.5m in -90°/-60° and +120°/+150°
+            # azimuths. Nearest ground return is 2.07m (floor, 9" fixture)
+            # or 9.77m (table), so 0.5m blind never touches ground data.
+            blind: 0.5
 
         mapping:
             acc_cov: 0.1
