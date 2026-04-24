@@ -55,6 +55,12 @@ Mid-360 vertical FOV: -7° to +52°
   about 20 seconds before degrading. Likely cause: insufficient Z constraint
   (ground returns only beyond 2 m) or feature starvation as non-repetitive
   scan pattern hadn't filled in enough structure.
+- **2026-04-23 (after blind 0.2→0.5 fix)**: FAST-LIO2 ran stable for 3+
+  minutes on floor with no visible drift. Diagnostics confirmed 8197 ground
+  returns (nearest 1.59m, median 3.19m) providing Z constraint, and zero
+  fixture hits leaking past the blind filter. Root cause of original drift
+  was fixture ghost points in the 0.2-0.5m band (-90°/-60° and +120°/+150°
+  azimuths) corrupting the Kalman filter.
 - No tilt mount on this fixture — full -7° to +52° vertical FOV aimed level.
 - IMU time sync handled by Mid-360 internal ICM40609 (time_sync_en: false).
 - `blind: 0.2` in config — 2040 frame tightest member is >20 cm from LiDAR head.
