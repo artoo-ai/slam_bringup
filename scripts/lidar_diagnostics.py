@@ -12,6 +12,7 @@ a configurable duration, then prints a report covering:
   6. Range histogram
 
 Supports both xfer_format=0 (PointCloud2) and xfer_format=1 (CustomMsg).
+Uses MultiThreadedExecutor to capture IMU at full 200 Hz.
 
 Usage:
   python3 lidar_diagnostics.py --ros-args \
@@ -21,12 +22,13 @@ Usage:
 """
 
 import math
-import struct
-import sys
-from collections import defaultdict
+import threading
+import time
 
 import numpy as np
 import rclpy
+from rclpy.executors import MultiThreadedExecutor
+from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
 from rclpy.time import Time
 from sensor_msgs.msg import Imu, PointCloud2, PointField
@@ -97,6 +99,7 @@ class LidarDiagnostics(Node):
         self.all_elevations = []
         self.self_hit_counts = []
         self.near_field_counts = []
+        self.near_field_azimuths = []
         self.ground_ranges = []
 
         self.lidar_stamps = []
@@ -104,21 +107,27 @@ class LidarDiagnostics(Node):
 
         self.scan_count = 0
         self.start_time = None
+        self.done = False
         self.msg_type_name = "unknown"
+
+        cb_group = ReentrantCallbackGroup()
 
         if HAS_CUSTOM_MSG:
             self.custom_sub = self.create_subscription(
-                CustomMsg, "/livox/lidar", self.custom_msg_cb, 10
+                CustomMsg, "/livox/lidar", self.custom_msg_cb, 10,
+                callback_group=cb_group
             )
             self.pc2_sub = self.create_subscription(
-                PointCloud2, "/livox/lidar", self.pc2_cb, 10
+                PointCloud2, "/livox/lidar", self.pc2_cb, 10,
+                callback_group=cb_group
             )
             self.get_logger().info(
                 "Subscribed to /livox/lidar (CustomMsg + PointCloud2 fallback)"
             )
         else:
             self.pc2_sub = self.create_subscription(
-                PointCloud2, "/livox/lidar", self.pc2_cb, 10
+                PointCloud2, "/livox/lidar", self.pc2_cb, 10,
+                callback_group=cb_group
             )
             self.get_logger().warn(
                 "livox_ros_driver2 not found — PointCloud2 only. "
@@ -127,7 +136,8 @@ class LidarDiagnostics(Node):
             )
 
         self.imu_sub = self.create_subscription(
-            Imu, "/livox/imu", self.imu_cb, 50
+            Imu, "/livox/imu", self.imu_cb, 200,
+            callback_group=cb_group
         )
 
         self.get_logger().info(
@@ -158,6 +168,7 @@ class LidarDiagnostics(Node):
 
         elapsed = (now - self.start_time).nanoseconds / 1e9
         if elapsed > self.duration:
+            self.done = True
             return
 
         self.scan_count += 1
@@ -179,9 +190,12 @@ class LidarDiagnostics(Node):
         self.all_elevations.extend(elevation.tolist())
 
         self_hits = int(np.sum(r_3d < self.blind))
-        near_field = int(np.sum((r_3d >= self.blind) & (r_3d < 0.5)))
+        near_mask = (r_3d >= self.blind) & (r_3d < 0.5)
+        near_field = int(np.sum(near_mask))
         self.self_hit_counts.append(self_hits)
         self.near_field_counts.append(near_field)
+        if near_field > 0:
+            self.near_field_azimuths.extend(azimuth[near_mask].tolist())
 
         ground_z_min = -self.lidar_height - 0.05
         ground_z_max = -self.lidar_height + 0.05
@@ -217,16 +231,39 @@ class LidarDiagnostics(Node):
         total_self = sum(self.self_hit_counts)
         total_near = sum(self.near_field_counts)
         total_pts = sum(self.scan_points_counts)
-        print(f"Points inside blind ({self.blind}m): {total_self}")
+
+        print(f"Points < {self.blind}m (filtered by FAST-LIO2 blind): {total_self}")
         if total_self > 0:
-            print(f"  WARNING: {total_self} points passed through blind filter")
-            print(f"  These are self-hits from fixture/plate/battery")
-        print(f"Points in near-field ({self.blind}-0.5m): {total_near}")
-        if total_near > 100:
-            print(f"  NOTE: {total_near} near-field points — check if these are")
-            print(f"  fixture reflections or legitimate returns")
-        if total_self == 0 and total_near < 50:
-            print(f"  OK: minimal self-hits, blind={self.blind}m is appropriate")
+            pct = 100.0 * total_self / total_pts if total_pts > 0 else 0
+            print(f"  {pct:.1f}% of raw points — these are fixture self-hits")
+            print(f"  FAST-LIO2 blind={self.blind}m filters ALL of these (OK)")
+
+        print(f"Points {self.blind}-0.5m (PASS through blind filter): {total_near}")
+        if total_near > 0:
+            near_pct = 100.0 * total_near / total_pts if total_pts > 0 else 0
+            print(f"  {near_pct:.1f}% of raw points — these ENTER FAST-LIO2")
+            if self.near_field_azimuths:
+                nf_az = np.array(self.near_field_azimuths)
+                bin_width = 30
+                bins = np.arange(-180, 181, bin_width)
+                hist, _ = np.histogram(nf_az, bins=bins)
+                peak_idx = np.argmax(hist)
+                peak_lo, peak_hi = bins[peak_idx], bins[peak_idx + 1]
+                peak_pct = 100.0 * hist[peak_idx] / len(nf_az) if len(nf_az) > 0 else 0
+                print(f"  Near-field azimuth concentration:")
+                for i in range(len(hist)):
+                    if hist[i] > 0:
+                        lo, hi = bins[i], bins[i + 1]
+                        pct = 100.0 * hist[i] / len(nf_az)
+                        marker = " << FIXTURE?" if pct > 30 else ""
+                        print(f"    {lo:+4d}° to {hi:+4d}°: {hist[i]:5d} ({pct:4.1f}%){marker}")
+                if peak_pct > 30:
+                    print(f"  LIKELY FIXTURE HITS — concentrated at {peak_lo:+d}° to {peak_hi:+d}°")
+                    print(f"  Consider raising blind to 0.5")
+                else:
+                    print(f"  Spread across azimuths — likely legitimate room returns")
+        elif total_self == 0:
+            print(f"  OK: no self-hits, blind={self.blind}m is appropriate")
 
         # 2. Ground return analysis
         print("\n--- 2. GROUND RETURN ANALYSIS ---")
@@ -249,16 +286,21 @@ class LidarDiagnostics(Node):
 
         # 3. Feature density
         print("\n--- 3. FEATURE DENSITY PER SCAN ---")
-        print(f"Points per scan — min: {pts.min()}, max: {pts.max()}, "
-              f"mean: {pts.mean():.0f}, std: {pts.std():.0f}")
-        if pts.mean() < 2000:
-            print(f"  WARNING: very low feature density (<2000 mean)")
-            print(f"  FAST-LIO2 may fail to find correspondences")
-            print(f"  Check point_filter_num (should be 1 for Mid-360)")
-        elif pts.mean() < 5000:
-            print(f"  CAUTION: moderate density — may be marginal indoors")
+        if total_pts > 0:
+            useful_per_scan = (total_pts - total_self) / self.scan_count if self.scan_count > 0 else 0
+            print(f"Raw points per scan — min: {pts.min()}, max: {pts.max()}, "
+                  f"mean: {pts.mean():.0f}")
+            print(f"After blind filter — ~{useful_per_scan:.0f} pts/scan enter FAST-LIO2")
+            if useful_per_scan < 2000:
+                print(f"  WARNING: very low useful density (<2000)")
+                print(f"  Check point_filter_num (should be 1 for Mid-360)")
+            elif useful_per_scan < 5000:
+                print(f"  CAUTION: moderate density — may be marginal indoors")
+            else:
+                print(f"  OK: sufficient feature density")
         else:
-            print(f"  OK: sufficient feature density")
+            print(f"Points per scan — min: {pts.min()}, max: {pts.max()}, mean: {pts.mean():.0f}")
+            print(f"  WARNING: no point data collected")
 
         # 4. Timestamp alignment
         print("\n--- 4. IMU/LIDAR TIMESTAMP ALIGNMENT ---")
@@ -269,14 +311,23 @@ class LidarDiagnostics(Node):
             imu_rate = 1000.0 / np.mean(imu_dt) if np.mean(imu_dt) > 0 else 0
             lidar_rate = 1000.0 / np.mean(lidar_dt) if np.mean(lidar_dt) > 0 else 0
 
-            print(f"IMU samples: {len(self.imu_stamps)}, rate: {imu_rate:.1f} Hz")
-            print(f"LiDAR scans: {len(self.lidar_stamps)}, rate: {lidar_rate:.1f} Hz")
+            print(f"IMU samples: {len(self.imu_stamps)}, rate: {imu_rate:.1f} Hz (expect ~200)")
+            print(f"LiDAR scans: {len(self.lidar_stamps)}, rate: {lidar_rate:.1f} Hz (expect ~10)")
 
-            imu_start = self.imu_stamps[0]
-            lidar_start = self.lidar_stamps[0]
-            offset_ms = (lidar_start - imu_start) / 1e6
-            print(f"First-stamp offset (LiDAR - IMU): {offset_ms:.2f} ms")
-            if abs(offset_ms) > 50:
+            if imu_rate < 150:
+                print(f"  WARNING: IMU rate low — may indicate dropped messages")
+            if lidar_rate < 8:
+                print(f"  WARNING: LiDAR rate low — may indicate dropped scans")
+
+            imu_arr = np.array(self.imu_stamps)
+            lidar_arr = np.array(self.lidar_stamps)
+            offsets = []
+            for ls in lidar_arr[:10]:
+                idx = np.argmin(np.abs(imu_arr - ls))
+                offsets.append((ls - imu_arr[idx]) / 1e6)
+            mean_offset = np.mean(offsets)
+            print(f"Mean LiDAR↔IMU stamp offset (nearest pairs): {mean_offset:.2f} ms")
+            if abs(mean_offset) > 50:
                 print(f"  WARNING: >50ms offset — check time_sync_en")
             else:
                 print(f"  OK: timestamps aligned (same hardware clock)")
@@ -293,12 +344,16 @@ class LidarDiagnostics(Node):
         print("\n--- 5. AZIMUTH OCCLUSION MAP ---")
         if self.all_azimuths:
             az = np.array(self.all_azimuths)
+            r = np.array(self.all_ranges)
+            valid = r >= self.blind
+            az_valid = az[valid]
+
             bin_width = 10
             bins = np.arange(-180, 181, bin_width)
-            hist, _ = np.histogram(az, bins=bins)
+            hist, _ = np.histogram(az_valid, bins=bins)
             mean_count = np.mean(hist)
 
-            print(f"Points per {bin_width}° azimuth bin (mean={mean_count:.0f}):")
+            print(f"Points per {bin_width}° azimuth bin (excluding self-hits, mean={mean_count:.0f}):")
             sparse_bins = []
             for i in range(len(hist)):
                 lo = bins[i]
@@ -335,21 +390,35 @@ class LidarDiagnostics(Node):
                 hi = range_bins[i + 1]
                 pct = 100.0 * hist[i] / total if total > 0 else 0
                 bar = "#" * min(int(pct), 40)
-                print(f"  {lo:5.1f} - {hi:5.1f}m: {hist[i]:8d} ({pct:5.1f}%) {bar}")
+                in_blind = " [filtered by blind]" if hi <= self.blind else ""
+                print(f"  {lo:5.1f} - {hi:5.1f}m: {hist[i]:8d} ({pct:5.1f}%) {bar}{in_blind}")
         else:
             print("  No point data")
 
         # Summary
         print("\n--- SUMMARY ---")
         issues = []
-        if total_self > 0:
-            issues.append(f"Self-hits detected ({total_self} pts) — consider raising blind")
+        if total_near > 100 and self.near_field_azimuths:
+            nf_az = np.array(self.near_field_azimuths)
+            bins = np.arange(-180, 181, 30)
+            hist, _ = np.histogram(nf_az, bins=bins)
+            if len(nf_az) > 0 and np.max(hist) / len(nf_az) > 0.3:
+                issues.append(
+                    f"Near-field fixture hits ({total_near} pts) passing blind filter — "
+                    f"consider blind: 0.5"
+                )
         if not self.ground_ranges:
             issues.append("No ground returns — FAST-LIO2 lacks Z constraint at this height")
-        if pts.mean() < 2000:
-            issues.append(f"Low feature density ({pts.mean():.0f} pts/scan)")
+        if total_pts > 0:
+            useful = total_pts - total_self
+            useful_per = useful / self.scan_count if self.scan_count > 0 else 0
+            if useful_per < 2000:
+                issues.append(f"Low useful feature density ({useful_per:.0f} pts/scan)")
         if len(self.imu_stamps) > 1:
             imu_dt = np.diff(self.imu_stamps) / 1e6
+            imu_rate = 1000.0 / np.mean(imu_dt) if np.mean(imu_dt) > 0 else 0
+            if imu_rate < 150:
+                issues.append(f"IMU rate low ({imu_rate:.0f} Hz, expect 200)")
             if np.std(imu_dt) > 2.0:
                 issues.append(f"High IMU jitter ({np.std(imu_dt):.1f}ms)")
 
@@ -366,14 +435,15 @@ class LidarDiagnostics(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = LidarDiagnostics()
+    executor = MultiThreadedExecutor(num_threads=4)
+    executor.add_node(node)
+
+    spin_thread = threading.Thread(target=executor.spin, daemon=True)
+    spin_thread.start()
 
     try:
-        while rclpy.ok():
-            rclpy.spin_once(node, timeout_sec=0.1)
-            if node.start_time is not None:
-                elapsed = (node.get_clock().now() - node.start_time).nanoseconds / 1e9
-                if elapsed > node.duration + 0.5:
-                    break
+        while rclpy.ok() and not node.done:
+            time.sleep(0.1)
     except KeyboardInterrupt:
         pass
 
