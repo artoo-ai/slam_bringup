@@ -2,8 +2,8 @@
 """
 Mid-360 LiDAR diagnostics for the 2040 test fixture.
 
-Subscribes to /livox/lidar and /livox/imu for a configurable duration,
-then prints a report covering:
+Subscribes to /livox/lidar (CustomMsg or PointCloud2) and /livox/imu for
+a configurable duration, then prints a report covering:
   1. Self-hit detection (points inside blind range)
   2. Ground return analysis (blind ring radius)
   3. Feature density per scan
@@ -11,8 +11,10 @@ then prints a report covering:
   5. Azimuth occlusion map (fixture shadow sectors)
   6. Range histogram
 
+Supports both xfer_format=0 (PointCloud2) and xfer_format=1 (CustomMsg).
+
 Usage:
-  ros2 run slam_bringup lidar_diagnostics --ros-args \
+  python3 lidar_diagnostics.py --ros-args \
       -p duration:=10.0 \
       -p lidar_height:=0.254 \
       -p blind:=0.2
@@ -28,6 +30,22 @@ import rclpy
 from rclpy.node import Node
 from rclpy.time import Time
 from sensor_msgs.msg import Imu, PointCloud2, PointField
+
+try:
+    from livox_ros_driver2.msg import CustomMsg
+    HAS_CUSTOM_MSG = True
+except ImportError:
+    HAS_CUSTOM_MSG = False
+
+
+def read_points_from_custom_msg(msg):
+    """Extract x, y, z arrays from a livox CustomMsg."""
+    if len(msg.points) == 0:
+        return np.empty(0), np.empty(0), np.empty(0)
+    x = np.array([p.x for p in msg.points], dtype=np.float32)
+    y = np.array([p.y for p in msg.points], dtype=np.float32)
+    z = np.array([p.z for p in msg.points], dtype=np.float32)
+    return x, y, z
 
 
 def read_points_from_pc2(msg: PointCloud2):
@@ -86,10 +104,28 @@ class LidarDiagnostics(Node):
 
         self.scan_count = 0
         self.start_time = None
+        self.msg_type_name = "unknown"
 
-        self.lidar_sub = self.create_subscription(
-            PointCloud2, "/livox/lidar", self.lidar_cb, 10
-        )
+        if HAS_CUSTOM_MSG:
+            self.custom_sub = self.create_subscription(
+                CustomMsg, "/livox/lidar", self.custom_msg_cb, 10
+            )
+            self.pc2_sub = self.create_subscription(
+                PointCloud2, "/livox/lidar", self.pc2_cb, 10
+            )
+            self.get_logger().info(
+                "Subscribed to /livox/lidar (CustomMsg + PointCloud2 fallback)"
+            )
+        else:
+            self.pc2_sub = self.create_subscription(
+                PointCloud2, "/livox/lidar", self.pc2_cb, 10
+            )
+            self.get_logger().warn(
+                "livox_ros_driver2 not found — PointCloud2 only. "
+                "If using xfer_format:=1, run: "
+                "source ~/slam_ws/install/setup.bash"
+            )
+
         self.imu_sub = self.create_subscription(
             Imu, "/livox/imu", self.imu_cb, 50
         )
@@ -99,7 +135,23 @@ class LidarDiagnostics(Node):
             f"lidar_height={self.lidar_height}m | blind={self.blind}m"
         )
 
-    def lidar_cb(self, msg: PointCloud2):
+    def custom_msg_cb(self, msg):
+        if self.msg_type_name == "PointCloud2":
+            return
+        if self.msg_type_name == "unknown":
+            self.msg_type_name = "CustomMsg"
+            self.get_logger().info("Receiving CustomMsg (xfer_format=1)")
+        self._process_scan(msg.header, *read_points_from_custom_msg(msg))
+
+    def pc2_cb(self, msg):
+        if self.msg_type_name == "CustomMsg":
+            return
+        if self.msg_type_name == "unknown":
+            self.msg_type_name = "PointCloud2"
+            self.get_logger().info("Receiving PointCloud2 (xfer_format=0)")
+        self._process_scan(msg.header, *read_points_from_pc2(msg))
+
+    def _process_scan(self, header, x, y, z):
         now = self.get_clock().now()
         if self.start_time is None:
             self.start_time = now
@@ -109,10 +161,9 @@ class LidarDiagnostics(Node):
             return
 
         self.scan_count += 1
-        stamp_ns = Time.from_msg(msg.header.stamp).nanoseconds
+        stamp_ns = Time.from_msg(header.stamp).nanoseconds
         self.lidar_stamps.append(stamp_ns)
 
-        x, y, z = read_points_from_pc2(msg)
         if len(x) == 0:
             self.scan_points_counts.append(0)
             return
@@ -317,7 +368,6 @@ def main(args=None):
     node = LidarDiagnostics()
 
     try:
-        end_time = None
         while rclpy.ok():
             rclpy.spin_once(node, timeout_sec=0.1)
             if node.start_time is not None:
@@ -329,7 +379,10 @@ def main(args=None):
 
     node.print_report()
     node.destroy_node()
-    rclpy.shutdown()
+    try:
+        rclpy.shutdown()
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":
