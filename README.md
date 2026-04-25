@@ -36,7 +36,10 @@ cd ~/slam_ws/src/slam_bringup && ./start_fast_lio.sh
 cd ~/slam_ws/src/slam_bringup && ./start_foxglove.sh
 ```
 
-In Foxglove: set **Display Frame** to `camera_init` (FAST-LIO2's world frame). Add `/cloud_registered` (PointCloud2 — accumulated map, world frame) and `/Odometry` (Pose or Path visualization) as displays. Move the rig and the cloud builds outward from origin in real time.
+In Foxglove: set **Display Frame** to `camera_init` (FAST-LIO2's world frame) and add `/Odometry` (Pose or Path) plus a point-cloud display. FAST-LIO2 publishes `/cloud_registered` as **per-scan** clouds in the world frame, not a server-side accumulated map — pick one of:
+
+- **Option A — Foxglove client-side accumulation (recommended).** Add `/cloud_registered` as a PointCloud2 display and set its **Decay time** to a large value (e.g. `1e9`). Foxglove piles up scans locally; the Jetson keeps sending one scan per message, so bandwidth and node memory stay flat. Best for longer runs over WiFi.
+- **Option B — server-side accumulated `/Laser_map`.** Set `publish.map_en: true` in `config/fast_lio_mid360.yaml` and relaunch `./start_fast_lio.sh`, then add `/Laser_map` as a PointCloud2 display (decay `0`). FAST-LIO2 appends every scan to an internal buffer and republishes the whole cloud each tick — message size and node memory grow unbounded, so use this only for short demos. For real long-session mapping, switch to RTABMap (Phase 7.4).
 
 **FAST-LIO2 operating conditions** (validated 2026-04-20/21 on gizmo):
 - Test in a **furnished space** — living room, lab with equipment, hallway with doorframes. Mid-360 needs vertical structure within ~5 m. An empty table in a mostly empty room diverges even with correct config.

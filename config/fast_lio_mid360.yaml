@@ -54,3 +54,9 @@
             scan_publish_en:  true
             dense_publish_en: true
             scan_bodyframe_pub_en: true   # REQUIRED — RTABMap subscribes to /cloud_registered_body
+            # /Laser_map is the accumulated world-frame cloud. Off by default in
+            # FAST-LIO2; enable to view a growing map in Foxglove. Note: the node
+            # appends every scan to pcl_wait_pub and republishes the whole cloud,
+            # so memory and message size grow unbounded — fine for short runs,
+            # use RTABMap for long sessions.
+            map_en: true
