@@ -36,7 +36,13 @@ cd ~/slam_ws/src/slam_bringup && ./start_fast_lio.sh
 cd ~/slam_ws/src/slam_bringup && ./start_foxglove.sh
 ```
 
-In Foxglove: set **Display Frame** to `camera_init` (FAST-LIO2's world frame). Add `/cloud_registered` (PointCloud2 — accumulated map, world frame) and `/Odometry` (Pose or Path visualization) as displays. Move the rig and the cloud builds outward from origin in real time.
+In Foxglove: set **Display Frame** to `camera_init` (FAST-LIO2's world frame). Add:
+
+- `/cloud_registered` (PointCloud2 — **current scan** in world frame, NOT an accumulated map — replaced every sweep)
+- `/Laser_map` (PointCloud2 — FAST-LIO2's accumulated submap; use this to see a growing map as you move)
+- `/Odometry` (Pose or Path visualization)
+
+Move the rig and `/Laser_map` builds outward from origin in real time.
 
 **FAST-LIO2 operating conditions** (validated 2026-04-20/21 on gizmo):
 - Test in a **furnished space** — living room, lab with equipment, hallway with doorframes. Mid-360 needs vertical structure within ~5 m. An empty table in a mostly empty room diverges even with correct config.
@@ -44,6 +50,7 @@ In Foxglove: set **Display Frame** to `camera_init` (FAST-LIO2's world frame). A
 - For walking tests, **keep your body out of the Mid-360's horizontal FOV**. Chest-height handheld occludes 60–90° of azimuth and biases the yaw estimate, producing a slow orbit drift that persists after you stop. Use an overhead pole, a cart-top mount, or helmet/shoulder mount. See [`TEST_PLAN.md`](TEST_PLAN.md) *Phase 2 — hard-won constraints* for details.
 - If you see **upside-down point cloud** in Foxglove's 3D panel set to `camera_init` but correct when set to `body`: FAST-LIO's world-frame gravity initialization captured the rig while it was moving. Restart with the rig stationary.
 - If Foxglove shows **no lidar data**, remember `/livox/lidar` is `livox_ros_driver2/CustomMsg` and Foxglove can't render it. Use `/cloud_registered` (world) or `/cloud_registered_body` (body) instead.
+- If the displayed cloud **only shows the current room and moves/rotates with the sensor instead of accumulating**, you're subscribed to `/cloud_registered` — switch to `/Laser_map`. `/cloud_registered` is a single sweep re-rendered each frame in `camera_init`; it is not the map. Keep/Decay RViz settings won't fix this — wrong topic. (If `/Laser_map` also drifts/rotates as you move, that's real odometry drift — see the Obsidian FAST-LIO2 Troubleshooting note, sections 3/7/10.)
 
 Common `start_sensors.sh` arg overrides:
 
