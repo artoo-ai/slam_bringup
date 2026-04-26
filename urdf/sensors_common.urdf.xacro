@@ -81,9 +81,20 @@
   <!-- D435 front. Front-glass plane is the URDF reference (the
        realsense ROS macro applies internal optical offsets from
        this plane). Plate-Y -146.761 mm → body +X 146.761 mm.
-       Vertical center 28.502 mm below plate top. -->
+       Vertical center 28.502 mm below plate top.
+
+       Pitch: the MakerWorld #1788451 D435 mount has the camera
+       angled NOSE-DOWN by design (so the depth FOV covers the
+       ground in front of the rig, not the horizon). Measured with
+       a digital inclinometer on the rounded D435 housing top
+       (2026-04-26): ≈20°. Assumed exact 20° (round number per
+       mount author intent; housing rounded top gives ±2°
+       measurement uncertainty — refine with a depth-image
+       floor-plane fit if the map-tilt looks wrong in RTABMap).
+       REP-103: nose-down = NEGATIVE pitch.
+         20° × π/180 = 0.349066 rad → -0.349066 -->
   <xacro:property name="d435_front_xyz" value="0.146761 0.0 -0.028502"/>
-  <xacro:property name="d435_front_rpy" value="0.0 0.0 0.0"/>
+  <xacro:property name="d435_front_rpy" value="0.0 -0.349066 0.0"/>
 
   <!-- ============== Links + joints ============== -->
 
