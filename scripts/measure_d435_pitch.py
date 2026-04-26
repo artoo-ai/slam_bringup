@@ -56,17 +56,19 @@ Usage
       -p num_frames:=30
 
 Optional parameters:
-  -p depth_topic:=/d435_front/camera/aligned_depth_to_color/image_raw
-  -p camera_info_topic:=/d435_front/camera/aligned_depth_to_color/camera_info
+  -p depth_topic:=/d435_front/camera/depth/image_rect_raw
+  -p camera_info_topic:=/d435_front/camera/depth/camera_info
   -p body_frame:=base_link        # gravity-aligned reference frame to compare against
   -p ransac_iterations:=200
   -p ransac_threshold:=0.02       # meters; points within this distance count as inliers
   -p min_inlier_fraction:=0.30    # warn if floor plane has fewer inliers than this
 
-Topic defaults assume SLAM mode is active (D435 align_depth on). For
-raw mode where depth is unaligned, override with:
-  -p depth_topic:=/d435_front/camera/depth/image_rect_raw
-  -p camera_info_topic:=/d435_front/camera/depth/camera_info
+Topic defaults are the unaligned depth stream — published whenever the
+D435 driver is up, regardless of slam_mode. Alignment to color does not
+affect plane-fitting accuracy. To use the aligned stream when available
+(slam_mode:=true), override with:
+  -p depth_topic:=/d435_front/camera/aligned_depth_to_color/image_raw
+  -p camera_info_topic:=/d435_front/camera/aligned_depth_to_color/camera_info
 
 Limitations
 -----------
@@ -177,9 +179,12 @@ class PitchMeasurement(Node):
 
         ns = self.get_parameter('camera_namespace').value
         depth_topic = self.get_parameter('depth_topic').value or \
-            f'/{ns}/camera/aligned_depth_to_color/image_raw'
+            f'/{ns}/camera/depth/image_rect_raw'
         info_topic = self.get_parameter('camera_info_topic').value or \
-            f'/{ns}/camera/aligned_depth_to_color/camera_info'
+            f'/{ns}/camera/depth/camera_info'
+        self._depth_topic = depth_topic
+        self._info_topic = info_topic
+        self._camera_namespace = ns
 
         self.body_frame = self.get_parameter('body_frame').value
         self.num_frames = int(self.get_parameter('num_frames').value)
@@ -248,6 +253,57 @@ class PitchMeasurement(Node):
     def is_ready(self) -> bool:
         return len(self.frames) >= self.num_frames and self.K is not None
 
+    def _dump_tf_diagnostics(self) -> None:
+        """Called when the body_frame ↔ depth_optical_frame transform
+        can't be resolved. Prints what frames TF *does* know about so
+        the user can see whether the URDF subtree (base_link, sensor_plate,
+        ...) is missing, the realsense subtree is missing, or both are
+        present but unconnected."""
+        all_frames = self.tf_buffer.all_frames_as_string()
+        log = self.get_logger().error
+        log("=" * 72)
+        log("TF tree dump (what tf2 currently knows about):")
+        for line in all_frames.splitlines() or ["  (no frames at all)"]:
+            log(f"  {line}")
+        log("=" * 72)
+        log(f"Need: {self.depth_optical_frame} → {self.body_frame}")
+        log("Common causes:")
+        log(f"  1. URDF didn't load — robot_state_publisher isn't publishing "
+            f"{self.body_frame} or sensor_plate → d435_front_link.")
+        log("     Check: ros2 topic echo /robot_description --once | head")
+        log(f"  2. realsense node's root frame name doesn't match the URDF's "
+            f"d435_front_link link.")
+        log("     Check: ros2 run tf2_tools view_frames  (writes frames.pdf)")
+        log(f"  3. Two unrelated TF trees from two different DDS partitions / "
+            f"namespaces. Confirm both publishers see the same /tf, /tf_static.")
+        log("Workaround if URDF tree is broken: run with -p body_frame:=" +
+            f"{self.depth_optical_frame.rsplit('_', 2)[0]}_link  "
+            "(skips the URDF and measures pitch in camera-link coords).")
+        log("=" * 72)
+
+    def diagnose_silent_topic(self) -> None:
+        """Called when nothing has arrived for a few seconds — tells the
+        user *why* the script is sitting idle, so they don't have to
+        Ctrl-C and guess. Lists what topics ARE visible under the
+        configured camera namespace."""
+        all_topics = dict(self.get_topic_names_and_types())
+        ns_prefix = f'/{self._camera_namespace}/'
+        ns_topics = sorted(t for t in all_topics if t.startswith(ns_prefix))
+        info = self.get_logger().warn
+        info("Still waiting for camera_info — the configured topic is not publishing.")
+        info(f"  expected camera_info: {self._info_topic}")
+        info(f"  expected depth:       {self._depth_topic}")
+        if ns_topics:
+            info(f"  visible topics under {ns_prefix}:")
+            for t in ns_topics:
+                info(f"    {t}")
+            info("  → if you only see /depth/* (not /aligned_depth_to_color/*), "
+                 "either pass the unaligned topic overrides (see --help) or "
+                 "relaunch with slam_mode:=true to enable depth-to-color alignment.")
+        else:
+            info(f"  no topics under {ns_prefix} at all — is the D435 driver running? "
+                 "(./start_perception.sh in another terminal)")
+
     def analyze(self) -> int:
         """Run the analysis and print the report. Returns process exit code."""
         if not self.frames:
@@ -261,11 +317,16 @@ class PitchMeasurement(Node):
         # Restrict to the lower portion of the image — that's where the
         # floor lives for a forward-looking, slightly nose-down camera.
         # Avoids accidentally fitting the ceiling or a far wall.
-        h = depth_med.shape[0]
+        h, w = depth_med.shape
         cutoff = int(h * (1.0 - self.floor_pixel_fraction))
         depth_lower = depth_med.copy()
         depth_lower[:cutoff, :] = 0.0     # mask top portion
 
+        # Re-derive (u, v) image coords for surviving valid pixels so we
+        # can report WHERE the inliers sit in the image (a sanity check
+        # that the fit hit the floor and not a wall / table edge).
+        valid_mask = depth_lower > 0.3
+        vs, us = np.nonzero(valid_mask)
         points = depth_to_xyz(depth_lower, self.K)
         if len(points) < 1000:
             self.get_logger().error(
@@ -283,6 +344,17 @@ class PitchMeasurement(Node):
             return 1
 
         inlier_frac = mask.sum() / len(points)
+        # Inlier image-coord stats — tells the user whether the fitted
+        # plane occupies the bottom-center of the FOV (floor) or some
+        # off-center sliver (wall, table edge, body of the rig).
+        inlier_us = us[mask]
+        inlier_vs = vs[mask]
+        inlier_z = points[mask, 2]
+        u_med = float(np.median(inlier_us)) if len(inlier_us) else float('nan')
+        v_med = float(np.median(inlier_vs)) if len(inlier_vs) else float('nan')
+        z_med = float(np.median(inlier_z))  if len(inlier_z)  else float('nan')
+        z_min = float(np.min(inlier_z))     if len(inlier_z)  else float('nan')
+        z_max = float(np.max(inlier_z))     if len(inlier_z)  else float('nan')
 
         # Orient normal so it points "up" in the optical frame. Floor is
         # below the camera, so optical Y is positive on the floor; the
@@ -303,10 +375,9 @@ class PitchMeasurement(Node):
                                               timeout=rclpy.duration.Duration(seconds=2.0))
         except Exception as e:
             self.get_logger().error(
-                f"TF lookup failed ({self.depth_optical_frame} → {self.body_frame}): {e}\n"
-                f"  Is robot_state_publisher running? "
-                f"(./start_perception.sh in another terminal)"
+                f"TF lookup failed ({self.depth_optical_frame} → {self.body_frame}): {e}"
             )
+            self._dump_tf_diagnostics()
             return 1
 
         n_body = np.array([v_body.vector.x, v_body.vector.y, v_body.vector.z])
@@ -357,6 +428,8 @@ class PitchMeasurement(Node):
             self.get_logger().warn(f"Could not read URDF pitch from TF: {e}")
             urdf_pitch_rad = float('nan')
 
+        fit_is_reliable = inlier_frac >= self.min_inlier_fraction
+
         # Output report
         print()
         print("=" * 72)
@@ -365,9 +438,24 @@ class PitchMeasurement(Node):
         print(f"  Frames analyzed:      {len(self.frames)}")
         print(f"  Depth-points fit:     {len(points)}")
         print(f"  Floor inlier fraction: {inlier_frac:.1%}")
-        if inlier_frac < self.min_inlier_fraction:
+        if not fit_is_reliable:
             print(f"  ⚠  Inlier fraction below {self.min_inlier_fraction:.0%} — "
-                  f"is the floor flat? Are there obstacles in the FOV?")
+                  f"the fitted plane probably is NOT the floor.")
+        print()
+        # Inlier image-coord and depth diagnostics — for sanity-checking
+        # what the script actually fit. A real floor under a forward-looking
+        # camera should have:
+        #   - inlier u_centroid near image center (cx ≈ {cx:.0f})
+        #   - inlier v_centroid in the LOWER half (v > h/2 = {h//2})
+        #   - depth range spanning a wide swath (z_max ≫ z_min)
+        # If u_centroid is off-center, you fit a wall. If v_centroid is
+        # high (small v), you fit something other than the floor. If
+        # z_max ≈ z_min, you fit a small patch (e.g., the rig's own body).
+        print(f"  Inlier centroid (u, v):     ({u_med:.0f}, {v_med:.0f})  "
+              f"[image is {w}×{h}; floor should sit at u≈{w//2}, v in lower half (v > {h//2})]")
+        print(f"  Inlier depth range:         {z_min:.2f} .. {z_max:.2f} m  "
+              f"(median {z_med:.2f} m)  "
+              f"[real floor spans a wide range; small range = non-floor surface]")
         print()
         print(f"  Floor normal in optical frame: "
               f"({normal_optical[0]:+.4f}, {normal_optical[1]:+.4f}, {normal_optical[2]:+.4f})")
@@ -385,33 +473,54 @@ class PitchMeasurement(Node):
         if not math.isnan(urdf_pitch_rad):
             suggested = urdf_pitch_rad - pitch_error_rad
             print()
-            print(f"  Suggested URDF pitch:      "
-                  f"{suggested:+.6f} rad   ({math.degrees(suggested):+.2f}°)")
-            print(f"  → urdf/sensors_common.urdf.xacro:")
-            print(f"      <xacro:property name=\"d435_front_rpy\" "
-                  f"value=\"0.0 {suggested:.6f} 0.0\"/>")
+            if fit_is_reliable:
+                print(f"  Suggested URDF pitch:      "
+                      f"{suggested:+.6f} rad   ({math.degrees(suggested):+.2f}°)")
+                print(f"  → urdf/sensors_common.urdf.xacro:")
+                print(f"      <xacro:property name=\"d435_front_rpy\" "
+                      f"value=\"0.0 {suggested:.6f} 0.0\"/>")
+            else:
+                print(f"  Suggested URDF pitch:      "
+                      f"WITHHELD (inlier fraction {inlier_frac:.1%} < "
+                      f"{self.min_inlier_fraction:.0%} threshold).")
+                print(f"  Re-run on a clear flat floor (no obstacles in FOV, no")
+                print(f"  furniture in the lower half of the image) before trusting")
+                print(f"  any pitch suggestion. Computed-but-WITHHELD value would")
+                print(f"  have been {math.degrees(suggested):+.2f}°.")
         print("=" * 72)
         print("Reminder: this assumes the rig is on a level horizontal floor.")
         print("If you didn't verify rig levelness with a bubble level, the")
         print("pitch error includes any rig-tilt and is NOT pure mount pitch.")
         print("=" * 72)
-        return 0
+        return 0 if fit_is_reliable else 2
 
 
 def main():
     rclpy.init()
     node = PitchMeasurement()
     try:
-        # Spin until enough frames captured or Ctrl-C.
-        rate = node.create_rate(10.0)
+        # Spin until enough frames captured or Ctrl-C. Warn after 3 s
+        # if camera_info still hasn't arrived, then again every 5 s, so
+        # the user can tell the difference between "capturing" and "topic
+        # is not published at all."
+        start = node.get_clock().now()
+        warn_after_s = 3.0
+        warned = False
         while rclpy.ok() and not node.is_ready():
             rclpy.spin_once(node, timeout_sec=0.1)
+            elapsed = (node.get_clock().now() - start).nanoseconds / 1e9
+            if not warned and node.K is None and elapsed >= warn_after_s:
+                node.diagnose_silent_topic()
+                warned = True
+                start = node.get_clock().now()    # re-arm for 5 s repeat
+                warn_after_s = 5.0
         rc = node.analyze()
     except KeyboardInterrupt:
         rc = 130
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
     sys.exit(rc)
 
 
