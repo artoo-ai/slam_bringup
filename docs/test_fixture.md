@@ -97,6 +97,63 @@ extrusion — confirms the camera is held in the upper slot of the
 All measurements needed for `urdf/sensors_common.urdf.xacro` (Phase 1.7)
 are now locked. Source: in-person measurement on the bench fixture.
 
+### Pre-RTABMap mapping checklist
+
+Run through this before every first-time RTABMap mapping run, and any
+time hardware changes (camera swap, mount change, platform change).
+None of these are FAST-LIO2 problems — FAST-LIO2 only uses the Mid-360
++ its onboard IMU. These all affect RTABMap depth fusion / loop closure.
+
+- [ ] **D435 IR projector emitter is ON.** Default in realsense2_camera
+      is on, but worth verifying — without it, white walls and other
+      textureless surfaces give Swiss-cheese depth and the RTABMap
+      occupancy grid fills with holes.
+
+      ```bash
+      # With ./start_perception.sh or ./start_slam.sh running:
+      ros2 param get /d435_front/camera depth_module.emitter_enabled
+      # Expected: 1  (or "Boolean value is: True")
+      ```
+
+      To force it on at launch, add to `launch/d435.launch.py` parameters:
+      `'depth_module.emitter_enabled': True`.
+
+- [ ] **D435 RGB↔depth alignment is ON.** Required for RTABMap depth
+      fusion. Already wired in `slam.launch.py` (forces `slam_mode:=true`).
+
+      ```bash
+      ros2 topic info /d435_front/camera/aligned_depth_to_color/image_raw
+      # Should show Publisher count: 1
+      ```
+
+- [ ] **D435 pitch is current.** If you swapped the camera or mount,
+      re-measure with `scripts/measure_d435_pitch.py` and update
+      `urdf/sensors_common.urdf.xacro`'s `d435_front_rpy`.
+
+- [ ] **PLATFORM_BRIDGES entry matches the actual rig height.** If the
+      fixture's stack-up changes (e.g. extra cage layer added, plate
+      replaced), recompute the body→base_link Z:
+        `body_Z_above_base_link = base_link_to_plate_top + livox_frame_Z`
+      and update `launch/slam.launch.py`'s `PLATFORM_BRIDGES['bench_fixture']`.
+
+- [ ] **TF tree is single-rooted.** No doubled `d435_front_link`.
+
+      ```bash
+      ros2 topic echo /tf_static --once \
+        | grep -A2 'child_frame_id: "d435_front_link"' | head -20
+      # Expected: ONE match. Two = realsense conflict (see "two D435s" troubleshooting above).
+      ```
+
+- [ ] **time_sync_en stays false** in `config/fast_lio_mid360.yaml`.
+      Mid-360 ICM40609 IMU is hardware-time-synced to the LiDAR — don't
+      let FAST-LIO2 try to re-estimate.
+
+- [ ] **D435 sees ground close to the rig.** With +10.09° pitch and
+      D435 ~179 mm above base_link (table contact), the depth FOV
+      reaches the floor from ~22 cm forward outward. If the rig is on a
+      table edge (not floor), depth will project off the edge and
+      RTABMap will treat empty space as obstacles.
+
 ### 1. 2040 perimeter — geometry
 
 - Frame footprint **exactly matches** the lidar plate (139.7 × 215.9 mm).

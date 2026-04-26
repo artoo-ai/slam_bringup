@@ -82,6 +82,22 @@ if [ "${START_RTABMAP_SKIP_PREFLIGHT:-0}" != "1" ]; then
     echo "  Continuing anyway in 3 s — Ctrl-C to abort." >&2
     sleep 3
   fi
+
+  # IR projector check. Default is on, but a one-line nag here means we
+  # don't have to remember to verify it before every mapping run.
+  # Whitewall / textureless-surface depth holes are the most common
+  # silent-failure mode in indoor RTABMap mapping.
+  emitter=$(ros2 param get /d435_front/camera depth_module.emitter_enabled 2>/dev/null || true)
+  if [ -n "$emitter" ] && ! echo "$emitter" | grep -qE '(True|: 1)'; then
+    echo "start_rtabmap: WARNING — D435 IR projector emitter appears to be OFF." >&2
+    echo "  Without it, white walls and textureless surfaces produce Swiss-cheese" >&2
+    echo "  depth → holes in the RTABMap occupancy grid. Verify with:" >&2
+    echo "    ros2 param get /d435_front/camera depth_module.emitter_enabled" >&2
+    echo "  To turn it on at runtime:" >&2
+    echo "    ros2 param set /d435_front/camera depth_module.emitter_enabled 1" >&2
+    echo "  Continuing anyway in 3 s — Ctrl-C to abort." >&2
+    sleep 3
+  fi
 fi
 
 exec ros2 launch slam_bringup rtabmap.launch.py "$@"

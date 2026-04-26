@@ -51,11 +51,23 @@ from ament_index_python.packages import get_package_share_directory
 # TO `base_link` (URDF root for that platform). The static_transform_publisher
 # below publishes `body` as the parent, `base_link` as the child.
 PLATFORM_BRIDGES = {
-    # Bench fixture: base_link is at the bottom of the 2040 cage
-    # (table contact). body (Mid-360 IMU) sits at plate top + 36.61 mm
-    # ≈ 0.069987 + 0.03661 = 0.106597 m above base_link. Bridge from
-    # body's perspective places base_link 0.1066 m BELOW body.
-    'bench_fixture': (0.0, 0.0, -0.1066, 0.0, 0.0, 0.0),
+    # Bench fixture: base_link is at the bottom of the lower 2040 cage
+    # (table contact). body (≈ Mid-360 IMU center) sits at:
+    #   base_link → sensor_plate top:           +0.207670 m  (8.176" stack-up)
+    #   sensor_plate → livox_frame (Z):         +0.036610 m  (Livox datasheet)
+    #   ───────────────────────────────────
+    #   body Z above base_link:                  0.244280 m
+    #
+    # First-pass approximation: body ≈ LiDAR optical center. The
+    # Mid-360's onboard IMU is offset from the LiDAR by the Livox
+    # factory extrinsic [-0.011, -0.02329, 0.04412] (in fast_lio_mid360
+    # .yaml), which is below the noise floor of the bridge for
+    # short-range mapping — FAST-LIO2 absorbs the mm-scale offset
+    # internally during ESKF convergence.
+    #
+    # Bridge transform body → base_link: base_link sits 0.244280 m
+    # BELOW body, so the static TF translation is (0, 0, -0.244280).
+    'bench_fixture': (0.0, 0.0, -0.244280, 0.0, 0.0, 0.0),
 
     # Stubs — fill in once each platform's URDF + measured plate offsets
     # are landed. Until then `platform:=<name>` will exit with a clear
