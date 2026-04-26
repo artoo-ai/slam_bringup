@@ -112,6 +112,35 @@ are now locked. Source: in-person measurement on the bench fixture.
   span 97.683 mm (the Jetson + USB-hub cavity). Total fixture height
   base→plate-top = `40 + 97.683 + 40 + 22.987 + 7 = 207.670 mm` (= 8.176").
 
+### Troubleshooting — "Why are there two D435s in RViz?"
+
+If `./start_perception.sh rviz:=true` shows what looks like a doubled
+D435 — two clusters of axis triads at slightly different poses near the
+front of the plate, with overlapping `d435_front_*` labels — the cause
+is a TF parent-conflict between the URDF and the realsense2_camera node.
+
+The realsense node's `camera_name` parameter prefixes the names of every
+TF frame it publishes, but it does NOT tell the node which **parent**
+to attach its root link to. By default the node publishes
+`<camera_name>_link` as a **TF root** (no parent). The URDF then
+publishes the same link as a child of `sensor_plate`, and tf2 sees two
+parents — the result is two triads of axes at slightly different poses,
+one from each publisher.
+
+**Fix**: set `base_frame_id: '<camera_name>_link'` in the realsense node
+parameters (`launch/d435.launch.py`). That tells the node "your root
+link has an external parent — don't republish it as a root." After this,
+`tf2_tools view_frames` shows a single chain
+`sensor_plate → d435_front_link → d435_front_*_frame → d435_front_*_optical_frame`.
+
+Diagnostic commands:
+
+```bash
+ros2 run tf2_tools view_frames                         # frames.pdf — look for d435_front_link's parent count
+ros2 topic echo /tf_static --once | grep -A2 'child_frame_id: "d435_front_link"'
+# Two matches = conflict; one match = fixed.
+```
+
 ### 2. D435 forward offset
 
 - D435 front glass protrudes **1.528" (38.811 mm)** forward of the front

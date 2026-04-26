@@ -62,6 +62,14 @@ def generate_launch_description():
                 # so the URDF's static-TF stops at d435_front_link and the
                 # camera's own internal TF tree continues from there.
                 'camera_name':                namespace,
+                # base_frame_id tells the realsense node "your root link
+                # has an external parent — don't republish it as a TF root."
+                # Without this, the node publishes <camera_name>_link as a
+                # parent-less root frame, conflicting with the URDF's
+                # sensor_plate → d435_front_link joint. The visible symptom
+                # in RViz is two D435 axis triads at slightly different
+                # poses (one from the URDF, one from the node).
+                'base_frame_id':              f'{namespace}_link',
                 'enable_depth':               True,
                 'enable_color':               True,
                 'enable_infra':               False,  # left IR + right IR not needed —
