@@ -149,13 +149,23 @@ ros2 topic echo /tf_static --once | grep -A2 'child_frame_id: "d435_front_link"'
 - D435 horizontal X midpoint = plate X = 0 (centered).
 - D435 vertical center Z (relative to plate top) = `-28.502 mm` (derived
   earlier from the 0.630" top-of-D435-below-plate-top measurement).
-- **D435 pitch (nose-down)**: ≈20° by design of the MakerWorld
-  #1788451 mount. Measured with a digital inclinometer on the rounded
-  D435 housing top (2026-04-26): roughly 20°. Assumed exact 20° (round
-  number per mount author intent; housing rounded top gives ±2°
-  measurement uncertainty). Stored in URDF as
-  `d435_front_rpy = (0, -0.349066, 0)` rad. Refine with a depth-image
-  floor-plane fit if the RTABMap floor looks tilted.
+- **D435 pitch (nose-down)**: **+10.09°** by design of the MakerWorld
+  #1788451 mount, measured 2026-04-26 via depth-image floor-plane fit
+  (`scripts/measure_d435_pitch.py`) with the rig on a level floor:
+  99.8% inlier fraction on the floor plane, 0.07° roll residual
+  confirming rig levelness, reports +10.09° actual pitch. Stored in
+  URDF as `d435_front_rpy = (0, +0.176136, 0)` rad. The earlier
+  inclinometer reading on the rounded D435 housing top (~20°) was
+  rejected — the housing top is not perpendicular to the optical
+  axis, so any bubble level / inclinometer reading on it overstates
+  pitch by ~2× in this case. **Lesson**: use the depth-plane fit
+  script for camera mount pitch, never an inclinometer on a rounded
+  surface.
+- **URDF pitch sign convention**: positive in URDF rpy = nose-DOWN.
+  Right-hand-rule rotation around body +Y (left) takes body +X
+  (forward) toward body −Z (down), so `+pitch` lowers the camera nose.
+  This is OPPOSITE of aerospace convention (where `+pitch` = nose-up);
+  watch out when pasting numbers between sources.
 - Convention shift for ROS REP-103 (`+X` forward, `+Y` left, `+Z` up):
   the **body frame** has `+X` pointing in the D435 direction, which is
   plate `-Y`. So `body → sensor_plate` is a 180° yaw rotation:
@@ -254,9 +264,12 @@ imu_link_rpy: [0.0, 0.0, 0.0]             # WT901 X faces forward (= body +X),
 # D435 front — sensor_plate frame
 # Position is the FRONT GLASS plane (realsense2_description's macro
 # offsets internal optical frames from this reference).
-# Pitch -0.349066 rad = -20° (nose-down by mount design).
+# Pitch +0.176136 rad = +10.09° (nose-down by mount design;
+# URDF rpy convention has +pitch = nose-down per right-hand rule,
+# OPPOSITE of aerospace convention).
+# Measured via scripts/measure_d435_pitch.py (depth floor-plane fit).
 d435_front_link_xyz: [0.146761, 0.0, -0.028502]
-d435_front_link_rpy: [0.0, -0.349066, 0.0]
+d435_front_link_rpy: [0.0, 0.176136, 0.0]
 ```
 
 Vertical reference: `sensor_plate` is the **top** of the lidar plate.
