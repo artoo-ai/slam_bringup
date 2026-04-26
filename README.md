@@ -296,6 +296,26 @@ ros2 topic list | grep livox                       # (after re-sourcing) nothing
 
 If `ss` still shows sockets held after the `pkill -9`, wait 30–60 s for the kernel's `SO_REUSEADDR` `TIME_WAIT` window to expire, or change the host ports in `config/mid360.json` as a last resort.
 
+### D435 pitch measurement (`scripts/measure_d435_pitch.py`)
+
+One-shot calibration that fits a plane to the floor in the D435's depth
+image and reports the residual pitch error vs the current URDF value.
+Useful when you swap the camera or its mount, or when the RTABMap floor
+looks tilted in the 3D map. Requires the rig to be sitting on a flat,
+level horizontal surface with ~1 m of clear floor in front.
+
+**Run it** (with `./start_perception.sh` already running in another
+terminal):
+
+```bash
+python3 ~/slam_ws/src/slam_bringup/scripts/measure_d435_pitch.py --ros-args \
+    -p camera_namespace:=d435_front \
+    -p num_frames:=30
+```
+
+Output is the current URDF pitch, the residual error, and a copy-pasteable
+new value for `d435_front_rpy` in `urdf/sensors_common.urdf.xacro`.
+
 ### LiDAR diagnostics (`scripts/lidar_diagnostics.py`)
 
 Standalone health-check for the Mid-360 data stream. Subscribes to `/livox/lidar` (CustomMsg or PointCloud2) and `/livox/imu` for a fixed duration, then prints a six-part report. Does NOT touch FAST-LIO2 — safe to run alongside any workflow.
