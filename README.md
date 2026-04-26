@@ -47,6 +47,7 @@ In Foxglove: set **Display Frame** to `camera_init` (FAST-LIO2's world frame) an
 - For walking tests, **keep your body out of the Mid-360's horizontal FOV**. Chest-height handheld occludes 60–90° of azimuth and biases the yaw estimate, producing a slow orbit drift that persists after you stop. Use an overhead pole, a cart-top mount, or helmet/shoulder mount. See [`TEST_PLAN.md`](TEST_PLAN.md) *Phase 2 — hard-won constraints* for details.
 - If you see **upside-down point cloud** in Foxglove's 3D panel set to `camera_init` but correct when set to `body`: FAST-LIO's world-frame gravity initialization captured the rig while it was moving. Restart with the rig stationary.
 - If Foxglove shows **no lidar data**, remember `/livox/lidar` is `livox_ros_driver2/CustomMsg` and Foxglove can't render it. Use `/cloud_registered` (world) or `/cloud_registered_body` (body) instead.
+- If the displayed cloud **only shows the current room and moves/rotates with the sensor instead of accumulating**, you're subscribed to `/cloud_registered` — switch to `/Laser_map`. `/cloud_registered` is a single sweep re-rendered each frame in `camera_init`; it is not the map. Keep/Decay RViz settings won't fix this — wrong topic. (If `/Laser_map` also drifts/rotates as you move, that's real odometry drift — see the Obsidian FAST-LIO2 Troubleshooting note, sections 3/7/10.)
 
 Common `start_sensors.sh` arg overrides:
 
@@ -247,6 +248,11 @@ One-liner wrappers around the launches that also handle "the driver got wedged a
 | `./kill_sensors.sh` | Chain `kill_mid360.sh` + `kill_d435.sh` + `kill_witmotion.sh`, then nuke the parent launch wrapper |
 | `./start_fast_lio.sh` | Launch FAST-LIO2 (`fastlio_mapping`) against `/livox/lidar` CustomMsg + `/livox/imu`; auto-clean a stale instance first |
 | `./kill_fast_lio.sh` | Force-kill the FAST-LIO2 node + its launch wrapper |
+| `./start_rtabmap.sh` | Launch RTABMap on top of FAST-LIO2 + D435 RGB-D (visual loop closure + occupancy grid). Preflights all 5 input topics + body→d435_front_link TF before launching |
+| `./kill_rtabmap.sh` | Force-kill the RTABMap node + its launch wrapper |
+| `./start_perception.sh` | Launch URDF (`platform:=bench_fixture` default) + all sensors + optional rviz2. No SLAM — for visualizing sensor placement against the URDF tree. |
+| `./start_slam.sh` | Launch the full SLAM stack: URDF + sensors (slam_mode) + FAST-LIO2 + RTABMap + per-platform `body→base_link` bridge. Pass-through args: `platform:=`, `delete_db_on_start:=`, `localization:=`, `rviz:=`. |
+| `./kill_slam.sh` | Force-kill every layer of the SLAM stack. |
 | `./start_bench_tf.sh` | Publish `livox_frame → camera_link` static TF for multi-sensor visualization (see below) |
 | `./start_foxglove.sh` | Start `foxglove_bridge` on the Jetson for remote Studio/App connections |
 
