@@ -56,6 +56,12 @@ def generate_launch_description():
             emulate_tty=True,
             parameters=[{
                 'device_type':                LaunchConfiguration(device_type_arg),
+                # camera_name controls the prefix on every TF frame the
+                # node publishes (e.g. d435_front_link, d435_front_color_frame).
+                # Must match the link name in urdf/sensors_common.urdf.xacro
+                # so the URDF's static-TF stops at d435_front_link and the
+                # camera's own internal TF tree continues from there.
+                'camera_name':                namespace,
                 'enable_depth':               True,
                 'enable_color':               True,
                 'enable_infra':               False,  # left IR + right IR not needed —

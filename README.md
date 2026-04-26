@@ -251,6 +251,11 @@ One-liner wrappers around the launches that also handle "the driver got wedged a
 | `./kill_sensors.sh` | Chain `kill_mid360.sh` + `kill_d435.sh` + `kill_witmotion.sh`, then nuke the parent launch wrapper |
 | `./start_fast_lio.sh` | Launch FAST-LIO2 (`fastlio_mapping`) against `/livox/lidar` CustomMsg + `/livox/imu`; auto-clean a stale instance first |
 | `./kill_fast_lio.sh` | Force-kill the FAST-LIO2 node + its launch wrapper |
+| `./start_rtabmap.sh` | Launch RTABMap on top of FAST-LIO2 + D435 RGB-D (visual loop closure + occupancy grid). Preflights all 5 input topics + body→d435_front_link TF before launching |
+| `./kill_rtabmap.sh` | Force-kill the RTABMap node + its launch wrapper |
+| `./start_perception.sh` | Launch URDF (`platform:=bench_fixture` default) + all sensors + optional rviz2. No SLAM — for visualizing sensor placement against the URDF tree. |
+| `./start_slam.sh` | Launch the full SLAM stack: URDF + sensors (slam_mode) + FAST-LIO2 + RTABMap + per-platform `body→base_link` bridge. Pass-through args: `platform:=`, `delete_db_on_start:=`, `localization:=`, `rviz:=`. |
+| `./kill_slam.sh` | Force-kill every layer of the SLAM stack. |
 | `./start_bench_tf.sh` | Publish `livox_frame → camera_link` static TF for multi-sensor visualization (see below) |
 | `./start_foxglove.sh` | Start `foxglove_bridge` on the Jetson for remote Studio/App connections |
 

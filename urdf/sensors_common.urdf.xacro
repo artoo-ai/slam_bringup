@@ -1,0 +1,124 @@
+<?xml version="1.0"?>
+<!--
+  Shared sensor-rig geometry. Per-platform xacros (bench_fixture, go2,
+  r2d2, roboscout, mecanum) include this file and add the platform's
+  base_link / chassis on top.
+
+  Frame conventions (REP-103):
+    +X = forward (the direction the D435 front camera faces)
+    +Y = left
+    +Z = up
+
+  CAD note: the lidar plate's CAD frame in cad/make_livox_mid360_plate.py
+  has +Y running from the WT901 (-60 mm) toward the Mid-360 cable port
+  (+80 mm). The body convention here is rotated 180° in yaw from that
+  CAD frame:
+      body +X = plate -Y      (D435 forward direction)
+      body +Y = plate +X      (left)
+      body +Z = plate +Z      (up)
+  All coordinate values below are already expressed in body convention,
+  so they read as "forward / left / up" without further rotation.
+
+  Source for every number: docs/test_fixture.md (URDF Numerical Summary).
+
+  TF tree this file produces (when included by a platform xacro that
+  defines a parent for sensor_plate):
+
+    <platform-defined parent>
+       └── sensor_plate
+            ├── livox_frame       (Mid-360 LiDAR optical center)
+            ├── imu_link          (WitMotion WT901 housing center)
+            └── d435_front_link   (front glass of D435 RGB-D)
+
+  The realsense2_camera node publishes its OWN sub-tree under
+  d435_front_link (color/depth/infra optical frames) at runtime — do
+  NOT model that here. To make the realsense node's published frames
+  start with the d435_front_ prefix, the launch sets
+  camera_name:=d435_front (see launch/d435.launch.py).
+
+  FAST-LIO2 publishes camera_init → body at runtime. The URDF does NOT
+  define `body` — that frame is FAST-LIO2's, and bridging body ↔ this
+  URDF tree is a launch-time concern (PLATFORM_BRIDGES in
+  slam.launch.py, per PLAN.md §3.4).
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="sensor_rig">
+
+  <!-- ============== Stack-up constants (meters) ==============
+       Plate-side numbers come straight from docs/test_fixture.md.
+       Kept as xacro properties so platform xacros can re-derive
+       offsets if they ever need to (e.g. mecanum mast height). -->
+  <xacro:property name="plate_thickness"        value="0.007"/>      <!-- 7 mm ASA -->
+  <xacro:property name="rubber_compressed"      value="0.022987"/>   <!-- 0.905" -->
+  <xacro:property name="extrusion_2040_height"  value="0.040"/>      <!-- 40 mm vertical face -->
+  <xacro:property name="base_link_to_plate_top" value="0.069987"/>   <!-- 2040 + rubber + plate -->
+
+  <!-- ============== Sensor offsets (sensor_plate frame) ==============
+       sensor_plate origin = top surface of the lidar plate, body
+       convention (+X forward / +Y left / +Z up). -->
+
+  <!-- Mid-360. Body shifted plate-Y +25 mm to free room for WT901;
+       in body frame that becomes -X 25 mm (i.e. behind the plate
+       center). Optical center 36.61 mm above plate top per Livox
+       datasheet. -->
+  <xacro:property name="livox_xyz" value="-0.025 0.0 0.03661"/>
+  <xacro:property name="livox_rpy" value="0.0 0.0 0.0"/>
+
+  <!-- WitMotion WT901. Plate-Y -60 mm (front of plate in CAD frame)
+       → body +X 60 mm (toward D435). Z = 9 mm above plate top
+       (3 mm flange + half of 12 mm housing-above-flange). Backup
+       IMU only — FAST-LIO2 uses Mid-360 onboard ICM40609.
+       Sensor axes confirmed (2026-04-25): WT901 X-axis sticker
+       points forward (= body +X / D435 direction), Y-axis points
+       left (= body +Y). No yaw correction needed. -->
+  <xacro:property name="imu_xyz" value="0.060 0.0 0.009"/>
+  <xacro:property name="imu_rpy" value="0.0 0.0 0.0"/>
+
+  <!-- D435 front. Front-glass plane is the URDF reference (the
+       realsense ROS macro applies internal optical offsets from
+       this plane). Plate-Y -146.761 mm → body +X 146.761 mm.
+       Vertical center 28.502 mm below plate top. -->
+  <xacro:property name="d435_front_xyz" value="0.146761 0.0 -0.028502"/>
+  <xacro:property name="d435_front_rpy" value="0.0 0.0 0.0"/>
+
+  <!-- ============== Links + joints ============== -->
+
+  <link name="sensor_plate">
+    <!-- Visual: the 5.5" x 8.5" x 7 mm ASA plate, drawn at plate_top = 0.
+         Origin shifted -plate_thickness/2 in Z so the visual sits
+         BELOW sensor_plate (plate top stays at Z=0). -->
+    <visual>
+      <origin xyz="0 0 ${-plate_thickness/2}" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.2159 0.1397 ${plate_thickness}"/>
+      </geometry>
+      <material name="plate_asa">
+        <color rgba="0.85 0.85 0.85 1.0"/>
+      </material>
+    </visual>
+  </link>
+
+  <link name="livox_frame"/>
+  <joint name="sensor_plate_to_livox_frame" type="fixed">
+    <parent link="sensor_plate"/>
+    <child  link="livox_frame"/>
+    <origin xyz="${livox_xyz}" rpy="${livox_rpy}"/>
+  </joint>
+
+  <link name="imu_link"/>
+  <joint name="sensor_plate_to_imu_link" type="fixed">
+    <parent link="sensor_plate"/>
+    <child  link="imu_link"/>
+    <origin xyz="${imu_xyz}" rpy="${imu_rpy}"/>
+  </joint>
+
+  <link name="d435_front_link"/>
+  <joint name="sensor_plate_to_d435_front_link" type="fixed">
+    <parent link="sensor_plate"/>
+    <child  link="d435_front_link"/>
+    <origin xyz="${d435_front_xyz}" rpy="${d435_front_rpy}"/>
+  </joint>
+
+  <!-- d435_rear_link is declared in the platform xacros (Phase 1.10),
+       not here, because the rear camera mount is platform-specific. -->
+
+</robot>

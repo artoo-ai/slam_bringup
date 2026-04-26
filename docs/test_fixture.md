@@ -18,8 +18,199 @@ Self-contained benchtop test rig for Mid-360 LiDAR + FAST-LIO2 development.
 
 - **Extrusion frame footprint**: matches Mid-360 mounting plate (5.5" x 8.5" / 139.7 x 215.9 mm)
 - **Fixture height (table to mounting plate)**: 9" (228.6 mm)
-- **Mounting plate**: 5.5" x 8.5", 6 mm thick ASA
+- **Mounting plate**: 5.5" x 8.5", 7 mm thick ASA  *(measured 2026-04-25; CAD source called for 6 mm — over-extrusion delta is documented here, use the measured value for URDF)*
 - **Mid-360 sits on top of the mounting plate** (no tilt, level)
+- **Frame extrusion**: **2040** profile (40 mm vertical, 20 mm horizontal),
+  forms the perimeter cage directly under the lidar plate. The plate does
+  NOT bolt to the extrusion directly — rubber isolation pads sit between
+  them.
+- **Rubber isolation pads (compressed)**: 0.905" (22.987 mm) between the
+  underside of the lidar plate and the top of the 2040 extrusion.
+
+## URDF Stack-Up (lidar plate frame, +Z = up)
+
+Measured 2026-04-25. Reference plane is the **top surface of the lidar plate**
+(`Z = 0`); plate-frame X/Y axes match `cad/make_livox_mid360_plate.py`
+(plate is 139.7 mm in X, 215.9 mm in Y, with Mid-360 body shifted to
+plate Y = +25 mm to free room for the WT901 at Y = -60 mm).
+
+```
+Z = 0                  ┌──────────────────────────────────────┐  ← top of lidar plate
+                       │   Mid-360 (centered at plate Y=+25)  │
+                       │   WT901    (centered at plate Y=-60) │
+Z = -7 mm              ├──────────────────────────────────────┤  ← bottom of lidar plate (7 mm thick)
+                       ░░░░░░░░░░░ rubber pads (22.987 mm) ░░░░
+Z = -29.987 mm         ╔══════════════════════════════════════╗  ← top of 2040 extrusion
+                       ║                                      ║
+                       ║   2040 extrusion, 40 mm vertical     ║
+              D435 ──→ ╠══╗                                   ║   D435 mounted on FRONT 2040 face
+                       ║  ║   D435 top at Z = -16.002 mm      ║   (3D-printed slot mount in upper slot)
+                       ║  ║   D435 vert. center Z ≈ -28.50 mm ║
+Z = -69.987 mm         ╚══╩═══════════════════════════════════╝  ← bottom of 2040 extrusion
+```
+
+### D435 placement (relative to lidar plate frame)
+
+- **Top of D435** sits 0.630" (16.002 mm) below the top of the lidar plate
+  → top of D435 at `Z = -16.002 mm`.
+- D435 housing height = 25 mm → vertical midpoint at `Z = -16.002 - 12.5 = -28.502 mm`.
+- D435 is mounted in a 3D-printed bracket that slides into the **upper slot
+  of the front 2040 extrusion** (the 40 mm-vertical face).
+- **Mount source**: [Intel RealSense 435i Mount, 20mm 80/20 Extrusion (MakerWorld #1788451)](https://makerworld.com/en/models/1788451-intel-realsense-435i-mount-20mm-80-20-extrusion#profileId-1905852).
+  Mount slides into a single 20 mm-wide extrusion slot via a t-nut and
+  holds the D435 by its standard 1/4"-20 tripod thread on the camera's
+  bottom face. Local copy of the printed file is `cad/RealSense435iMount.3mf`.
+- **Lateral (X)**: D435 horizontal midpoint coincides with the lidar plate
+  midpoint → D435 X = 0 in plate frame.
+- **Fore/aft (Y)**: D435 mounts to the front 2040 perimeter bar. Camera
+  protrudes forward from the front face of the 2040 by the depth of the
+  printed mount + half the camera depth. **NEEDS MEASUREMENT** (see open
+  questions below).
+
+### Fast computation reference (so the URDF macro can re-derive)
+
+```
+plate_thickness          = 7.000 mm      (measured)
+rubber_compressed        = 22.987 mm     (= 0.905")
+extrusion_profile        = 2040 (40 mm vertical face)
+d435_top_below_plate_top = 16.002 mm     (= 0.630")
+d435_height              = 25 mm         (Intel datasheet)
+d435_vert_center_z       = -(d435_top_below_plate_top + d435_height/2)
+                         = -(16.002 + 12.5) = -28.502 mm  (relative to plate top)
+top_of_2040_z            = -(plate_thickness + rubber_compressed)
+                         = -(7 + 22.987) = -29.987 mm     (relative to plate top)
+```
+
+The D435 vertical center sits **1.485 mm above** the top of the 2040
+extrusion — confirms the camera is held in the upper slot of the
+40 mm-vertical face, just barely peeking above the extrusion rail.
+
+## Resolved URDF Inputs (2026-04-25)
+
+All measurements needed for `urdf/sensors_common.urdf.xacro` (Phase 1.7)
+are now locked. Source: in-person measurement on the bench fixture.
+
+### 1. 2040 perimeter — geometry
+
+- Frame footprint **exactly matches** the lidar plate (139.7 × 215.9 mm).
+- 2040 outer faces are **flush** with the plate edges on all four sides
+  (no inset, no overhang).
+- 40 mm dimension is vertical, 20 mm dimension is horizontal → 20 mm-wide
+  perimeter rail, same convention as the 2020 plate Python in CAD.
+- Front-bar outer face is at plate `Y = -(215.9 / 2) = -107.95 mm`
+  (Mid-360 M12 cable exits at plate `+Y = +80`, so the D435-facing edge
+  is `-Y`).
+
+### 2. D435 forward offset
+
+- D435 front glass protrudes **1.528" (38.811 mm)** forward of the front
+  2040 outer face.
+- D435 front glass plate-Y position = `-107.95 - 38.811 = -146.761 mm`.
+- D435 horizontal X midpoint = plate X = 0 (centered).
+- D435 vertical center Z (relative to plate top) = `-28.502 mm` (derived
+  earlier from the 0.630" top-of-D435-below-plate-top measurement).
+- Convention shift for ROS REP-103 (`+X` forward, `+Y` left, `+Z` up):
+  the **body frame** has `+X` pointing in the D435 direction, which is
+  plate `-Y`. So `body → sensor_plate` is a 180° yaw rotation:
+    body +X = plate -Y
+    body +Y = plate +X
+    body +Z = plate +Z
+  In URDF terms, the `sensor_plate` link is published with a `yaw = π`
+  joint origin relative to `base_link/body`, so all the plate-frame
+  numbers above stay readable in CAD coordinates.
+
+### 3. Mid-360 optical center
+
+Accept the Livox Mid-360 datasheet figure: **optical center is 36.61 mm
+above the bottom of the housing**. Mid-360 housing bottom rests directly
+on the plate top (no shim — 2 locating pins index it), so:
+
+```
+livox_frame Z (relative to plate top) = +36.61 mm
+livox_frame X = 0           (Mid-360 body centered on plate X axis)
+livox_frame Y = +25 mm      (per make_livox_mid360_plate.py — body shifted +25 mm to free room for WT901)
+```
+
+If you want to verify by direct measurement instead of trusting the
+datasheet: lay a straightedge across the top of the Mid-360 housing,
+measure straightedge-to-plate-top with calipers (`= housing_total_height
+≈ 65 mm`), then subtract the datasheet "top of housing to optical
+center" offset (`≈ 28.4 mm`). The optical-center mark is etched on
+some Mid-360 units near the M12 connector — if yours has it, calipers
+to that mark is the most accurate option.
+
+### 4. WitMotion WT901 IMU
+
+Use housing geometric center as `imu_link` — accepted, no measurement
+needed. WT901 is the backup IMU only (FAST-LIO2 uses the Mid-360's
+onboard ICM40609); a few mm of error is acceptable.
+
+```
+imu_link X (plate frame) = 0
+imu_link Y (plate frame) = -60 mm   (per make_livox_mid360_plate.py)
+imu_link Z (plate frame) = +9 mm    (3 mm flange above plate + half of 12 mm housing-above-flange)
+```
+
+### 5. `base_link` for the bench fixture — pros/cons
+
+The bench fixture has no chassis, so the choice is purely a convention
+question. Three options and the trade-offs:
+
+| Option | What it means | Pro | Con |
+|--------|--------------|-----|-----|
+| **(a) `base_link = sensor_plate`** (zero-offset alias of plate) | The rig has no "footprint" — base_link sits on the plate top, +X forward. | Simplest tree; one fewer joint. RViz fixed-frame "just works" pointing at the plate. | Breaks ROS convention slightly: most Nav2 / robot_localization configs expect `base_link` at the **footprint** (ground-contact level), not at sensor height. Reusable URDF macros that drive Nav2 may need `base_footprint` synthesized. |
+| **(b) `base_link` at floor contact (table top)** | `base_link` at the bottom of the 2040 cage = table top; `sensor_plate` is a child at +29.987 mm above it (rubber + 2040 height = 70 mm above table actually; rubber is at top of cage, plate goes above). | Matches REP-105 ("base_link at the robot footprint"). Carries cleanly when you later mount on Go2 / mecanum. Nav2 / costmaps that assume `base_link Z = 0` at the ground will work without surgery. | Extra `base_link → sensor_plate` joint (~70 mm offset). Slightly more URDF. |
+| **(c) Skip `base_link` for the fixture; only define on real platforms** | Fixture URDF has only `sensor_plate` + sensor children. Real-platform URDFs include `sensors_common.urdf.xacro` and add their own `base_link`. | Cleanest separation between sensor-rig geometry and platform geometry. | Some tools (`tf2_echo`, `robot_localization`) blow up if `base_link` is absent. Inconvenient for any tooling that defaults to `base_link`. |
+
+**Recommendation: (b)**. It's only one extra static TF (and that TF is
+exactly the stack-up you already measured: 7 mm plate + 22.987 mm rubber
++ 40 mm 2040 = 69.987 mm from `base_link` to `sensor_plate` top), and it
+keeps ROS conventions intact for everything downstream. You also don't
+have to revisit it when the rig moves to a real robot — those URDFs will
+publish their own `base_link` and the static-TF bridge to `body` lives
+in `slam.launch.py`'s `PLATFORM_BRIDGES` dict (per PLAN.md §3.4).
+
+If you want minimum URDF lines for the bench-only case, (a) is fine.
+Either choice can be migrated to the other later — it's one joint.
+
+---
+
+## URDF Numerical Summary (copy into xacro)
+
+All distances in meters. Frame `sensor_plate` is the lidar plate's top
+surface, `+X` forward (= D435 direction), `+Y` left, `+Z` up.
+Plate-frame CAD coordinates (used by `make_livox_mid360_plate.py`)
+are rotated 180° in yaw relative to `sensor_plate` — see §2 above.
+
+```yaml
+# Plate / fixture
+plate_thickness:        0.007    # 7 mm
+rubber_compressed:      0.022987 # 0.905"
+extrusion_2040_height:  0.040    # 40 mm vertical face
+base_link_to_plate_top: 0.069987 # plate + rubber + 2040 (option (b))
+
+# Mid-360 — sensor_plate frame
+livox_frame_xyz: [-0.025, 0.0, 0.03661]   # body-frame +X = plate -Y, so the
+                                          # plate +25 mm Y offset becomes
+                                          # body -0.025 m X
+livox_frame_rpy: [0.0, 0.0, 0.0]
+
+# WitMotion — sensor_plate frame
+imu_link_xyz: [0.060, 0.0, 0.009]         # plate Y=-60 → body X=+0.060;
+                                          # housing midpoint above plate ≈ 9 mm
+imu_link_rpy: [0.0, 0.0, 0.0]             # WT901 X faces forward (= body +X),
+                                          # Y faces left — confirmed 2026-04-25.
+
+# D435 front — sensor_plate frame
+# Position is the FRONT GLASS plane (realsense2_description's macro
+# offsets internal optical frames from this reference).
+d435_front_link_xyz: [0.146761, 0.0, -0.028502]
+d435_front_link_rpy: [0.0, 0.0, 0.0]
+```
+
+Vertical reference: `sensor_plate` is the **top** of the lidar plate.
+D435 vertical center is below it (`Z = -0.0285 m`); Mid-360 optical
+center is above it (`Z = +0.0366 m`).
 
 ## Table Setup (as of 2026-04-23)
 
