@@ -85,16 +85,24 @@
 
        Pitch: the MakerWorld #1788451 D435 mount has the camera
        angled NOSE-DOWN by design (so the depth FOV covers the
-       ground in front of the rig, not the horizon). Measured with
-       a digital inclinometer on the rounded D435 housing top
-       (2026-04-26): ≈20°. Assumed exact 20° (round number per
-       mount author intent; housing rounded top gives ±2°
-       measurement uncertainty — refine with a depth-image
-       floor-plane fit if the map-tilt looks wrong in RTABMap).
-       REP-103: nose-down = NEGATIVE pitch.
-         20° × π/180 = 0.349066 rad → -0.349066 -->
+       ground in front of the rig, not the horizon).
+
+       REP-103 / URDF rpy sign convention: pitch is right-hand
+       rotation around +Y (left), so R_y(+θ) takes +X (forward)
+       toward -Z (down). Therefore POSITIVE pitch = NOSE-DOWN.
+       (This is NOT aerospace convention — that one has +pitch =
+       nose-up. URDF rpy follows the right-hand-rule math.)
+
+       Measurement source (2026-04-26): scripts/measure_d435_pitch.py
+       with the rig on a level floor with clear FOV — 99.8% inlier
+       fraction on the floor plane fit, 0.07° roll residual (rig
+       confirmed level), reports actual pitch = +10.09° nose-down.
+       Inclinometer on the rounded D435 housing top earlier read
+       ~20°, but that surface is not perpendicular to the optical
+       axis and is unreliable. Trust the depth-plane fit.
+         10.09° × π/180 = 0.176136 rad -->
   <xacro:property name="d435_front_xyz" value="0.146761 0.0 -0.028502"/>
-  <xacro:property name="d435_front_rpy" value="0.0 -0.349066 0.0"/>
+  <xacro:property name="d435_front_rpy" value="0.0 0.176136 0.0"/>
 
   <!-- ============== Links + joints ============== -->
 
