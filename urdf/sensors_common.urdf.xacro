@@ -50,7 +50,12 @@
   <xacro:property name="plate_thickness"        value="0.007"/>      <!-- 7 mm ASA -->
   <xacro:property name="rubber_compressed"      value="0.022987"/>   <!-- 0.905" -->
   <xacro:property name="extrusion_2040_height"  value="0.040"/>      <!-- 40 mm vertical face -->
-  <xacro:property name="base_link_to_plate_top" value="0.069987"/>   <!-- 2040 + rubber + plate -->
+  <xacro:property name="extrusion_2020_height"  value="0.020"/>      <!-- 20 mm vertical face -->
+  <!-- Lower (Jetson + USB hub) cavity: 2020 vertical posts between two 2040
+       beams. Total fixture height = 8.176" = 207.6704 mm; cavity = total
+       − 2*(2040) − rubber − plate = 207.670 − 80 − 22.987 − 7 = 97.683 mm. -->
+  <xacro:property name="jetson_cavity_height"   value="0.097683"/>   <!-- 2020 post span -->
+  <xacro:property name="base_link_to_plate_top" value="0.207670"/>   <!-- 2040 + cavity + 2040 + rubber + plate (8.176 in) -->
 
   <!-- ============== Sensor offsets (sensor_plate frame) ==============
        sensor_plate origin = top surface of the lidar plate, body

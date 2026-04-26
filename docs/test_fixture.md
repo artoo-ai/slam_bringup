@@ -17,15 +17,14 @@ Self-contained benchtop test rig for Mid-360 LiDAR + FAST-LIO2 development.
 ## Physical Dimensions
 
 - **Extrusion frame footprint**: matches Mid-360 mounting plate (5.5" x 8.5" / 139.7 x 215.9 mm)
-- **Fixture height (table to mounting plate)**: 9" (228.6 mm)
+- **Fixture height (table contact to top of mounting plate)**: 8.176" (207.670 mm) *(measured 2026-04-26; supersedes the earlier "~9"" rough estimate)*
 - **Mounting plate**: 5.5" x 8.5", 7 mm thick ASA  *(measured 2026-04-25; CAD source called for 6 mm — over-extrusion delta is documented here, use the measured value for URDF)*
 - **Mid-360 sits on top of the mounting plate** (no tilt, level)
-- **Frame extrusion**: **2040** profile (40 mm vertical, 20 mm horizontal),
-  forms the perimeter cage directly under the lidar plate. The plate does
-  NOT bolt to the extrusion directly — rubber isolation pads sit between
-  them.
-- **Rubber isolation pads (compressed)**: 0.905" (22.987 mm) between the
-  underside of the lidar plate and the top of the 2040 extrusion.
+- **Frame extrusion**: **two stacked 2040 perimeter cages** (40 mm vertical, 20 mm horizontal each), connected by short **2020 vertical posts** that form a Jetson + USB-hub cavity between them. The lidar plate bolts to the upper 2040 via rubber isolation pads (no direct metal-to-metal). Footprint of both cages = lidar plate footprint (139.7 × 215.9 mm).
+- **Lower 2040 cage**: bottom rail, sits on the table. 40 mm vertical face.
+- **2020 vertical posts (Jetson cavity)**: 97.683 mm tall — holds Jetson Orin Nano Super and Waveshare USB3.2 hub between the two 2040 rails.
+- **Upper 2040 cage**: lidar cage, holds rubber pads + plate on top, holds D435 in front-face slot. 40 mm vertical face.
+- **Rubber isolation pads (compressed)**: 0.905" (22.987 mm) between the underside of the lidar plate and the top of the upper 2040.
 
 ## URDF Stack-Up (lidar plate frame, +Z = up)
 
@@ -35,18 +34,26 @@ Measured 2026-04-25. Reference plane is the **top surface of the lidar plate**
 plate Y = +25 mm to free room for the WT901 at Y = -60 mm).
 
 ```
-Z = 0                  ┌──────────────────────────────────────┐  ← top of lidar plate
+Z =    0 mm            ┌──────────────────────────────────────┐  ← top of lidar plate (= sensor_plate)
                        │   Mid-360 (centered at plate Y=+25)  │
                        │   WT901    (centered at plate Y=-60) │
-Z = -7 mm              ├──────────────────────────────────────┤  ← bottom of lidar plate (7 mm thick)
+Z =   -7 mm            ├──────────────────────────────────────┤  ← bottom of lidar plate (7 mm thick)
                        ░░░░░░░░░░░ rubber pads (22.987 mm) ░░░░
-Z = -29.987 mm         ╔══════════════════════════════════════╗  ← top of 2040 extrusion
+Z =  -29.987 mm        ╔══════════════════════════════════════╗  ← top of UPPER 2040 (lidar cage)
                        ║                                      ║
-                       ║   2040 extrusion, 40 mm vertical     ║
-              D435 ──→ ╠══╗                                   ║   D435 mounted on FRONT 2040 face
+                       ║   upper 2040, 40 mm vertical face    ║
+              D435 ──→ ╠══╗                                   ║   D435 mounted on FRONT upper-2040 face
                        ║  ║   D435 top at Z = -16.002 mm      ║   (3D-printed slot mount in upper slot)
                        ║  ║   D435 vert. center Z ≈ -28.50 mm ║
-Z = -69.987 mm         ╚══╩═══════════════════════════════════╝  ← bottom of 2040 extrusion
+Z =  -69.987 mm        ╚══╩═══════════════════════════════════╝  ← bottom of upper 2040
+                       │  │  │                                │
+                       │  │  │  2020 vertical posts           │   Jetson + USB hub live in this cavity
+                       │  │  │  (97.683 mm tall, 4 corners)   │
+                       │  │  │                                │
+Z = -167.670 mm        ╔══════════════════════════════════════╗  ← top of LOWER 2040 (bottom rail)
+                       ║                                      ║
+                       ║   lower 2040, 40 mm vertical face    ║
+Z = -207.670 mm        ╚══════════════════════════════════════╝  ← bottom of fixture (table contact, = base_link)
 ```
 
 ### D435 placement (relative to lidar plate frame)
@@ -100,6 +107,10 @@ are now locked. Source: in-person measurement on the bench fixture.
 - Front-bar outer face is at plate `Y = -(215.9 / 2) = -107.95 mm`
   (Mid-360 M12 cable exits at plate `+Y = +80`, so the D435-facing edge
   is `-Y`).
+- **Two stacked 2040 cages** (upper = lidar cage, lower = bottom rail);
+  each is 40 mm tall. The cages are linked by 2020 vertical posts that
+  span 97.683 mm (the Jetson + USB-hub cavity). Total fixture height
+  base→plate-top = `40 + 97.683 + 40 + 22.987 + 7 = 207.670 mm` (= 8.176").
 
 ### 2. D435 forward offset
 
@@ -159,16 +170,17 @@ question. Three options and the trade-offs:
 | Option | What it means | Pro | Con |
 |--------|--------------|-----|-----|
 | **(a) `base_link = sensor_plate`** (zero-offset alias of plate) | The rig has no "footprint" — base_link sits on the plate top, +X forward. | Simplest tree; one fewer joint. RViz fixed-frame "just works" pointing at the plate. | Breaks ROS convention slightly: most Nav2 / robot_localization configs expect `base_link` at the **footprint** (ground-contact level), not at sensor height. Reusable URDF macros that drive Nav2 may need `base_footprint` synthesized. |
-| **(b) `base_link` at floor contact (table top)** | `base_link` at the bottom of the 2040 cage = table top; `sensor_plate` is a child at +29.987 mm above it (rubber + 2040 height = 70 mm above table actually; rubber is at top of cage, plate goes above). | Matches REP-105 ("base_link at the robot footprint"). Carries cleanly when you later mount on Go2 / mecanum. Nav2 / costmaps that assume `base_link Z = 0` at the ground will work without surgery. | Extra `base_link → sensor_plate` joint (~70 mm offset). Slightly more URDF. |
+| **(b) `base_link` at floor contact (table top)** | `base_link` at the very bottom of the lower 2040 = table top; `sensor_plate` is a child at +207.670 mm above it (lower 2040 + 2020 cavity + upper 2040 + rubber + plate = 8.176"). | Matches REP-105 ("base_link at the robot footprint"). Carries cleanly when you later mount on Go2 / mecanum. Nav2 / costmaps that assume `base_link Z = 0` at the ground will work without surgery. | Extra `base_link → sensor_plate` joint (~207.67 mm offset). Slightly more URDF. |
 | **(c) Skip `base_link` for the fixture; only define on real platforms** | Fixture URDF has only `sensor_plate` + sensor children. Real-platform URDFs include `sensors_common.urdf.xacro` and add their own `base_link`. | Cleanest separation between sensor-rig geometry and platform geometry. | Some tools (`tf2_echo`, `robot_localization`) blow up if `base_link` is absent. Inconvenient for any tooling that defaults to `base_link`. |
 
-**Recommendation: (b)**. It's only one extra static TF (and that TF is
-exactly the stack-up you already measured: 7 mm plate + 22.987 mm rubber
-+ 40 mm 2040 = 69.987 mm from `base_link` to `sensor_plate` top), and it
-keeps ROS conventions intact for everything downstream. You also don't
-have to revisit it when the rig moves to a real robot — those URDFs will
-publish their own `base_link` and the static-TF bridge to `body` lives
-in `slam.launch.py`'s `PLATFORM_BRIDGES` dict (per PLAN.md §3.4).
+**Recommendation: (b)**, implemented in `urdf/bench_fixture.urdf.xacro`.
+It's only one extra static TF, and that TF is exactly the stack-up
+above: `40 + 97.683 + 40 + 22.987 + 7 = 207.670 mm` from `base_link`
+to `sensor_plate` top. Keeps ROS conventions intact for everything
+downstream. You also don't have to revisit it when the rig moves to a
+real robot — those URDFs will publish their own `base_link` and the
+static-TF bridge to `body` lives in `slam.launch.py`'s
+`PLATFORM_BRIDGES` dict (per PLAN.md §3.4).
 
 If you want minimum URDF lines for the bench-only case, (a) is fine.
 Either choice can be migrated to the other later — it's one joint.
@@ -187,7 +199,9 @@ are rotated 180° in yaw relative to `sensor_plate` — see §2 above.
 plate_thickness:        0.007    # 7 mm
 rubber_compressed:      0.022987 # 0.905"
 extrusion_2040_height:  0.040    # 40 mm vertical face
-base_link_to_plate_top: 0.069987 # plate + rubber + 2040 (option (b))
+extrusion_2020_height:  0.020    # 20 mm vertical face (posts only here)
+jetson_cavity_height:   0.097683 # 2020 vertical posts between the two 2040 cages
+base_link_to_plate_top: 0.207670 # = 40 + 97.683 + 40 + 22.987 + 7 mm = 8.176" (option (b))
 
 # Mid-360 — sensor_plate frame
 livox_frame_xyz: [-0.025, 0.0, 0.03661]   # body-frame +X = plate -Y, so the
@@ -217,27 +231,27 @@ center is above it (`Z = +0.0366 m`).
 - **Table type**: adjustable-height
 - **Table height**: 38" (965.2 mm) from floor
 - **Fixture position**: lengthwise in the middle of the table, 5" (127 mm) from the table edge
-- **Total LiDAR height above floor (on table)**: 38" + 9" + plate thickness + Mid-360 base = ~48" (~1219 mm)
-- **Total LiDAR height above floor (on floor)**: 9" + plate thickness + Mid-360 base = ~10" (~254 mm)
+- **Total LiDAR optical-center height above floor (on table)**: 38" + 8.176" (fixture) + 1.441" (Mid-360 optical center above plate) = **47.617" (1209.3 mm)**
+- **Total LiDAR optical-center height above floor (on floor)**: 8.176" + 1.441" = **9.617" (244.3 mm)**
 
 ## Derived LiDAR Geometry (no tilt)
 
 Mid-360 vertical FOV: -7° to +52°
 
-### On Table (LiDAR ~1.2 m above floor)
+### On Table (LiDAR ~1.21 m above floor)
 
 | Parameter | Value |
 |-----------|-------|
-| Nearest ground return radius | 1.2 / tan(7°) = **9.78 m** |
-| Blind ring on floor | 0 to 9.78 m radius — no ground points inside this |
+| Nearest ground return radius | 1.209 / tan(7°) = **9.84 m** |
+| Blind ring on floor | 0 to 9.84 m radius — no ground points inside this |
 | Practical effect | In a typical room (<5 m wide), **zero ground returns** |
 
-### On Floor (LiDAR ~0.254 m above floor)
+### On Floor (LiDAR ~0.244 m above floor)
 
 | Parameter | Value |
 |-----------|-------|
-| Nearest ground return radius | 0.254 / tan(7°) = **2.07 m** |
-| Blind ring on floor | 0 to 2.07 m radius |
+| Nearest ground return radius | 0.244 / tan(7°) = **1.99 m** |
+| Blind ring on floor | 0 to 1.99 m radius |
 | Practical effect | Ground returns start ~2 m out — viable in rooms >4 m |
 
 ## Testing Notes
@@ -289,10 +303,10 @@ Mid-360 minimum vertical angle is -7°. The floor-intersection radius is
 
 | LiDAR height | Blind-ring radius | Floor returns available? |
 |--------------|-------------------|--------------------------|
-| 9" (0.254 m, fixture on floor)   | 2.07 m | Yes, in most rooms |
-| 48" (1.2 m, fixture on table)    | 9.77 m | Rarely — typical rooms are <5 m |
-| ~20" (~0.5 m, Go2 mount)         | ~4.1 m | Sometimes |
-| ~24" (~0.6 m, mecanum mast)      | ~4.9 m | Sometimes |
+| 9.62" (0.244 m, fixture on floor)  | 1.99 m | Yes, in most rooms |
+| 47.6" (1.21 m, fixture on table)   | 9.84 m | Rarely — typical rooms are <5 m |
+| ~20" (~0.5 m, Go2 mount)           | ~4.1 m | Sometimes |
+| ~24" (~0.6 m, mecanum mast)        | ~4.9 m | Sometimes |
 
 Without ground returns, FAST-LIO2 loses its strongest Z constraint. IMU
 accelerometer bias is never fully observable from side-walls alone, so it

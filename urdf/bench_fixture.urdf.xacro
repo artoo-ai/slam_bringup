@@ -1,18 +1,21 @@
 <?xml version="1.0"?>
 <!--
   Bench-fixture URDF. The 2040-extrusion benchtop test rig described in
-  docs/test_fixture.md. No chassis — base_link sits at the bottom of
-  the 2040 cage (table-contact level), sensor_plate is +69.987 mm above.
+  docs/test_fixture.md. No chassis — base_link sits at the very bottom
+  of the fixture (table-contact level), sensor_plate is +207.670 mm
+  above (= 8.176").
 
   Used as the platform argument `platform:=bench_fixture` in
   perception.launch.py / slam.launch.py.
 
   Stack-up (from base_link upward):
-    base_link             Z = 0           (table contact, bottom of 2040 cage)
-        ↑ 40 mm           2040 vertical face
+    base_link             Z = 0           (table contact, bottom of lower 2040)
+        ↑ 40 mm           lower 2040 vertical face (bottom rail)
+        ↑ 97.683 mm       2020 vertical posts — Jetson + USB hub cavity
+        ↑ 40 mm           upper 2040 vertical face (lidar cage)
         ↑ 22.987 mm       compressed rubber pads
         ↑ 7 mm            ASA lidar plate
-    sensor_plate          Z = 0.069987    (top of plate)
+    sensor_plate          Z = 0.207670    (top of plate, = 8.176")
         → see sensors_common.urdf.xacro for everything above this point
 -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="bench_fixture">
@@ -21,11 +24,12 @@
 
   <!-- Footprint at table contact. -->
   <link name="base_link">
-    <!-- Optional visual: the 2040 cage outline, sitting between
-         base_link (Z=0) and sensor_plate underside (Z=base_link_to_plate_top
-         minus the rubber + plate). Drawn as a wire-thin box so
-         viewers see *something* but it doesn't dominate the scene. -->
+    <!-- Visuals: lower 2040 + 2020 cavity (Jetson/USB) + upper 2040, drawn
+         as translucent boxes so viewers see *something* without dominating
+         the scene. Heights stack from base_link (Z=0) to plate underside
+         (Z = base_link_to_plate_top − rubber − plate). -->
     <visual>
+      <!-- Lower 2040 rail: Z = 0 .. 40 mm -->
       <origin xyz="0 0 ${extrusion_2040_height/2}" rpy="0 0 0"/>
       <geometry>
         <box size="0.2159 0.1397 ${extrusion_2040_height}"/>
@@ -33,6 +37,24 @@
       <material name="extrusion_2040">
         <color rgba="0.4 0.4 0.5 0.3"/>
       </material>
+    </visual>
+    <visual>
+      <!-- 2020 cavity: Z = 40 .. 137.683 mm (Jetson + USB hub live here) -->
+      <origin xyz="0 0 ${extrusion_2040_height + jetson_cavity_height/2}" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.2159 0.1397 ${jetson_cavity_height}"/>
+      </geometry>
+      <material name="extrusion_2020">
+        <color rgba="0.4 0.4 0.5 0.15"/>
+      </material>
+    </visual>
+    <visual>
+      <!-- Upper 2040 (lidar cage): Z = 137.683 .. 177.683 mm -->
+      <origin xyz="0 0 ${extrusion_2040_height + jetson_cavity_height + extrusion_2040_height/2}" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.2159 0.1397 ${extrusion_2040_height}"/>
+      </geometry>
+      <material name="extrusion_2040"/>
     </visual>
   </link>
 
