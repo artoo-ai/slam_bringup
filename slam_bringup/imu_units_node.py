@@ -17,11 +17,13 @@ linear_acceleration component by g, leave angular_velocity (rad/s)
 and orientation alone, republish on /livox/imu_ms2. FAST-LIO is then
 remapped to subscribe to /livox/imu_ms2 (see fast_lio.launch.py).
 
-Auto-detection: the node samples the first 50 messages, checks the
-magnitude. If it's already ~9.81 (driver in m/s² mode — possibly a
-future Livox release) it logs a warning and passes the messages
-through untouched, so this node is safe to leave in the launch even
-if the driver behavior changes.
+Auto-detection: decided on the FIRST message — one sample is plenty
+because magnitudes ~1.0 (g) vs ~9.81 (m/s²) are 9.8× apart and no
+intermediate value is plausible even under motion. Doing it any
+slower used to drop the first ~50 IMU messages while the buffer
+filled, which left FAST-LIO with no time-aligned IMU samples for the
+first LiDAR scan and put the time-sync state into a "No point, skip
+this scan!" loop it never recovered from.
 """
 
 import math
@@ -40,14 +42,11 @@ class IMUUnitsNode(Node):
 
         self.declare_parameter('input_topic',  '/livox/imu')
         self.declare_parameter('output_topic', '/livox/imu_ms2')
-        self.declare_parameter('autodetect_samples', 50)
 
-        in_topic    = self.get_parameter('input_topic').value
-        out_topic   = self.get_parameter('output_topic').value
-        self._autodetect_n = int(self.get_parameter('autodetect_samples').value)
+        in_topic  = self.get_parameter('input_topic').value
+        out_topic = self.get_parameter('output_topic').value
 
-        self._magnitudes = []
-        self._scale = None  # set after autodetect: 9.80665 (g→m/s²) or 1.0 (passthrough)
+        self._scale = None  # decided on first message: 9.80665 (g→m/s²) or 1.0 (passthrough)
 
         sensor_qos = QoSProfile(
             reliability=QoSReliabilityPolicy.BEST_EFFORT,
@@ -60,22 +59,17 @@ class IMUUnitsNode(Node):
 
         self.get_logger().info(
             f"imu_units_g_to_ms2: {in_topic} -> {out_topic}  "
-            f"(autodetect over first {self._autodetect_n} msgs)"
+            "(autodetect on first message)"
         )
 
     def _on_imu(self, msg: Imu) -> None:
         if self._scale is None:
-            self._magnitudes.append(math.sqrt(
+            mag = math.sqrt(
                 msg.linear_acceleration.x ** 2
                 + msg.linear_acceleration.y ** 2
                 + msg.linear_acceleration.z ** 2
-            ))
-            if len(self._magnitudes) >= self._autodetect_n:
-                self._decide_scale()
-            else:
-                # Don't publish until we know whether to scale —
-                # otherwise we'd briefly emit raw-g values labeled m/s².
-                return
+            )
+            self._scale = self._decide_scale(mag)
 
         out = Imu()
         out.header                = msg.header
@@ -89,34 +83,34 @@ class IMUUnitsNode(Node):
         out.linear_acceleration_covariance = msg.linear_acceleration_covariance
         self._pub.publish(out)
 
-    def _decide_scale(self) -> None:
-        avg = sum(self._magnitudes) / len(self._magnitudes)
-        # Three regimes:
+    def _decide_scale(self, magnitude: float) -> float:
+        # Three regimes from a single sample magnitude:
         #   ~1.0   → driver in g; multiply by 9.80665
         #   ~9.81  → driver in m/s²; passthrough
-        #   neither → IMU was in motion during startup; warn and assume
-        #             g (the historical livox_ros_driver2 behavior).
-        if abs(avg - 1.0) < 0.15:
-            self._scale = GRAVITY
+        #   neither → assume g (historical livox_ros_driver2 behavior) and warn.
+        # One sample is enough: under motion the magnitude can drift well off
+        # baseline, but it stays much closer to "true gravity in current
+        # units" than to the *other* unit's gravity (1 vs 9.81 are 9.8× apart).
+        if abs(magnitude - 1.0) < 1.0:
             self.get_logger().info(
-                f"detected unit: g (mean magnitude {avg:.4f}). "
+                f"detected unit: g (first-sample magnitude {magnitude:.4f}). "
                 f"Scaling accel by {GRAVITY:.5f}."
             )
-        elif abs(avg - GRAVITY) < 1.0:
-            self._scale = 1.0
+            return GRAVITY
+        if abs(magnitude - GRAVITY) < 3.0:
             self.get_logger().warn(
-                f"detected unit: m/s² (mean magnitude {avg:.4f}). "
-                f"Driver appears to publish in correct units — passing through unchanged. "
-                f"This node is safe but redundant; consider removing the remap in fast_lio.launch.py."
+                f"detected unit: m/s² (first-sample magnitude {magnitude:.4f}). "
+                f"Driver already publishes in correct units — passing through unchanged. "
+                f"This node is safe but redundant if the driver stays this way."
             )
-        else:
-            self._scale = GRAVITY
-            self.get_logger().warn(
-                f"could not autodetect IMU unit (mean magnitude {avg:.4f}, "
-                f"expected ~1.0 or ~9.81). The rig may have been moving during "
-                f"startup. Assuming g and scaling by {GRAVITY:.5f}; verify with "
-                f"measure_imu_tilt.py once stationary."
-            )
+            return 1.0
+        self.get_logger().warn(
+            f"could not classify IMU unit from first-sample magnitude "
+            f"{magnitude:.4f} (expected ~1.0 or ~9.81). The rig may have been "
+            f"in motion at startup. Assuming g and scaling by {GRAVITY:.5f}; "
+            f"re-run measure_imu_tilt.py once stationary to verify."
+        )
+        return GRAVITY
 
 
 def main():
