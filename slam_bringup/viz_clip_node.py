@@ -15,10 +15,9 @@ the Orin Nano. Implemented as a copy of the byte buffer with a numpy
 mask on the structured view of the z field — no per-point Python loop.
 """
 
-import struct
-
 import numpy as np
 import rclpy
+from rcl_interfaces.msg import SetParametersResult
 from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
 from sensor_msgs.msg import PointCloud2
@@ -50,6 +49,13 @@ class VizClipNode(Node):
         self._z_min = float(self.get_parameter('z_min').value)
         self._z_max = float(self.get_parameter('z_max').value)
 
+        # Allow z_min / z_max to be retuned live via:
+        #     ros2 param set /viz_z_clip z_max 3.5
+        # input_topic / output_topic are intentionally NOT runtime-tunable
+        # (changing them would require tearing down + recreating the
+        # subscriber/publisher; not worth the complexity).
+        self.add_on_set_parameters_callback(self._on_param_change)
+
         # FAST-LIO2 publishes /cloud_registered with BEST_EFFORT reliability
         # and VOLATILE durability; match that or we'll drop every message
         # silently with no visible error.
@@ -67,8 +73,29 @@ class VizClipNode(Node):
 
         self.get_logger().info(
             f"viz_z_clip: {in_topic} -> {out_topic}  "
-            f"z in [{self._z_min:.2f}, {self._z_max:.2f}] m"
+            f"z in [{self._z_min:.2f}, {self._z_max:.2f}] m  "
+            f"(retune live: ros2 param set {self.get_name()} z_max <value>)"
         )
+
+    def _on_param_change(self, params):
+        # Validate first; only commit changes if every requested update is sane.
+        new_z_min = self._z_min
+        new_z_max = self._z_max
+        for p in params:
+            if p.name == 'z_min':
+                new_z_min = float(p.value)
+            elif p.name == 'z_max':
+                new_z_max = float(p.value)
+        if new_z_min >= new_z_max:
+            return SetParametersResult(
+                successful=False,
+                reason=f"z_min ({new_z_min}) must be < z_max ({new_z_max})",
+            )
+        self._z_min, self._z_max = new_z_min, new_z_max
+        self.get_logger().info(
+            f"viz_z_clip: z range now [{self._z_min:.2f}, {self._z_max:.2f}] m"
+        )
+        return SetParametersResult(successful=True)
 
     def _on_cloud(self, msg: PointCloud2) -> None:
         # Treat the byte payload as an array of point_step-sized records,
