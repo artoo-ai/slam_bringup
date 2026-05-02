@@ -23,6 +23,11 @@
             # by ~96×, and the IMU prediction step contributes effectively
             # nothing. The republisher is launched alongside FAST-LIO in
             # fast_lio.launch.py.
+            #
+            # If you launch FAST-LIO outside this stack (e.g. running
+            # upstream FAST_LIO_ROS2/mapping.launch.py directly), either
+            # spawn imu_units_g_to_ms2 separately, or change this back to
+            # /livox/imu and accept the unit error.
             imu_topic:  "/livox/imu_ms2"
             time_sync_en: false
             time_offset_lidar_to_imu: 0.0

@@ -99,6 +99,19 @@ if [ "${START_FAST_LIO_SKIP_PREFLIGHT:-0}" != "1" ]; then
     echo "start_fast_lio: WARNING — /livox/imu has no publisher." >&2
     echo "  FAST-LIO2 will not converge without the Mid-360 onboard IMU. Continuing anyway." >&2
   fi
+
+  # Verify the imu_units_g_to_ms2 entry_point is installed. fast_lio.launch.py
+  # spawns this node to convert /livox/imu (units of g) to /livox/imu_ms2
+  # (m/s²). If setup.py was changed without a clean colcon rebuild, the
+  # entry_point isn't installed and the Node action silently fails — FAST-LIO
+  # then subscribes to /livox/imu_ms2 with no publisher and produces no
+  # /Odometry or /cloud_registered. Catch that here.
+  if ! ros2 pkg executables slam_bringup 2>/dev/null | grep -q 'imu_units_g_to_ms2'; then
+    echo "start_fast_lio: ERROR — slam_bringup imu_units_g_to_ms2 entry_point is not installed." >&2
+    echo "  setup.py was updated but the workspace wasn't clean-rebuilt." >&2
+    echo "  Fix: cd ~/slam_ws/src/slam_bringup && ./build.sh --clean && source ~/slam_ws/install/setup.bash" >&2
+    exit 1
+  fi
 fi
 
 # Spawn the viz-clip republisher in the background so /cloud_viz_clipped
