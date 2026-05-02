@@ -48,14 +48,29 @@ class IMUUnitsNode(Node):
 
         self._scale = None  # decided on first message: 9.80665 (g→m/s²) or 1.0 (passthrough)
 
-        sensor_qos = QoSProfile(
+        # Match the Livox driver's IMU QoS exactly: livox_ros_driver2
+        # creates /livox/imu with rclcpp::SystemDefaultsQoS() — that's
+        # RELIABLE/VOLATILE/KEEP_LAST/10. FAST-LIO subscribes RELIABLE
+        # by default, so the publisher MUST also be RELIABLE or DDS
+        # silently refuses the connection (incompatible-QoS warning,
+        # no messages delivered). For the SUBSCRIBER side we relax to
+        # BEST_EFFORT so we can read either RELIABLE (driver default)
+        # or BEST_EFFORT (some Livox firmware variants) without
+        # changing this code.
+        publisher_qos = QoSProfile(
+            reliability=QoSReliabilityPolicy.RELIABLE,
+            history=QoSHistoryPolicy.KEEP_LAST,
+            durability=QoSDurabilityPolicy.VOLATILE,
+            depth=10,
+        )
+        subscriber_qos = QoSProfile(
             reliability=QoSReliabilityPolicy.BEST_EFFORT,
             history=QoSHistoryPolicy.KEEP_LAST,
             durability=QoSDurabilityPolicy.VOLATILE,
             depth=20,
         )
-        self._pub = self.create_publisher(Imu, out_topic, sensor_qos)
-        self._sub = self.create_subscription(Imu, in_topic, self._on_imu, sensor_qos)
+        self._pub = self.create_publisher(Imu, out_topic, publisher_qos)
+        self._sub = self.create_subscription(Imu, in_topic, self._on_imu, subscriber_qos)
 
         self.get_logger().info(
             f"imu_units_g_to_ms2: {in_topic} -> {out_topic}  "
