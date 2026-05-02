@@ -141,6 +141,15 @@ def generate_launch_description():
         DeclareLaunchArgument('localization',       default_value='false'),
     ]
 
+    # Visualization-only z-clip on /cloud_registered. See viz_clip.launch.py.
+    # Defaults are tuned for indoor/house viewing; raise viz_z_max for garages
+    # (e.g. viz_z_max:=4.5) or set enable_viz_clip:=false to disable.
+    viz_clip_args = [
+        DeclareLaunchArgument('enable_viz_clip', default_value='true'),
+        DeclareLaunchArgument('viz_z_min',       default_value='-1.0'),
+        DeclareLaunchArgument('viz_z_max',       default_value='2.0'),
+    ]
+
     # ---------- perception (URDF + sensors in SLAM mode) ----------
     perception = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(str(launch_dir / 'perception.launch.py')),
@@ -178,11 +187,23 @@ def generate_launch_description():
         }.items(),
     )
 
+    # ---------- Viz-only z-clip (top-down floorplan view) ----------
+    viz_clip = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(str(launch_dir / 'viz_clip.launch.py')),
+        launch_arguments={
+            'enable_viz_clip': LaunchConfiguration('enable_viz_clip'),
+            'viz_z_min':       LaunchConfiguration('viz_z_min'),
+            'viz_z_max':       LaunchConfiguration('viz_z_max'),
+        }.items(),
+    )
+
     return LaunchDescription([
         platform_arg, use_sim_time_arg, rviz_arg,
         *rtabmap_args,
+        *viz_clip_args,
         perception,
         bridge,
         fast_lio,
         rtabmap,
+        viz_clip,
     ])

@@ -18,6 +18,7 @@ source ~/slam_ws/install/setup.bash
 # RTABMap first (depends on FAST-LIO2 odom), then FAST-LIO2, then sensors.
 "$SCRIPT_DIR/kill_rtabmap.sh"  2>/dev/null
 "$SCRIPT_DIR/kill_fast_lio.sh" 2>/dev/null
+"$SCRIPT_DIR/kill_viz_clip.sh" 2>/dev/null
 "$SCRIPT_DIR/kill_sensors.sh"  2>/dev/null
 pkill -SIGINT -f robot_state_publisher 2>/dev/null
 sleep 1

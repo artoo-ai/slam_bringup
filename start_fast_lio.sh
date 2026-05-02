@@ -16,6 +16,25 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source /opt/ros/humble/setup.bash
 source ~/slam_ws/install/setup.bash
 
+# Split args: viz_clip-related → viz_args (passed to viz_clip.launch.py),
+# everything else → fl_args (passed to fast_lio.launch.py). Lets you do
+#   ./start_fast_lio.sh viz_z_max:=4.5
+# without ros2 launch warning about an unknown arg on the FAST-LIO side.
+viz_args=()
+fl_args=()
+viz_disabled=0
+for arg in "$@"; do
+  case "$arg" in
+    enable_viz_clip:=*|viz_z_min:=*|viz_z_max:=*|viz_input_topic:=*|viz_output_topic:=*)
+      viz_args+=("$arg")
+      [ "$arg" = "enable_viz_clip:=false" ] && viz_disabled=1
+      ;;
+    *)
+      fl_args+=("$arg")
+      ;;
+  esac
+done
+
 if pgrep -f fastlio_mapping > /dev/null \
    || pgrep -f "ros2 launch slam_bringup fast_lio" > /dev/null; then
   echo "start_fast_lio: fastlio_mapping already running — cleaning up first"
@@ -82,4 +101,16 @@ if [ "${START_FAST_LIO_SKIP_PREFLIGHT:-0}" != "1" ]; then
   fi
 fi
 
-exec ros2 launch slam_bringup fast_lio.launch.py "$@"
+# Spawn the viz-clip republisher in the background so /cloud_viz_clipped
+# is available alongside FAST-LIO2 for top-down RViz/Foxglove views.
+# Always pre-clean any stale container — both start_fast_lio.sh and
+# start_slam.sh launch one, so running them back-to-back must not collide
+# on the duplicate node name.
+if [ "$viz_disabled" -ne 1 ]; then
+  "$SCRIPT_DIR/kill_viz_clip.sh" >/dev/null 2>&1
+  ros2 launch slam_bringup viz_clip.launch.py "${viz_args[@]}" \
+       > /tmp/viz_clip.log 2>&1 &
+  echo "start_fast_lio: spawned viz_clip in background (log: /tmp/viz_clip.log)"
+fi
+
+exec ros2 launch slam_bringup fast_lio.launch.py "${fl_args[@]}"

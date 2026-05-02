@@ -246,8 +246,10 @@ One-liner wrappers around the launches that also handle "the driver got wedged a
 | `./kill_witmotion.sh` | Force-kill the WitMotion node + its launch wrapper |
 | `./start_sensors.sh` | Launch all three sensors via `sensors.launch.py`; pre-cleans every per-sensor driver before relaunching |
 | `./kill_sensors.sh` | Chain `kill_mid360.sh` + `kill_d435.sh` + `kill_witmotion.sh`, then nuke the parent launch wrapper |
-| `./start_fast_lio.sh` | Launch FAST-LIO2 (`fastlio_mapping`) against `/livox/lidar` CustomMsg + `/livox/imu`; auto-clean a stale instance first |
-| `./kill_fast_lio.sh` | Force-kill the FAST-LIO2 node + its launch wrapper |
+| `./start_fast_lio.sh` | Launch FAST-LIO2 (`fastlio_mapping`) against `/livox/lidar` CustomMsg + `/livox/imu`; auto-clean a stale instance first. Also auto-spawns `viz_clip` for `/cloud_viz_clipped` (override with `viz_z_max:=…` or disable with `enable_viz_clip:=false`). |
+| `./kill_fast_lio.sh` | Force-kill the FAST-LIO2 node + its launch wrapper. Also chains `kill_viz_clip.sh`. |
+| `./start_viz_clip.sh` | Standalone viz-clip republisher: subscribes `/cloud_registered` (overridable), publishes z-clipped `/cloud_viz_clipped`. Use against a bag replay or alongside an already-running pipeline. |
+| `./kill_viz_clip.sh` | Force-kill the `viz_clip_container` + its launch wrapper. Called automatically by `kill_fast_lio.sh` and `kill_slam.sh`. |
 | `./start_rtabmap.sh` | Launch RTABMap on top of FAST-LIO2 + D435 RGB-D (visual loop closure + occupancy grid). Preflights all 5 input topics + body→d435_front_link TF before launching |
 | `./kill_rtabmap.sh` | Force-kill the RTABMap node + its launch wrapper |
 | `./start_perception.sh` | Launch URDF (`platform:=bench_fixture` default) + all sensors + optional rviz2. No SLAM — for visualizing sensor placement against the URDF tree. |
@@ -255,6 +257,39 @@ One-liner wrappers around the launches that also handle "the driver got wedged a
 | `./kill_slam.sh` | Force-kill every layer of the SLAM stack. |
 | `./start_bench_tf.sh` | Publish `livox_frame → camera_link` static TF for multi-sensor visualization (see below) |
 | `./start_foxglove.sh` | Start `foxglove_bridge` on the Jetson for remote Studio/App connections |
+
+### Top-down floorplan view (`/cloud_viz_clipped`)
+
+Both `./start_slam.sh` and `./start_fast_lio.sh` run a `pcl_ros::PassThrough` filter alongside the rest of the pipeline that republishes a z-clipped copy of `/cloud_registered` on `/cloud_viz_clipped` — purely for visualization. The raw cloud still flows into FAST-LIO2 / RTABMap unchanged, so ICP, the occupancy grid, and `/octomap_full` keep their full vertical extent (you can still measure rafters in the 3D map).
+
+In Foxglove / RViz, set the **Display frame** to `camera_init` and add `/cloud_viz_clipped` as a PointCloud2 display. With the ceiling clipped you can sit the camera straight above and see the floorplan with furniture, walls, and doorways visible inside each room.
+
+`z = 0` is the body pose at FAST-LIO2 startup (i.e. the IMU position when you launched), **not** the floor. Tune `viz_z_max` for the rig's startup height and the space:
+
+```bash
+./start_slam.sh                                # default: viz_z_max=2.0  (typical house)
+./start_slam.sh viz_z_max:=4.5                 # garage / shop with high ceilings
+./start_slam.sh viz_z_min:=0.5 viz_z_max:=1.5  # narrow band for a clean floorplan section
+./start_slam.sh enable_viz_clip:=false         # disable; only /cloud_registered is published
+```
+
+The same arg overrides work on `./start_fast_lio.sh` for FAST-LIO-only testing — the script splits viz-related args off and passes them to a backgrounded `viz_clip.launch.py`:
+
+```bash
+./start_fast_lio.sh                            # FAST-LIO2 + auto viz_clip with defaults
+./start_fast_lio.sh viz_z_max:=4.5             # garage
+./start_fast_lio.sh enable_viz_clip:=false     # FAST-LIO2 only, no /cloud_viz_clipped
+```
+
+Standalone replay (against a bag, or alongside a manually-launched pipeline):
+
+```bash
+./start_viz_clip.sh viz_z_max:=2.5
+# or directly:
+ros2 launch slam_bringup viz_clip.launch.py viz_z_max:=2.5
+```
+
+Args: `enable_viz_clip` (default `true`), `viz_z_min` (default `-1.0`), `viz_z_max` (default `2.0`), `viz_input_topic` (default `/cloud_registered`), `viz_output_topic` (default `/cloud_viz_clipped`).
 
 ### View Mid-360 + D435 together in Foxglove / RViz
 
