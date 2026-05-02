@@ -353,6 +353,34 @@ python3 ~/slam_ws/src/slam_bringup/scripts/measure_d435_pitch.py --ros-args \
 Output is the current URDF pitch, the residual error, and a copy-pasteable
 new value for `d435_front_rpy` in `urdf/sensors_common.urdf.xacro`.
 
+### IMU tilt measurement (`scripts/measure_imu_tilt.py`)
+
+One-shot calibration of the Mid-360 IMU's mounting tilt relative to gravity.
+Run this when:
+- FAST-LIO2's `camera_init` z-axis comes out tilted (Foxglove grid not level
+  with the floor in `camera_init`-anchored views).
+- You swap or remount the sensor plate.
+- The rover SLAM map shows a slowly-tilting world plane that's not real.
+
+**Run it** with the rig **stationary** on a level horizontal surface — the
+script averages 600 IMU samples and the average is meaningless if anything
+is moving:
+
+```bash
+python3 ~/slam_ws/src/slam_bringup/scripts/measure_imu_tilt.py --ros-args \
+    -p num_samples:=600 -p imu_topic:=/livox/imu
+```
+
+Output is roll + pitch in degrees and (if tilt > 0.3°) a 3×3 rotation matrix
+to paste into `extrinsic_R` in `config/fast_lio_mid360.yaml`. If the tilt
+exceeds ~2° **and** is mechanical (sensor plate visibly off-level), shim
+the plate flat rather than baking the correction into `extrinsic_R`.
+
+The script does not calibrate the IMU's bias — FAST-LIO2 estimates that
+online during the ESKF settle (the ~30 s stationary period after
+`./start_fast_lio.sh`) — and it does not calibrate the IMU's scale, which
+is set at the Livox factory and can't be re-measured in the field.
+
 ### LiDAR diagnostics (`scripts/lidar_diagnostics.py`)
 
 Standalone health-check for the Mid-360 data stream. Subscribes to `/livox/lidar` (CustomMsg or PointCloud2) and `/livox/imu` for a fixed duration, then prints a six-part report. Does NOT touch FAST-LIO2 — safe to run alongside any workflow.
