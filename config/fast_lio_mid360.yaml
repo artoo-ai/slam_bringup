@@ -42,7 +42,15 @@
             blind: 0.5
 
         mapping:
-            acc_cov: 0.1
+            # acc_cov tuned 2026-05-02 against unit-corrected /livox/imu_ms2
+            # (see imu_units_node.py). The original 0.1 was set when the
+            # IMU was effectively g-scaled — over-trusted the prediction
+            # step relative to ICP. With true m/s² data, 0.5 lets ICP
+            # correct fast motion without the IMU dragging the pose along
+            # with stale samples. If you see odometry lag during quick
+            # turns drop back to 0.1; if /Odometry shakes drop further to
+            # 0.3.
+            acc_cov: 0.5
             gyr_cov: 0.1
             b_acc_cov: 0.0001
             b_gyr_cov: 0.0001
