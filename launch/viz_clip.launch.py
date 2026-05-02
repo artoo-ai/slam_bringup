@@ -65,13 +65,16 @@ def generate_launch_description():
         description='Republished z-clipped cloud (subscribe to this in RViz/Foxglove).',
     )
     z_min_arg = DeclareLaunchArgument(
-        'viz_z_min', default_value='-1.0',
-        description='Lower z bound (m) in camera_init frame. Below this is dropped.',
+        'viz_z_min', default_value='-3.0',
+        description='Lower z bound (m) in camera_init frame. Below this is dropped. '
+                    'Default -3.0 keeps the floor visible whether the rig started at '
+                    'rover-IMU height (~0.3 m) or bench-fixture-on-table height (~1.2 m).',
     )
     z_max_arg = DeclareLaunchArgument(
-        'viz_z_max', default_value='2.0',
+        'viz_z_max', default_value='3.0',
         description='Upper z bound (m) in camera_init frame. Above this is dropped — '
-                    'the "ceiling clip." Raise for garages / high-ceiling spaces.',
+                    'the "ceiling clip." Default 3.0 covers typical residential ceilings; '
+                    'raise to 4.5+ for garages / high-ceiling spaces.',
     )
 
     enable_viz_clip = LaunchConfiguration('enable_viz_clip')

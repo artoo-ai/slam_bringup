@@ -146,8 +146,8 @@ def generate_launch_description():
     # (e.g. viz_z_max:=4.5) or set enable_viz_clip:=false to disable.
     viz_clip_args = [
         DeclareLaunchArgument('enable_viz_clip', default_value='true'),
-        DeclareLaunchArgument('viz_z_min',       default_value='-1.0'),
-        DeclareLaunchArgument('viz_z_max',       default_value='2.0'),
+        DeclareLaunchArgument('viz_z_min',       default_value='-3.0'),
+        DeclareLaunchArgument('viz_z_max',       default_value='3.0'),
     ]
 
     # ---------- perception (URDF + sensors in SLAM mode) ----------

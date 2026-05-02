@@ -269,7 +269,7 @@ In Foxglove / RViz, set the **Display frame** to `camera_init` and add `/cloud_v
 `z = 0` is the body pose at FAST-LIO2 startup (i.e. the IMU position when you launched), **not** the floor. Tune `viz_z_max` for the rig's startup height and the space:
 
 ```bash
-./start_slam.sh                                # default: viz_z_max=2.0  (typical house)
+./start_slam.sh                                # defaults: viz_z_min=-3.0, viz_z_max=3.0 (covers typical room)
 ./start_slam.sh viz_z_max:=4.5                 # garage / shop with high ceilings
 ./start_slam.sh viz_z_min:=0.5 viz_z_max:=1.5  # narrow band for a clean floorplan section
 ./start_slam.sh enable_viz_clip:=false         # disable; only /cloud_registered is published
