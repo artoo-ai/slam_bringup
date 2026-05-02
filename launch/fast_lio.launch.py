@@ -32,6 +32,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 
 
@@ -66,6 +67,23 @@ def generate_launch_description():
         }.items(),
     )
 
+    # Livox driver (1.2.6 in this stack) publishes /livox/imu with
+    # linear_acceleration in units of g (1.0 at rest), but FAST-LIO2 and
+    # the rest of ROS expect m/s² per REP-145. Republish on /livox/imu_ms2
+    # with accel scaled by g, and FAST-LIO2 (via fast_lio_mid360.yaml's
+    # imu_topic = /livox/imu_ms2) consumes the corrected stream. The node
+    # auto-detects on first 50 samples and passes through unchanged if a
+    # future driver release fixes the unit upstream.
+    imu_units_node = Node(
+        package='slam_bringup',
+        executable='imu_units_g_to_ms2',
+        name='imu_units_g_to_ms2',
+        output='screen',
+        emulate_tty=True,
+    )
+
     return LaunchDescription([
-        config_path_arg, config_file_arg, rviz_arg, fast_lio_launch,
+        config_path_arg, config_file_arg, rviz_arg,
+        imu_units_node,
+        fast_lio_launch,
     ])

@@ -8,8 +8,10 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 pkill -SIGINT -f fastlio_mapping                 # try graceful first
+pkill -SIGINT -f "imu_units_node\|imu_units_g_to_ms2"   # /livox/imu → /livox/imu_ms2 republisher
 sleep 2
 pkill -9      -f fastlio_mapping                 # nuke if still alive
+pkill -9      -f "imu_units_node\|imu_units_g_to_ms2"
 pkill -9      -f "ros2 launch slam_bringup fast_lio"   # and the launch wrapper
 
 # Take down the viz-clip republisher start_fast_lio.sh spawned alongside.

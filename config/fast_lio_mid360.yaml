@@ -14,7 +14,16 @@
     ros__parameters:
         common:
             lid_topic:  "/livox/lidar"
-            imu_topic:  "/livox/imu"
+            # IMPORTANT: /livox/imu_ms2 is the unit-corrected IMU stream
+            # published by slam_bringup/imu_units_node.py. The Livox driver
+            # itself publishes /livox/imu with linear_acceleration in units
+            # of g (1.0 at rest), but FAST-LIO2 expects m/s². Subscribing
+            # to /livox/imu directly silently degrades pose smoothing —
+            # gravity init reads as 1.0, accel covariance is over-weighted
+            # by ~96×, and the IMU prediction step contributes effectively
+            # nothing. The republisher is launched alongside FAST-LIO in
+            # fast_lio.launch.py.
+            imu_topic:  "/livox/imu_ms2"
             time_sync_en: false
             time_offset_lidar_to_imu: 0.0
 

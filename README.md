@@ -381,6 +381,20 @@ online during the ESKF settle (the ~30 s stationary period after
 `./start_fast_lio.sh`) — and it does not calibrate the IMU's scale, which
 is set at the Livox factory and can't be re-measured in the field.
 
+**Mid-360 IMU unit gotcha.** The Livox driver in this stack
+(`livox_ros_driver2` 1.2.6) publishes `/livox/imu` with
+`linear_acceleration` in units of **g** (1.0 at rest), not m/s² as
+sensor_msgs convention requires. FAST-LIO2 expects m/s². To bridge
+this, `fast_lio.launch.py` spawns a small republisher
+(`slam_bringup/imu_units_node.py`) that auto-detects the unit on the
+first 50 messages, scales `/livox/imu` by 9.80665 if it sees g, and
+republishes on `/livox/imu_ms2`. `config/fast_lio_mid360.yaml`'s
+`imu_topic` points at `/livox/imu_ms2`, so FAST-LIO consumes the
+corrected stream. If a future Livox driver release publishes in m/s²
+natively the autodetect logs a warning and passes the messages through
+unchanged — the node is safe to leave wired up. `measure_imu_tilt.py`
+auto-detects the unit too, so you can run it against either topic.
+
 ### LiDAR diagnostics (`scripts/lidar_diagnostics.py`)
 
 Standalone health-check for the Mid-360 data stream. Subscribes to `/livox/lidar` (CustomMsg or PointCloud2) and `/livox/imu` for a fixed duration, then prints a six-part report. Does NOT touch FAST-LIO2 — safe to run alongside any workflow.

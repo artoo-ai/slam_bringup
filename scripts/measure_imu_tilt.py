@@ -116,6 +116,20 @@ class IMUTiltMeasurer(Node):
         std   = self._samples[:self._n].std(axis=0)
 
         magnitude = float(np.linalg.norm(accel))
+        # The Livox 1.2.6 driver publishes /livox/imu in units of g (1.0
+        # at rest); slam_bringup's imu_units_g_to_ms2 republishes scaled
+        # to m/s² on /livox/imu_ms2. Either is valid input here — the
+        # tilt is a pure direction calculation, so units don't matter
+        # for the angle output. We just want the right "expected"
+        # magnitude in the report based on what the user fed us.
+        if abs(magnitude - 1.0) < 0.15:
+            unit_label    = 'g'
+            expected_mag  = 1.0
+            mag_tolerance = 0.02
+        else:
+            unit_label    = 'm/s²'
+            expected_mag  = 9.80665
+            mag_tolerance = 0.05
         # Direction the IMU reports gravity in IMU body frame.
         # We want to find the rotation R that maps this direction to
         # the body-frame "up" axis (0,0,1) (or "down" if gravity_sign=-1).
@@ -155,11 +169,15 @@ class IMUTiltMeasurer(Node):
         print("Mid-360 IMU tilt calibration")
         print("=" * 70)
         print(f"Samples averaged:        {self._n}")
-        print(f"Mean accel (m/s²):       [{accel[0]:+.4f}, {accel[1]:+.4f}, {accel[2]:+.4f}]")
-        print(f"Per-axis std (m/s²):     [{std[0]:.4f}, {std[1]:.4f}, {std[2]:.4f}]"
+        print(f"Detected unit:           {unit_label}  "
+              f"(expected magnitude ≈ {expected_mag})")
+        print(f"Mean accel ({unit_label}):    [{accel[0]:+.4f}, {accel[1]:+.4f}, {accel[2]:+.4f}]")
+        print(f"Per-axis std ({unit_label}):  [{std[0]:.4f}, {std[1]:.4f}, {std[2]:.4f}]"
               f"  (large = rig wasn't still)")
-        print(f"Magnitude:               {magnitude:.4f} m/s²  "
-              f"(expected 9.80–9.82; off by >0.05 → IMU scale issue)")
+        mag_err = abs(magnitude - expected_mag)
+        scale_warning = "" if mag_err <= mag_tolerance else \
+            f"  ← off by {mag_err:.4f}, IMU scale issue or rig moving"
+        print(f"Magnitude:               {magnitude:.4f} {unit_label}{scale_warning}")
         print()
         print(f"Roll  (about IMU +x):    {math.degrees(roll_rad):+7.3f}°  "
               f"(positive = right-side down)")

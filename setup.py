@@ -30,6 +30,9 @@ setup(
             # Visualization-only z-clip republisher. See slam_bringup/viz_clip_node.py
             # for why we do this in pure Python instead of pcl_ros::PassThrough.
             'viz_clip = slam_bringup.viz_clip_node:main',
+            # /livox/imu (units of g) → /livox/imu_ms2 (m/s²) republisher.
+            # See slam_bringup/imu_units_node.py for the rationale.
+            'imu_units_g_to_ms2 = slam_bringup.imu_units_node:main',
         ],
     },
 )
