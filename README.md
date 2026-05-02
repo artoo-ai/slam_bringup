@@ -353,6 +353,32 @@ python3 ~/slam_ws/src/slam_bringup/scripts/measure_d435_pitch.py --ros-args \
 Output is the current URDF pitch, the residual error, and a copy-pasteable
 new value for `d435_front_rpy` in `urdf/sensors_common.urdf.xacro`.
 
+### Map export for CloudCompare (`scripts/export_map.sh`)
+
+`rtabmap-export` with no flags writes the *occupancy-grid voxel cloud* —
+sparse and confusing in CloudCompare ("just a trail of dots along my
+trajectory"). For visual map inspection you almost always want the
+assembled LiDAR scan cloud projected with D435 RGB. This script wraps
+the right flag combination:
+
+```bash
+./scripts/export_map.sh                    # defaults: scan + cam_projection + voxel 3 cm
+./scripts/export_map.sh --voxel-size 0.01  # max detail (1 cm voxels, larger file)
+./scripts/export_map.sh --no-color         # skip RGB projection (faster, LiDAR only)
+./scripts/export_map.sh --db ~/.ros/rtabmap.db.bak --output ~/maps/before-fix
+```
+
+Output goes to `~/maps/<timestamp>/cloud.ply`, opened with
+`cloudcompare cloud.ply` (Linux) or `open cloud.ply` after
+`brew install --cask cloudcompare` on macOS. In CloudCompare:
+
+1. In the PLY-import dialog, remove any `camera - scalex/scaley`
+   entries from the Scalar fields box (those belong to the trajectory
+   element, not the points), then click **Apply all**.
+2. In the DB Tree, select the `vertex` cloud and press **Z** to fit
+   the view onto it. If you see only a thin trajectory of dots, you're
+   looking at the camera-pose element — select the larger sibling.
+
 ### IMU tilt measurement (`scripts/measure_imu_tilt.py`)
 
 One-shot calibration of the Mid-360 IMU's mounting tilt relative to gravity.
