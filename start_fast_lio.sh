@@ -103,7 +103,7 @@ fi
 
 # Spawn the viz-clip republisher in the background so /cloud_viz_clipped
 # is available alongside FAST-LIO2 for top-down RViz/Foxglove views.
-# Always pre-clean any stale container — both start_fast_lio.sh and
+# Always pre-clean any stale instance — both start_fast_lio.sh and
 # start_slam.sh launch one, so running them back-to-back must not collide
 # on the duplicate node name.
 if [ "$viz_disabled" -ne 1 ]; then

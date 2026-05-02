@@ -27,6 +27,9 @@ setup(
             # WitMotion WT901C / WT9011 0x61 packet → sensor_msgs/Imu publisher.
             # See slam_bringup/wt901c_imu_node.py for the protocol rationale.
             'wt901c_imu = slam_bringup.wt901c_imu_node:main',
+            # Visualization-only z-clip republisher. See slam_bringup/viz_clip_node.py
+            # for why we do this in pure Python instead of pcl_ros::PassThrough.
+            'viz_clip = slam_bringup.viz_clip_node:main',
         ],
     },
 )

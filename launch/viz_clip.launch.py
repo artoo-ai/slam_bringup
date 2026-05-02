@@ -7,12 +7,22 @@ ends up inside the room walls (zoomed in) or so high it just shows
 new-room outlines (zoomed out). We want a top-down section through the
 living space.
 
-Approach: a parallel `pcl_ros::PassThrough` filter that subscribes to
-/cloud_registered, clips the z field to [viz_z_min, viz_z_max], and
-republishes on /cloud_viz_clipped — purely for visualization. The raw
-/cloud_registered_body still goes to RTABMap unchanged, so SLAM/ICP and
-the occupancy grid keep their full vertical info (still useful for
-measuring rafters via the RTABMap 3D map and /octomap_full).
+Approach: a tiny rclpy republisher (slam_bringup/viz_clip_node.py) that
+subscribes to /cloud_registered, clips the z field to [viz_z_min,
+viz_z_max], and republishes on /cloud_viz_clipped — purely for
+visualization. The raw /cloud_registered_body still goes to RTABMap
+unchanged, so SLAM/ICP and the occupancy grid keep their full vertical
+info (still useful for measuring rafters via the RTABMap 3D map and
+/octomap_full).
+
+Why a custom Python node and not pcl_ros::PassThrough:
+    The Humble pcl_ros 2.4.5 deb does not consistently expose its filter
+    classes as loadable composable-node plugins on every build —
+    `class_loader` fails the `pcl_ros::PassThrough` lookup at container
+    start with a "Failed to find class with the requested plugin name"
+    error, even with pcl_ros installed and recognised by ros2 pkg. The
+    rclpy node sidesteps the packaging issue and is plenty fast for a
+    10 Hz Mid-360 cloud on the Orin Nano (numpy mask, no per-point loop).
 
 Frame note — z=0 in /cloud_registered:
     /cloud_registered is in FAST-LIO2's `camera_init` frame. camera_init's
@@ -38,14 +48,13 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import ComposableNodeContainer
-from launch_ros.descriptions import ComposableNode
+from launch_ros.actions import Node
 
 
 def generate_launch_description():
     enable_arg = DeclareLaunchArgument(
         'enable_viz_clip', default_value='true',
-        description='If true, run the PassThrough z-clip and publish /cloud_viz_clipped.',
+        description='If true, run viz_clip_node and publish /cloud_viz_clipped.',
     )
     input_topic_arg = DeclareLaunchArgument(
         'viz_input_topic', default_value='/cloud_registered',
@@ -66,41 +75,20 @@ def generate_launch_description():
     )
 
     enable_viz_clip = LaunchConfiguration('enable_viz_clip')
-    viz_input_topic = LaunchConfiguration('viz_input_topic')
-    viz_output_topic = LaunchConfiguration('viz_output_topic')
-    viz_z_min = LaunchConfiguration('viz_z_min')
-    viz_z_max = LaunchConfiguration('viz_z_max')
 
-    # pcl_ros ships PassThrough as a composable node. Loading it via a
-    # component container is the lightweight path — no extra process,
-    # no copy on the message bus.
-    container = ComposableNodeContainer(
+    viz_clip_node = Node(
         condition=IfCondition(enable_viz_clip),
-        name='viz_clip_container',
-        namespace='',
-        package='rclcpp_components',
-        executable='component_container',
+        package='slam_bringup',
+        executable='viz_clip',
+        name='viz_z_clip',
         output='screen',
-        composable_node_descriptions=[
-            ComposableNode(
-                package='pcl_ros',
-                plugin='pcl_ros::PassThrough',
-                name='viz_z_clip',
-                remappings=[
-                    ('input',  viz_input_topic),
-                    ('output', viz_output_topic),
-                ],
-                parameters=[{
-                    'filter_field_name': 'z',
-                    'filter_limit_min':  viz_z_min,
-                    'filter_limit_max':  viz_z_max,
-                    'filter_limit_negative': False,
-                    'keep_organized':    False,
-                    'input_frame':       '',
-                    'output_frame':      '',
-                }],
-            ),
-        ],
+        emulate_tty=True,
+        parameters=[{
+            'input_topic':  LaunchConfiguration('viz_input_topic'),
+            'output_topic': LaunchConfiguration('viz_output_topic'),
+            'z_min':        LaunchConfiguration('viz_z_min'),
+            'z_max':        LaunchConfiguration('viz_z_max'),
+        }],
     )
 
     return LaunchDescription([
@@ -109,5 +97,5 @@ def generate_launch_description():
         output_topic_arg,
         z_min_arg,
         z_max_arg,
-        container,
+        viz_clip_node,
     ])

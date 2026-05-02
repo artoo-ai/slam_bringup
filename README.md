@@ -260,7 +260,9 @@ One-liner wrappers around the launches that also handle "the driver got wedged a
 
 ### Top-down floorplan view (`/cloud_viz_clipped`)
 
-Both `./start_slam.sh` and `./start_fast_lio.sh` run a `pcl_ros::PassThrough` filter alongside the rest of the pipeline that republishes a z-clipped copy of `/cloud_registered` on `/cloud_viz_clipped` — purely for visualization. The raw cloud still flows into FAST-LIO2 / RTABMap unchanged, so ICP, the occupancy grid, and `/octomap_full` keep their full vertical extent (you can still measure rafters in the 3D map).
+Both `./start_slam.sh` and `./start_fast_lio.sh` run a tiny rclpy node (`slam_bringup/viz_clip_node.py`) alongside the rest of the pipeline that republishes a z-clipped copy of `/cloud_registered` on `/cloud_viz_clipped` — purely for visualization. The raw cloud still flows into FAST-LIO2 / RTABMap unchanged, so ICP, the occupancy grid, and `/octomap_full` keep their full vertical extent (you can still measure rafters in the 3D map).
+
+(Implementation note: this used to be a `pcl_ros::PassThrough` composable node, but the Humble `ros-humble-pcl-ros` 2.4.5 deb does not consistently expose its filter classes to `class_loader` — the container fails the lookup at startup with "Failed to find class with the requested plugin name". The rclpy node sidesteps the packaging issue and is plenty fast for a 10 Hz Mid-360 cloud on the Orin Nano.)
 
 In Foxglove / RViz, set the **Display frame** to `camera_init` and add `/cloud_viz_clipped` as a PointCloud2 display. With the ceiling clipped you can sit the camera straight above and see the floorplan with furniture, walls, and doorways visible inside each room.
 

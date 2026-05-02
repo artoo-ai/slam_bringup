@@ -18,18 +18,18 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source /opt/ros/humble/setup.bash
 source ~/slam_ws/install/setup.bash
 
-if pgrep -f viz_clip_container > /dev/null \
+if pgrep -f "slam_bringup.viz_clip_node" > /dev/null \
    || pgrep -f "ros2 launch slam_bringup viz_clip" > /dev/null; then
-  echo "start_viz_clip: viz_clip_container already running — cleaning up first"
+  echo "start_viz_clip: viz_z_clip already running — cleaning up first"
   "$SCRIPT_DIR/kill_viz_clip.sh"
 
   for _ in 1 2 3 4 5; do
-    pgrep -f viz_clip_container > /dev/null || break
+    pgrep -f "slam_bringup.viz_clip_node" > /dev/null || break
     sleep 1
   done
 
-  if pgrep -f viz_clip_container > /dev/null; then
-    echo "start_viz_clip: ERROR — viz_clip_container still running after kill_viz_clip.sh" >&2
+  if pgrep -f "slam_bringup.viz_clip_node" > /dev/null; then
+    echo "start_viz_clip: ERROR — viz_z_clip still running after kill_viz_clip.sh" >&2
     exit 1
   fi
 fi
