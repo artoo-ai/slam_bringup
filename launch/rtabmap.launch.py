@@ -52,7 +52,7 @@ Pre-reqs (will fail loudly via start_rtabmap.sh preflight):
 """
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
@@ -92,8 +92,6 @@ def generate_launch_description():
 
     use_sim_time = LaunchConfiguration('use_sim_time')
     database_path = LaunchConfiguration('database_path')
-    delete_db_on_start = LaunchConfiguration('delete_db_on_start')
-    localization = LaunchConfiguration('localization')
     rgb_topic = LaunchConfiguration('rgb_topic')
     depth_topic = LaunchConfiguration('depth_topic')
     camera_info_topic = LaunchConfiguration('camera_info_topic')
@@ -175,27 +173,41 @@ def generate_launch_description():
         'Mem/InitWMWithAllNodes':  'true',
     }
 
-    rtabmap_node = Node(
-        package='rtabmap_slam',
-        executable='rtabmap',
-        name='rtabmap',
-        output='screen',
-        emulate_tty=True,
-        parameters=[rtabmap_params, {
-            # Apply localization override only when arg is true.
-            # RTABMap reads bool params as strings; LaunchConfiguration handles that.
-        }],
-        arguments=[
-            '--delete_db_on_start' if False else '',  # gated by launch arg below
-        ],
-        remappings=[
-            ('rgb/image',       rgb_topic),
-            ('depth/image',     depth_topic),
-            ('rgb/camera_info', camera_info_topic),
-            ('scan_cloud',      '/cloud_registered_body'),
-            ('odom',            '/Odometry'),
-        ],
-    )
+    def _spawn_rtabmap(context, *args, **kwargs):
+        """Resolve delete_db_on_start + localization at launch time so the
+        rtabmap CLI flag and the Mem/IncrementalMemory param actually
+        reflect what the user passed. Plain LaunchConfiguration in
+        Node.arguments doesn't gate a flag — empty string vs. flag has to
+        be decided after substitution, which is what OpaqueFunction does."""
+        delete_db = LaunchConfiguration('delete_db_on_start').perform(context).lower() in ('true', '1')
+        localize  = LaunchConfiguration('localization').perform(context).lower() in ('true', '1')
+
+        node_args = []
+        if delete_db:
+            node_args.append('--delete_db_on_start')
+
+        params = dict(rtabmap_params)
+        if localize:
+            params.update(localization_params)
+
+        return [Node(
+            package='rtabmap_slam',
+            executable='rtabmap',
+            name='rtabmap',
+            output='screen',
+            emulate_tty=True,
+            parameters=[params],
+            arguments=node_args,
+            remappings=[
+                ('rgb/image',       rgb_topic),
+                ('depth/image',     depth_topic),
+                ('rgb/camera_info', camera_info_topic),
+                ('scan_cloud',      '/cloud_registered_body'),
+                ('odom',            '/Odometry'),
+            ],
+        )]
+
+    rtabmap_node = OpaqueFunction(function=_spawn_rtabmap)
 
     # rtabmap_viz: optional GUI. Off by default — Foxglove is the primary
     # viewer on the Jetson. Enable with viz:=true for desktop debugging.
