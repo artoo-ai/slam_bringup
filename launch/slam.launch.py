@@ -184,8 +184,15 @@ def generate_launch_description():
     bridge = OpaqueFunction(function=_build_bridge)
 
     # ---------- FAST-LIO2 ----------
+    # rviz='false' is forced here on purpose. fast_lio.launch.py cascades
+    # rviz to upstream FAST_LIO_ROS2/mapping.launch.py, which spawns its
+    # own rviz2 with the upstream debug config — and perception.launch.py
+    # ALSO spawns rviz2 (with rviz/perception.rviz that has the URDF +
+    # sensors). Without this pin, `start_slam.sh rviz:=true` opens two
+    # RViz windows. Keep the perception one; it's the keeper.
     fast_lio = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(str(launch_dir / 'fast_lio.launch.py')),
+        launch_arguments={'rviz': 'false'}.items(),
     )
 
     # ---------- RTABMap ----------
