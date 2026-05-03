@@ -2,6 +2,16 @@
 
 Portable sensor-rig SLAM stack for ROS2 Humble. One NVIDIA Jetson Orin Nano Super + one sensor plate moves between multiple mobile robots; the package selects per-platform URDF + TF bridge offsets at launch time.
 
+## Documentation map
+
+- **[docs/scripts/](docs/scripts/README.md)** — per-script reference. Every `start_*.sh` has a dedicated page with parameters, defaults, dependency chain, and "when to override" guidance. Look here when you want to know what a specific script does or which arg to flip.
+- **[docs/troubleshooting.md](docs/troubleshooting.md)** — issue-by-issue guide indexed by symptom. Every problem we've actually hit on this stack has an entry with diagnosis commands and the exact fix. Search here before fresh debugging.
+- **[PLAN.md](PLAN.md)** — phase-by-phase architecture plan and task checklist.
+- **[TEST_PLAN.md](TEST_PLAN.md)** — Phase 1.6 / Phase 2 hardware validation tests.
+- **[docs/](docs/)** — long-form notes (`first_rtabmap_run.md`, `test_fixture.md`).
+
+This README itself is the cross-cutting overview (TF tree, frame conventions, sensor list, network setup). For lookup-by-script-name go to `docs/scripts/`; for lookup-by-symptom go to `docs/troubleshooting.md`.
+
 ## Startup commands (current — Phase 3 / Navigation)
 
 Each line is its own terminal (so each driver group gets its own log stream and Ctrl-C kills only that one). All commands assume `~/.bashrc` already sources `/opt/ros/humble/setup.bash` + `~/slam_ws/install/setup.bash` — see [Shell environment](#shell-environment-source-before-ros2-commands) below.
