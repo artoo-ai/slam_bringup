@@ -1518,6 +1518,23 @@ ros2 bag record \
 - **Save RTABMap DB to NVMe SSD**, not SD card — constant writes will wear the SD card and throttle
 - **`visual_odometry:=false`** on RTABMap — FAST-LIO2 provides odom; enabling RTABMap's visual odom duplicates work
 
+## 9.5 Phase 3 — Navigation Layer (landed 2026-05-02)
+
+Nav2 was added on top of the SLAM stack mid-session and is fully documented in **README.md → Navigation (Nav2)**. Summary of what was built:
+
+- `launch/nav2.launch.py` — `pointcloud_to_laserscan` (Mid-360 body cloud → `/scan` slice at the rover-collision band, default `[0.10, 0.45]` m above `base_link`), identity `camera_init → odom` static TF, and `nav2_bringup/navigation_launch.py` (controller / planner / smoother / behavior / BT / waypoint / velocity-smoother / lifecycle_manager). **No** `map_server` (RTABMap publishes `/map`) and **no** `amcl` (RTABMap publishes the `map → camera_init` correction).
+- `config/nav2_params.yaml` — circular `robot_radius: 0.25`, `inflation_radius: 0.30`, DWB local planner, NavFn global planner. Global costmap uses **only** `static_layer + inflation_layer` (no `obstacle_layer` — see costmap-layout note in README); local costmap uses `obstacle_layer + inflation_layer` for transient reactivity.
+- `start_nav.sh` / `kill_nav.sh` — wraps `slam.launch.py nav2:=true localization:=true delete_db_on_start:=false`. Refuses to launch if `~/.ros/rtabmap.db` doesn't exist.
+- New launch args plumbed through `slam.launch.py`: `nav2`, `nav2_params_file`, `nav2_autostart`, `force_3dof`, `scan_min_height`, `scan_max_height`.
+- `force_3dof:=true` clamps z/roll/pitch on wheeled rovers — required for indoor wheeled platforms where FAST-LIO drifts in altitude/tilt without LiDAR ceiling constraints. Default false to preserve 6 DoF for the bench fixture and handheld testing.
+- `RGBD/OptimizeMaxError` bumped 3.0 → 5.0 in `launch/rtabmap.launch.py` to keep legit large loop-closure corrections from being rejected against drift-laden saved maps. Re-mapping with `force_3dof:=true` is the long-term fix.
+- `kill_helpers.sh` introduced — every `kill_*.sh` (except `kill_d435.sh`) now uses `nuke_processes` which escalates SIGINT → SIGKILL → `sudo` SIGKILL with `pgrep` verification at each stage. Surviving orphans (the cause of two earlier "lidar loop back" debugging sessions) now block the next launch via exit 1 instead of silently coexisting.
+
+**Tasks remaining for Phase 3 to be platform-complete:**
+- [ ] Per-platform `cmd_vel → drive base` bridge (Roboscout, Go2, mecanum). Without this, Nav2 plans but the rover doesn't move.
+- [ ] Per-platform `nav2_<platform>_params.yaml` — tuned `robot_radius`, footprint, vel limits.
+- [ ] Per-platform `scan_max_height` defaults — `0.45` works for small rovers, ~`0.8` for Go2 standing, `~1.2` for the bench fixture.
+
 ## 10. Deferred (not in this plan)
 
 Each stretch is an independent milestone — tackled when motivated, in any order, after Phase 2.5 is stable. Each should get its own plan document when started.

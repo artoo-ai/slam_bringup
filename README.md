@@ -2,7 +2,7 @@
 
 Portable sensor-rig SLAM stack for ROS2 Humble. One NVIDIA Jetson Orin Nano Super + one sensor plate moves between multiple mobile robots; the package selects per-platform URDF + TF bridge offsets at launch time.
 
-## Startup commands (current — Phase 2.2)
+## Startup commands (current — Phase 3 / Navigation)
 
 Each line is its own terminal (so each driver group gets its own log stream and Ctrl-C kills only that one). All commands assume `~/.bashrc` already sources `/opt/ros/humble/setup.bash` + `~/slam_ws/install/setup.bash` — see [Shell environment](#shell-environment-source-before-ros2-commands) below.
 
@@ -58,7 +58,29 @@ Common `start_sensors.sh` arg overrides:
 ./start_sensors.sh enable_witmotion:=false          # drop one sensor for isolated debugging
 ```
 
-This section tracks the **latest working command set** for whatever phase is current. As Phase 2.4+ comes online, lines get added or replaced (eventually `slam.launch.py platform:=...`). Check the [Status](#status) section for what's wired up.
+**Full SLAM workflow** (URDF + sensors + FAST-LIO2 + RTABMap, builds `~/.ros/rtabmap.db`):
+
+```bash
+# Bench fixture (default platform):
+cd ~/slam_ws/src/slam_bringup && ./start_slam.sh delete_db_on_start:=true
+
+# Wheeled rover (Roboscout etc.) — clamp z/roll/pitch drift:
+cd ~/slam_ws/src/slam_bringup && ./start_slam.sh force_3dof:=true delete_db_on_start:=true
+```
+
+Walk / drive the rig through the space; Ctrl-C saves to `~/.ros/rtabmap.db`. See [Navigation (Nav2)](#navigation-nav2) for the full doc and [Map persistence](#map-persistence-and-rosrtabmapdb) for inspecting the saved DB.
+
+**Navigation workflow** (loads the saved map, runs Nav2 on top — no new mapping):
+
+```bash
+# Wheeled rover — assumes ~/.ros/rtabmap.db exists from a previous start_slam.sh:
+cd ~/slam_ws/src/slam_bringup && ./start_nav.sh rviz:=true force_3dof:=true
+# In RViz: click "2D Goal Pose", drop somewhere in the saved-map area.
+```
+
+`start_nav.sh` forces `localization:=true` + `nav2:=true` and refuses to launch against an empty DB.
+
+This section tracks the **latest working command set** for whatever phase is current. Check the [Status](#status) section for what's wired up.
 
 ## Sensors (shared across all platforms)
 
@@ -300,25 +322,48 @@ Args: `enable_viz_clip` (default `true`), `viz_z_min` (default `-1.0`), `viz_z_m
 Once you've built a map with `./start_slam.sh`, you can navigate inside it with Nav2. There are two ways to enable it:
 
 ```bash
-./start_nav.sh                               # convenience wrapper: localization=true + nav2=true
+./start_nav.sh                                  # convenience wrapper: localization=true + nav2=true
 ./start_slam.sh nav2:=true localization:=true   # equivalent — useful with custom args
 ```
 
 `start_nav.sh` refuses to launch if `~/.ros/rtabmap.db` doesn't exist (override with `database_path:=...`) and refuses `delete_db_on_start:=true` (you can't navigate against an empty map).
 
+**Required apt packages** (verified by `./build.sh`):
+
+```bash
+sudo apt install \
+  ros-humble-nav2-bringup ros-humble-pointcloud-to-laserscan \
+  ros-humble-nav2-rviz-plugins ros-humble-slam-toolbox \
+  ros-humble-rtabmap-rviz-plugins
+```
+
+`nav2-bringup` and `pointcloud-to-laserscan` are runtime requirements; the `*-rviz-plugins` packages add the **Navigation 2** and **SlamToolboxPlugin** RViz panels referenced by `rviz/perception.rviz`.
+
 **What it adds on top of the SLAM stack:**
 
 | Layer | Topic / Frame | Purpose |
 |-------|---------------|---------|
-| `pointcloud_to_laserscan` | `/cloud_registered_body` → `/scan` | 2D laserscan in `base_link`, sliced from the Mid-360 body cloud at `min_height=0.1 m`, `max_height=2.0 m`. Nav2 costmaps want LaserScan, not PointCloud2. |
+| `pointcloud_to_laserscan` | `/cloud_registered_body` → `/scan` | 2D laserscan in `base_link`, sliced from the Mid-360 body cloud. Default slice `[scan_min_height=0.10, scan_max_height=0.45]` m above `base_link` — the rover collision band. Nav2 costmaps want LaserScan, not PointCloud2. |
 | `camera_init → odom` static TF | TF | Identity alias so Nav2's default `odom` frame name resolves to FAST-LIO2's `camera_init`. |
 | `nav2_bringup/navigation_launch.py` | controller_server, planner_server, smoother_server, behavior_server, bt_navigator, waypoint_follower, velocity_smoother, lifecycle_manager_navigation | The full Nav2 pipeline. **No** map_server (RTABMap publishes `/map`) and **no** amcl (RTABMap publishes the `map → camera_init` correction). |
+
+**Launch args worth knowing:**
+
+| Arg | Default | When to flip |
+|---|---|---|
+| `force_3dof` | `false` | **Set to `true` on any wheeled rover** (Roboscout/Go2/mecanum). Constrains z/roll/pitch to 0; without it FAST-LIO drifts in altitude (we saw `tf2_echo map base_link` reporting z = −4 m, pitch ≈ 17° while stationary). Default false because the bench fixture / handheld rig genuinely uses 6 DoF. |
+| `scan_min_height` | `0.10` m | Lower bound of pointcloud→laserscan slice (above `base_link`). Raise above 0 to skip the floor; lower for low-clearance platforms. |
+| `scan_max_height` | `0.45` m | Upper bound of slice. Default catches typical rover collision height. **Raise to ~0.8 m for Go2 standing**, **~1.2 m for the bench fixture on a table** so the laserscan still has data. |
+| `localization` | `false` (start_slam) / forced `true` (start_nav) | Reuse the saved DB read-only; `Mem/IncrementalMemory: false`. |
+| `delete_db_on_start` | `false` (start_slam) / forced `false` (start_nav) | `true` wipes `~/.ros/rtabmap.db` at launch — only on `start_slam.sh`, only when you really mean it. |
+| `nav2` | `false` (start_slam) / forced `true` (start_nav) | Toggle Nav2 layer. |
+| `nav2_params_file` | `config/nav2_params.yaml` | Per-platform overrides. |
 
 **Send a goal:**
 
 ```bash
 # RViz: enable the "2D Goal Pose" tool, click on the map.
-./start_nav.sh rviz:=true
+./start_nav.sh rviz:=true force_3dof:=true
 
 # Or from the CLI:
 ros2 topic pub /goal_pose geometry_msgs/PoseStamped \
@@ -339,25 +384,46 @@ map ──RTABMap──> camera_init ──FAST-LIO2──> body ──slam.laun
 
 Nav2 plugins reference `map`, `odom`, and `base_link`. The `camera_init → odom` identity TF lets the stock plugin defaults work without per-plugin frame overrides.
 
+**Costmap layout:** the **global costmap** uses **only `static_layer` (from `/map`) + `inflation_layer`** — the global plan follows the saved RTABMap occupancy grid. The **local costmap** uses **`obstacle_layer` (from `/scan`) + `inflation_layer`** for transient reactivity. `obstacle_layer` is INTENTIONALLY OMITTED from the global costmap because FAST-LIO drift between sessions misaligns live scans against the saved map; double-stamping would paint global plans solid magenta. See the comment block in `config/nav2_params.yaml > global_costmap`.
+
 **Per-platform tuning:**
 
-`config/nav2_params.yaml` ships defaults appropriate for every platform on the bench (circular footprint, `robot_radius: 0.4 m`, max velocities tuned for an indoor rover). Override per-platform with:
+`config/nav2_params.yaml` ships defaults tuned for a small indoor rover: `robot_radius: 0.25`, `inflation_radius: 0.30`, `max_vel_x: 0.5`. Override per-platform with `nav2_params_file:=/path/to/<platform>_nav2_params.yaml`. Things you'll typically want to tune:
 
-```bash
-./start_nav.sh nav2_params_file:=/path/to/go2_nav2_params.yaml
-```
-
-Things you'll typically want to tune per platform:
-- `robot_radius` (or `footprint:` for non-circular shapes)
+- `robot_radius` (or `footprint:` for non-circular shapes) — bigger for Go2 (~0.35), smaller for tabletop bots
+- `inflation_radius` — increase for cluttered spaces, decrease if rover keeps refusing valid paths
 - `max_vel_x` / `max_vel_theta` and `acc_lim_*` in the `FollowPath` (DWB) section
 - `max_vel_y`: keep `0.0` for diff-drive (Go2/R2D2); raise for mecanum
 - `velocity_smoother.max_velocity` / `max_accel` to match the controller_server limits
+- `obstacle_layer.scan.max_obstacle_height` (in `local_costmap`) should match `scan_max_height` from the launch args
+
+**Gotcha — Nav2 RViz panel "Localization: inactive" is EXPECTED.** That indicator monitors `lifecycle_manager_localization` (AMCL + map_server), which we deliberately don't run — RTABMap is our localizer. The indicator will stay grey/red the entire session; ignore it. To verify RTABMap is actually localizing, watch the `rtabmap` log for `Loop closure detected` lines or run `ros2 topic echo /rtabmap/info` in another terminal.
 
 **What's NOT included:**
 
 - A `/cmd_vel` consumer for the bench fixture (it has no wheels). Add a per-platform velocity bridge in the platform's own launch file.
 - Recovery behaviors specific to a platform (Go2 stand-up sequence, mecanum gear shift, etc.) — extend `behavior_server.behavior_plugins` per platform.
 - Speed-limit zones / dynamic obstacle layers — add `costmap_filter` or `STVL` plugins as needed.
+
+### Map persistence and `~/.ros/rtabmap.db`
+
+`./start_slam.sh` saves to `~/.ros/rtabmap.db` by default. `delete_db_on_start:=false` (the default) **appends** new sessions to the existing DB, so multi-day mapping accumulates without manual concatenation. Inspect a saved map with:
+
+```bash
+ls -lh ~/.ros/rtabmap.db                     # size: a multi-room map should be > 10 MB
+rtabmap-info ~/.ros/rtabmap.db               # node count, link types, optimized graph error
+./scripts/export_map.sh                      # export to ~/maps/<timestamp>/cloud.ply for CloudCompare
+```
+
+Snapshot before risky runs:
+```bash
+cp ~/.ros/rtabmap.db ~/maps/livingroom-$(date +%F).db
+```
+
+**RTABMap drift workaround for already-saved maps:** if `rtabmap-info` shows a large pre-optimization error (e.g. `Optimized graph: x=942->-3` on a 52 m trajectory) you'll see live `Loop closure ... rejected!` floods in localization mode because the corrections exceed the rejection threshold. Two fixes:
+
+1. **Re-map with `force_3dof:=true`** — the long-term fix; drift never accumulates.
+2. **The threshold has already been loosened** in `launch/rtabmap.launch.py` from `RGBD/OptimizeMaxError: 3.0` to `5.0` so legit-but-large corrections survive. This is the workaround for already-saved maps; further tuning rarely needed.
 
 ### View Mid-360 + D435 together in Foxglove / RViz
 
@@ -377,19 +443,24 @@ In Foxglove's 3D panel set **Display frame** to `livox_frame`, then add topics:
 
 Edit the `X/Y/Z/ROLL/PITCH/YAW` constants at the top of `start_bench_tf.sh` to match your measured rig offsets. Re-run the script after each edit — the idempotency check swaps the new transform in cleanly without leaving the old publisher around.
 
-### Stopping the Mid-360 driver
+### Kill scripts and orphan-process handling
 
-Ctrl-C does not always fully stop `livox_ros_driver2_node` — it can leave an orphan process holding UDP ports 56101/56201/56301/56401. Symptoms: the next `ros2 launch slam_bringup mid360.launch.py` starts but `ros2 topic info /livox/lidar` shows two publishers, or the driver fails to bind its listener sockets. Clean kill:
+Every `kill_*.sh` script routes through a shared helper, `kill_helpers.sh`, that escalates **SIGINT → SIGKILL (3× retry) → `sudo -n` SIGKILL → interactive `sudo` SIGKILL**, verifying with `pgrep` after each step. If a process survives all of that (D-state, kernel hang), the script returns exit 1 with a one-line diagnostic. `kill_slam.sh` propagates that exit so a stuck orphan blocks the next launch instead of silently coexisting with it.
 
-```bash
-pkill -SIGINT -f livox_ros_driver2_node     # try graceful first
-sleep 2
-pkill -9      -f livox_ros_driver2_node     # nuke if still alive
-pkill -9      -f "ros2 launch slam_bringup mid360" # and the launch wrapper
-ros2 daemon stop                            # clear stale DDS discovery cache
-```
+The orphan classes that this prevents (and that we've actually been bitten by):
 
-Verify everything is gone:
+| Orphan | Symptom | Why it bites |
+|---|---|---|
+| Second `livox_ros_driver2_node` | FAST-LIO logs `lidar loop back, clear buffer` indefinitely; `ros2 topic info /livox/lidar` → Publisher count: 2 | Two publishers interleave scans with slightly different timestamps; FAST-LIO's `last_timestamp_lidar` ratchets ahead and rejects every scan. |
+| Second `imu_units_g_to_ms2` | Same `lidar loop back` flood as above; `top` shows two `imu_units` processes (one with hours of TIME+) | Two republishers double-publish `/livox/imu_ms2` with duplicate timestamps; same FAST-LIO ratchet failure. |
+| Surviving `fastlio_mapping` | Next launch fails with "topic /Odometry already exists" | DDS rejects a second publisher on the same topic. |
+| Surviving `rtabmap` | `rtabmap.db` locked, next RTABMap fails on DB open | SQLite handle held by orphan. |
+
+If you ever see `! X survived pkill -9 — escalating to sudo` in your terminal, that's the helper doing its job. If sudo prompts and you Ctrl-C, the script reports the survivor and returns 1; investigate manually with `pgrep -af <pattern>`.
+
+**`kill_slam.sh` no longer suppresses stderr** from the layered kill scripts — the previous `2>/dev/null` was hiding exactly the warnings you needed to see when an orphan survived. Per-stage `FAILED=1` propagates up to a final exit code with a diagnostic hint.
+
+Verify the Mid-360 driver in particular is fully gone:
 
 ```bash
 pgrep -af livox                                    # no output = clean
@@ -398,6 +469,18 @@ ros2 topic list | grep livox                       # (after re-sourcing) nothing
 ```
 
 If `ss` still shows sockets held after the `pkill -9`, wait 30–60 s for the kernel's `SO_REUSEADDR` `TIME_WAIT` window to expire, or change the host ports in `config/mid360.json` as a last resort.
+
+### Troubleshooting Nav2 + RTABMap on a real rover
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `tf2_echo map base_link` reports z = −4 m or pitch = 17° while the rover is **stationary on a flat floor** | FAST-LIO is integrating bias as 6 DoF drift; RTABMap's `map → camera_init` correction can't keep up in `localization:=true` mode (no new keyframes) | `./start_nav.sh force_3dof:=true` (and re-map with the same flag for the long-term fix) |
+| Every 2D Goal Pose immediately aborts with `Distance remaining: 0.00 m` | (a) RTABMap hasn't relocalized into the saved map → robot pose is at the saved-map origin instead of where it is, OR (b) costmap is solid magenta with no traversable cells | (a) Drop a **2D Pose Estimate** in RViz at your real position, or drive ~1 m to trigger a loop closure. (b) Check costmap density in RViz — see next row. |
+| Costmap renders as a wall of magenta + cyan everywhere | `pointcloud_to_laserscan` slice too tall (capturing ceiling/shelves), inflation_radius too generous, or `obstacle_layer` double-stamping in global_costmap | Already tightened: `scan_max_height: 0.45`, `inflation_radius: 0.30`, global_costmap uses **only** `static_layer + inflation_layer`. Per-platform: raise `scan_max_height` if your rover is taller. |
+| RTABMap log spam: `Rejecting all added loop closures... maximum graph error ratio of 3.07 of std deviation` | Saved map's pre-optimized graph drift is large enough that legit closures look "wrong" to the 3σ optimizer | Already loosened: `RGBD/OptimizeMaxError = 5.0` (was 3.0). Re-mapping with `force_3dof:=true` is the long-term fix. |
+| `Rate=1.00s, RTAB-Map=3.39s, delay=3.71s` and `Message Filter dropping message: timestamp earlier than transform cache` | Jetson saturated; RTABMap processes scans 3+ s late, by which time TF rolled past | Close `rviz2` (use Foxglove from a dev machine), drop `Rtabmap/DetectionRate` 1.0 → 0.5 in `launch/rtabmap.launch.py`, check `top` for runaway competing processes. |
+| Two RViz2 windows open with `rviz:=true` | Both `perception.launch.py` and upstream FAST-LIO's `mapping.launch.py` were spawning their own RViz | Already pinned: `slam.launch.py` forces FAST-LIO's rviz off. Run `./start_fast_lio.sh rviz:=true` standalone if you want the FAST-LIO debug view. |
+| Nav2 panel shows `Localization: inactive` | **EXPECTED** — that indicator is for `lifecycle_manager_localization` (AMCL + map_server), which we deliberately don't run | Ignore. Verify RTABMap localization via `Loop closure detected` log lines instead. |
 
 ### D435 pitch measurement (`scripts/measure_d435_pitch.py`)
 
@@ -546,7 +629,7 @@ See `docs/test_fixture.md` for fixture dimensions, derived geometry at each moun
 
 ## Status
 
-Phase 1 in progress. Detailed task checklist in [PLAN.md](./PLAN.md).
+Phase 3 (Navigation) landed 2026-05-02. Detailed task checklist in [PLAN.md](./PLAN.md).
 
 - [x] Phase 0 — hardware + Jetson prereqs
 - [x] Phase 0.5 — repo + Mac↔Jetson workflow
@@ -555,12 +638,18 @@ Phase 1 in progress. Detailed task checklist in [PLAN.md](./PLAN.md).
 - [x] Phase 1.4 — D435 front standalone (rear launch scaffolded; dual is Phase 1.10)
 - [x] Phase 1.5 — WitMotion WT901C (custom 0x61 Python node, 200 Hz on `/imu/data`)
 - [x] Phase 1.6 — `sensors.launch.py` integration (single-command bring-up of all three sensors)
-- [x] Phase 2.2 — FAST-LIO2 (`/Odometry` at 10 Hz, `/cloud_registered` accumulating in `camera_init`) *— jumped ahead of Phase 1.7–1.10 since URDF is only needed for the RTABMap bridge*
-- [ ] Phase 1.7 — URDF (`go2`, `r2d2`, `roboscout`, `mecanum`) + `perception.launch.py` + rviz
+- [x] Phase 2.2 — FAST-LIO2 (`/Odometry` at 10 Hz, `/cloud_registered` accumulating in `camera_init`)
+- [x] Phase 2.4 — RTABMap graph SLAM + visual loop closure (`./start_slam.sh`)
+- [x] Phase 3 — Nav2 layer on top of FAST-LIO2 + RTABMap (`./start_nav.sh`, see [Navigation (Nav2)](#navigation-nav2))
+  - [x] `pointcloud_to_laserscan` from `/cloud_registered_body` → `/scan`
+  - [x] `force_3dof` launch arg for wheeled rovers
+  - [x] `kill_helpers.sh` orphan-process escalation across all `kill_*.sh`
+  - [ ] Per-platform `cmd_vel → drive base` bridges (Roboscout, Go2, mecanum) — without these, Nav2 plans but the rover doesn't move
+  - [ ] Per-platform `nav2_<platform>_params.yaml` files
+- [ ] Phase 1.7 — URDF (`go2`, `r2d2`, `roboscout`, `mecanum`) — bench_fixture done, others stubbed
 - [ ] Phase 1.8 — Go2 SDK integration check
 - [ ] Phase 1.9 — `install.sh` smoke test
 - [ ] Phase 1.10 — Dual camera (rear D435i)
-- [ ] Phase 2 — FAST-LIO2 + RTABMap SLAM
 - [ ] Phase 2.5 — MCAP recording / playback / Foxglove
 
 ## Source note
