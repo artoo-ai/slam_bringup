@@ -218,7 +218,8 @@ colcon build --symlink-install \
   --packages-skip \
     mecanum_drive_controller \
     yahboom_rosmaster_navigation \
-    yahboom_rosmaster_system_tests
+    yahboom_rosmaster_system_tests \
+    yahboom_rosmaster
 
 cat <<EOF
 

@@ -659,8 +659,11 @@ realtime_tools::RealtimeBox::set/get(...) — cannot convert lambda to const T&
 colcon build --symlink-install --packages-skip \
   mecanum_drive_controller \
   yahboom_rosmaster_navigation \
-  yahboom_rosmaster_system_tests
+  yahboom_rosmaster_system_tests \
+  yahboom_rosmaster
 ```
+
+The `yahboom_rosmaster` meta-package is an aggregator that depends on the three above — colcon refuses to build it if its deps are skipped, so it has to be skipped too.
 
 If you ever need real `ros2_control` mecanum support on Humble, the upstream repo's `humble` branch (if it exists) is the correct source — don't try to backport the `main` branch by hand.
 

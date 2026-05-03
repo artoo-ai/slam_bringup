@@ -99,7 +99,8 @@ else
   BUILD_ARGS+=(--packages-skip
     mecanum_drive_controller
     yahboom_rosmaster_navigation
-    yahboom_rosmaster_system_tests)
+    yahboom_rosmaster_system_tests
+    yahboom_rosmaster)
 fi
 
 info "colcon build ${BUILD_ARGS[*]}"
