@@ -429,10 +429,11 @@ EOF
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ls -l /dev/myserial           # → ../../ttyUSB0
 
-# 3. Install Yahboom's Python lib (NOT on PyPI — download from
-#    https://www.yahboom.net/study/ROSMASTER-X3 → Resources → Source code).
-#    Inside the zip, find Rosmaster_Lib/ with setup.py and:
-cd path/to/Rosmaster_Lib && pip3 install --user .
+# 3. Install Yahboom's Python lib. Vendored in this repo at
+#    vendor/Rosmaster_Lib_3.3.9/ because Yahboom doesn't publish to PyPI
+#    (saves a Google Drive scavenger hunt every time). install.sh does
+#    this automatically; manually:
+pip3 install --user ~/slam_ws/src/slam_bringup/vendor/Rosmaster_Lib_3.3.9
 python3 -c "from Rosmaster_Lib import Rosmaster; print('OK')"
 ```
 

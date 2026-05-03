@@ -167,6 +167,26 @@ if ! id -nG "$USER" | grep -qw dialout; then
 fi
 
 # ---------------------------------------------------------------------------
+# Yahboom Rosmaster_Lib (mecanum drive bridge — vendored)
+# ---------------------------------------------------------------------------
+# Yahboom does not publish Rosmaster_Lib to PyPI. We vendor v3.3.9 in
+# vendor/Rosmaster_Lib_3.3.9/ so this script can install it without an
+# internet detour through Yahboom's Google Drive. Used by
+# slam_bringup/yahboom_bringup_node.py — only needed on platforms that
+# drive the Yahboom YB-ERF01 board (mecanum UGV today).
+ROSMASTER_LIB_DIR="$SCRIPT_DIR/vendor/Rosmaster_Lib_3.3.9"
+if [ -d "$ROSMASTER_LIB_DIR" ]; then
+  if ! python3 -c "from Rosmaster_Lib import Rosmaster" >/dev/null 2>&1; then
+    echo "==> Installing vendored Rosmaster_Lib from $ROSMASTER_LIB_DIR"
+    pip3 install --user "$ROSMASTER_LIB_DIR"
+  else
+    echo "==> Rosmaster_Lib already installed"
+  fi
+else
+  echo "==> Skipping Rosmaster_Lib install — vendor/ directory not found"
+fi
+
+# ---------------------------------------------------------------------------
 # CycloneDDS as default ROS2 middleware (FastDDS chokes on Mid-360 cloud sizes)
 # ---------------------------------------------------------------------------
 if ! grep -q "RMW_IMPLEMENTATION=rmw_cyclonedds_cpp" ~/.bashrc; then

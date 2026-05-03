@@ -137,6 +137,19 @@ check_pkg rtabmap_ros optional
 check_pkg nav2_bringup
 check_pkg pointcloud_to_laserscan
 
+# Yahboom mecanum bridge (slam_bringup/yahboom_bridge_node.py).
+# Pip-installed (not apt) and from a vendored copy at
+# vendor/Rosmaster_Lib_3.3.9/. Only needed on platforms that drive
+# the YB-ERF01; warn-not-fail so non-mecanum hosts don't trip.
+echo
+info "Optional Python deps"
+if python3 -c "from Rosmaster_Lib import Rosmaster" >/dev/null 2>&1; then
+  ok "Rosmaster_Lib (Yahboom mecanum bridge)"
+else
+  warn "Rosmaster_Lib — not installed (only needed for mecanum). Install with:"
+  warn "  pip3 install --user $SCRIPT_DIR/vendor/Rosmaster_Lib_3.3.9"
+fi
+
 # Launch + config file listings (live under install/ share dir)
 PREFIX="$(ros2 pkg prefix slam_bringup 2>/dev/null || echo "")"
 if [ -n "$PREFIX" ]; then
