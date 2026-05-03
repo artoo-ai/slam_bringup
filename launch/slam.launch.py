@@ -39,6 +39,7 @@ once their URDF + measured plate-mount offsets are landed (Phase 1.7).
 from pathlib import Path
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, LogInfo, OpaqueFunction
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
@@ -118,7 +119,9 @@ def _build_bridge(context, *args, **kwargs):
 
 
 def generate_launch_description():
-    launch_dir = Path(get_package_share_directory('slam_bringup')) / 'launch'
+    pkg_share = Path(get_package_share_directory('slam_bringup'))
+    launch_dir = pkg_share / 'launch'
+    default_nav2_params = pkg_share / 'config' / 'nav2_params.yaml'
 
     platform_arg = DeclareLaunchArgument(
         'platform', default_value='bench_fixture',
@@ -148,6 +151,15 @@ def generate_launch_description():
         DeclareLaunchArgument('enable_viz_clip', default_value='true'),
         DeclareLaunchArgument('viz_z_min',       default_value='-3.0'),
         DeclareLaunchArgument('viz_z_max',       default_value='3.0'),
+    ]
+
+    # Nav2 pass-through. Off by default — only enable once you have a
+    # localized map (./start_nav.sh wraps that). Bench fixture has no
+    # cmd_vel consumer, so this is purely planner-visualization there.
+    nav2_args = [
+        DeclareLaunchArgument('nav2',             default_value='false'),
+        DeclareLaunchArgument('nav2_params_file', default_value=str(default_nav2_params)),
+        DeclareLaunchArgument('nav2_autostart',   default_value='true'),
     ]
 
     # ---------- perception (URDF + sensors in SLAM mode) ----------
@@ -197,13 +209,26 @@ def generate_launch_description():
         }.items(),
     )
 
+    # ---------- Nav2 (optional) ----------
+    nav2 = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(str(launch_dir / 'nav2.launch.py')),
+        launch_arguments={
+            'use_sim_time':     LaunchConfiguration('use_sim_time'),
+            'nav2_params_file': LaunchConfiguration('nav2_params_file'),
+            'nav2_autostart':   LaunchConfiguration('nav2_autostart'),
+        }.items(),
+        condition=IfCondition(LaunchConfiguration('nav2')),
+    )
+
     return LaunchDescription([
         platform_arg, use_sim_time_arg, rviz_arg,
         *rtabmap_args,
         *viz_clip_args,
+        *nav2_args,
         perception,
         bridge,
         fast_lio,
         rtabmap,
         viz_clip,
+        nav2,
     ])

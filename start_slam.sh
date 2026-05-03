@@ -7,6 +7,7 @@
 #   ./start_slam.sh platform:=go2                   # (once go2 PLATFORM_BRIDGES entry lands)
 #   ./start_slam.sh delete_db_on_start:=true        # wipe rtabmap.db, start fresh map
 #   ./start_slam.sh localization:=true              # reuse existing DB, no new mapping
+#   ./start_slam.sh nav2:=true localization:=true   # add Nav2 (or use ./start_nav.sh)
 #   ./start_slam.sh rviz:=true                      # spawn rviz2 alongside Foxglove
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,7 +16,9 @@ source /opt/ros/humble/setup.bash
 source ~/slam_ws/install/setup.bash
 
 # Kill every layer of the stack before relaunching. Order matters:
-# RTABMap first (depends on FAST-LIO2 odom), then FAST-LIO2, then sensors.
+# Nav2 first (depends on /map + /Odometry), then RTABMap (depends on
+# FAST-LIO2 odom), then FAST-LIO2, then sensors.
+"$SCRIPT_DIR/kill_nav.sh"      2>/dev/null
 "$SCRIPT_DIR/kill_rtabmap.sh"  2>/dev/null
 "$SCRIPT_DIR/kill_fast_lio.sh" 2>/dev/null
 "$SCRIPT_DIR/kill_viz_clip.sh" 2>/dev/null

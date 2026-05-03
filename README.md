@@ -253,8 +253,10 @@ One-liner wrappers around the launches that also handle "the driver got wedged a
 | `./start_rtabmap.sh` | Launch RTABMap on top of FAST-LIO2 + D435 RGB-D (visual loop closure + occupancy grid). Preflights all 5 input topics + body→d435_front_link TF before launching |
 | `./kill_rtabmap.sh` | Force-kill the RTABMap node + its launch wrapper |
 | `./start_perception.sh` | Launch URDF (`platform:=bench_fixture` default) + all sensors + optional rviz2. No SLAM — for visualizing sensor placement against the URDF tree. |
-| `./start_slam.sh` | Launch the full SLAM stack: URDF + sensors (slam_mode) + FAST-LIO2 + RTABMap + per-platform `body→base_link` bridge. Pass-through args: `platform:=`, `delete_db_on_start:=`, `localization:=`, `rviz:=`. |
-| `./kill_slam.sh` | Force-kill every layer of the SLAM stack. |
+| `./start_slam.sh` | Launch the full SLAM stack: URDF + sensors (slam_mode) + FAST-LIO2 + RTABMap + per-platform `body→base_link` bridge. Pass-through args: `platform:=`, `delete_db_on_start:=`, `localization:=`, `nav2:=`, `rviz:=`. |
+| `./kill_slam.sh` | Force-kill every layer of the SLAM stack (chains `kill_nav.sh`, `kill_rtabmap.sh`, `kill_fast_lio.sh`, `kill_viz_clip.sh`, `kill_sensors.sh`). |
+| `./start_nav.sh` | Launch the SLAM stack in **navigation mode**: localization-only RTABMap + Nav2. Requires an existing `~/.ros/rtabmap.db` built by `start_slam.sh` first. |
+| `./kill_nav.sh` | Force-kill the Nav2 nodes + `pointcloud_to_laserscan`. Called automatically by `kill_slam.sh`. |
 | `./start_bench_tf.sh` | Publish `livox_frame → camera_link` static TF for multi-sensor visualization (see below) |
 | `./start_foxglove.sh` | Start `foxglove_bridge` on the Jetson for remote Studio/App connections |
 
@@ -292,6 +294,70 @@ ros2 launch slam_bringup viz_clip.launch.py viz_z_max:=2.5
 ```
 
 Args: `enable_viz_clip` (default `true`), `viz_z_min` (default `-1.0`), `viz_z_max` (default `2.0`), `viz_input_topic` (default `/cloud_registered`), `viz_output_topic` (default `/cloud_viz_clipped`).
+
+### Navigation (Nav2)
+
+Once you've built a map with `./start_slam.sh`, you can navigate inside it with Nav2. There are two ways to enable it:
+
+```bash
+./start_nav.sh                               # convenience wrapper: localization=true + nav2=true
+./start_slam.sh nav2:=true localization:=true   # equivalent — useful with custom args
+```
+
+`start_nav.sh` refuses to launch if `~/.ros/rtabmap.db` doesn't exist (override with `database_path:=...`) and refuses `delete_db_on_start:=true` (you can't navigate against an empty map).
+
+**What it adds on top of the SLAM stack:**
+
+| Layer | Topic / Frame | Purpose |
+|-------|---------------|---------|
+| `pointcloud_to_laserscan` | `/cloud_registered_body` → `/scan` | 2D laserscan in `base_link`, sliced from the Mid-360 body cloud at `min_height=0.1 m`, `max_height=2.0 m`. Nav2 costmaps want LaserScan, not PointCloud2. |
+| `camera_init → odom` static TF | TF | Identity alias so Nav2's default `odom` frame name resolves to FAST-LIO2's `camera_init`. |
+| `nav2_bringup/navigation_launch.py` | controller_server, planner_server, smoother_server, behavior_server, bt_navigator, waypoint_follower, velocity_smoother, lifecycle_manager_navigation | The full Nav2 pipeline. **No** map_server (RTABMap publishes `/map`) and **no** amcl (RTABMap publishes the `map → camera_init` correction). |
+
+**Send a goal:**
+
+```bash
+# RViz: enable the "2D Goal Pose" tool, click on the map.
+./start_nav.sh rviz:=true
+
+# Or from the CLI:
+ros2 topic pub /goal_pose geometry_msgs/PoseStamped \
+  "{header: {frame_id: 'map'}, pose: {position: {x: 1.0, y: 0.0}, orientation: {w: 1.0}}}" --once
+```
+
+Nav2 publishes `geometry_msgs/Twist` on `/cmd_vel`. The bench fixture has no consumer, so `/cmd_vel` is just for visualizing the planner's output. Real platforms need a `/cmd_vel` → drive-base bridge in their own launch file (Go2: unitree_ros2 cmd_vel adapter; mecanum: roboclaw_node; etc.).
+
+**Frames Nav2 sees:**
+
+```
+map ──RTABMap──> camera_init ──FAST-LIO2──> body ──slam.launch.py──> base_link
+                       ↓
+                 (identity, nav2.launch.py)
+                       ↓
+                      odom
+```
+
+Nav2 plugins reference `map`, `odom`, and `base_link`. The `camera_init → odom` identity TF lets the stock plugin defaults work without per-plugin frame overrides.
+
+**Per-platform tuning:**
+
+`config/nav2_params.yaml` ships defaults appropriate for every platform on the bench (circular footprint, `robot_radius: 0.4 m`, max velocities tuned for an indoor rover). Override per-platform with:
+
+```bash
+./start_nav.sh nav2_params_file:=/path/to/go2_nav2_params.yaml
+```
+
+Things you'll typically want to tune per platform:
+- `robot_radius` (or `footprint:` for non-circular shapes)
+- `max_vel_x` / `max_vel_theta` and `acc_lim_*` in the `FollowPath` (DWB) section
+- `max_vel_y`: keep `0.0` for diff-drive (Go2/R2D2); raise for mecanum
+- `velocity_smoother.max_velocity` / `max_accel` to match the controller_server limits
+
+**What's NOT included:**
+
+- A `/cmd_vel` consumer for the bench fixture (it has no wheels). Add a per-platform velocity bridge in the platform's own launch file.
+- Recovery behaviors specific to a platform (Go2 stand-up sequence, mecanum gear shift, etc.) — extend `behavior_server.behavior_plugins` per platform.
+- Speed-limit zones / dynamic obstacle layers — add `costmap_filter` or `STVL` plugins as needed.
 
 ### View Mid-360 + D435 together in Foxglove / RViz
 

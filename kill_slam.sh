@@ -4,6 +4,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+"$SCRIPT_DIR/kill_nav.sh"      2>/dev/null
 "$SCRIPT_DIR/kill_rtabmap.sh"  2>/dev/null
 "$SCRIPT_DIR/kill_fast_lio.sh" 2>/dev/null
 "$SCRIPT_DIR/kill_viz_clip.sh" 2>/dev/null
