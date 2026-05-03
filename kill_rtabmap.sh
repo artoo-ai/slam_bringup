@@ -4,8 +4,11 @@
 # /mapData already has a publisher (previous rtabmap survived Ctrl-C), or
 # the rtabmap.db is locked by an orphan process.
 
-pkill -SIGINT -f "rtabmap_slam/rtabmap"          # graceful first
-sleep 2
-pkill -9      -f "rtabmap_slam/rtabmap"          # nuke if still alive
-pkill -9      -f "ros2 launch slam_bringup rtabmap"   # and the launch wrapper
-ros2 daemon stop                                 # clear stale DDS discovery cache
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=kill_helpers.sh
+source "$SCRIPT_DIR/kill_helpers.sh"
+
+nuke_processes 'rtabmap_slam/rtabmap'           'RTABMap node'          || exit 1
+nuke_processes 'ros2 launch slam_bringup rtabmap' 'rtabmap.launch.py wrapper' || true
+
+ros2 daemon stop                                # clear stale DDS discovery cache

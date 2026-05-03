@@ -4,26 +4,17 @@
 # /local_costmap, or lifecycle services already have publishers/servers
 # from a survived previous run.
 
-# Nav2 nodes spawned by navigation_launch.py:
-pkill -SIGINT -f "controller_server"        2>/dev/null
-pkill -SIGINT -f "planner_server"           2>/dev/null
-pkill -SIGINT -f "smoother_server"          2>/dev/null
-pkill -SIGINT -f "behavior_server"          2>/dev/null
-pkill -SIGINT -f "bt_navigator"             2>/dev/null
-pkill -SIGINT -f "waypoint_follower"        2>/dev/null
-pkill -SIGINT -f "velocity_smoother"        2>/dev/null
-pkill -SIGINT -f "lifecycle_manager"        2>/dev/null
-pkill -SIGINT -f "pointcloud_to_laserscan"  2>/dev/null
-sleep 2
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=kill_helpers.sh
+source "$SCRIPT_DIR/kill_helpers.sh"
 
-pkill -9 -f "controller_server"             2>/dev/null
-pkill -9 -f "planner_server"                2>/dev/null
-pkill -9 -f "smoother_server"               2>/dev/null
-pkill -9 -f "behavior_server"               2>/dev/null
-pkill -9 -f "bt_navigator"                  2>/dev/null
-pkill -9 -f "waypoint_follower"             2>/dev/null
-pkill -9 -f "velocity_smoother"             2>/dev/null
-pkill -9 -f "lifecycle_manager"             2>/dev/null
-pkill -9 -f "pointcloud_to_laserscan"       2>/dev/null
-pkill -9 -f "static_transform_publisher.*camera_init_to_odom" 2>/dev/null
-pkill -9 -f "ros2 launch slam_bringup nav2"                    2>/dev/null
+# Group the Nav2 servers into one alternation so we make one verification
+# pass over the whole pipeline instead of N separate ones. Each pattern
+# is anchored loosely (no \b on every term) since pkill -f matches the
+# full command line and these names are distinctive.
+NAV2_NODES='controller_server\|planner_server\|smoother_server\|behavior_server\|bt_navigator\|waypoint_follower\|velocity_smoother\|lifecycle_manager'
+
+nuke_processes "$NAV2_NODES"                'Nav2 nodes'                 || exit 1
+nuke_processes 'pointcloud_to_laserscan'    'pointcloud_to_laserscan'    || exit 1
+nuke_processes 'static_transform_publisher.*camera_init_to_odom' 'camera_init→odom static TF' || true
+nuke_processes 'ros2 launch slam_bringup nav2' 'nav2.launch.py wrapper'  || true
