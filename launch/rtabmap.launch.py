@@ -168,7 +168,16 @@ def generate_launch_description():
         'Vis/MinInliers':           '15',
         'Vis/EstimationType':       '1',     # 1 = PnP (RGB-D friendly)
         'Vis/MaxFeatures':          '1000',
-        'RGBD/OptimizeMaxError':    '3.0',   # reject loop-closures > 3 m residual
+        # OptimizeMaxError sets the σ multiplier above which the optimizer
+        # rejects a new loop closure as "the resulting correction is so
+        # large it must be wrong." Bumped from 3.0 → 5.0 because the
+        # initial Roboscout map had heavy FAST-LIO drift baked in (942 m
+        # unoptimized error on a 52 m trajectory) — at 3σ, every legit
+        # loop closure trying to reel that drift back in was getting
+        # flagged as "wrong." 5σ lets the corrections through. Re-mapping
+        # with force_3dof:=true is the long-term fix; this knob is the
+        # workaround for already-saved maps.
+        'RGBD/OptimizeMaxError':    '5.0',
         'RGBD/ProximityBySpace':    'true',
         'RGBD/AngularUpdate':       '0.05',  # rad — keyframe trigger
         'RGBD/LinearUpdate':        '0.05',  # m   — keyframe trigger

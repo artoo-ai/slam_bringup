@@ -7,16 +7,32 @@ Panels:
         - /Global Options1
         - /TF1
         - /RobotModel1
-        - /LiDAR1
-        - /D435 Front Pointcloud1
+        - /Map1
+        - /Cloud (world)1
+        - /LiDAR (live)1
+        - /Global Costmap1
+        - /Local Costmap1
+        - /Plan1
       Splitter Ratio: 0.5
-    Tree Height: 600
+    Tree Height: 700
   - Class: rviz_common/Selection
     Name: Selection
   - Class: rviz_common/Tool Properties
     Name: Tool Properties
   - Class: rviz_common/Views
     Name: Views
+  # nav2_rviz_plugins panel: Startup/Shutdown lifecycle controls,
+  # navigation/localization status, goal feedback. Requires
+  #   sudo apt install ros-humble-nav2-rviz-plugins
+  - Class: nav2_rviz_plugins/Navigation 2
+    Name: Navigation 2
+  # slam_toolbox panel: Save/Serialize/Deserialize map, manual loop
+  # closures. We don't run slam_toolbox (RTABMap is our SLAM backend),
+  # but the panel UI can still be used as a generic map-management tool.
+  # Requires
+  #   sudo apt install ros-humble-slam-toolbox
+  - Class: slam_toolbox::SlamToolboxPlugin
+    Name: SlamToolboxPlugin
 
 Visualization Manager:
   Class: ""
@@ -26,7 +42,7 @@ Visualization Manager:
       Cell Size: 1
       Color: 160; 160; 164
       Plane: XY
-      Plane Cell Count: 10
+      Plane Cell Count: 20
       Reference Frame: <Fixed Frame>
       Enabled: true
     - Class: rviz_default_plugins/TF
@@ -48,10 +64,25 @@ Visualization Manager:
       Visual Enabled: true
       Collision Enabled: false
       Enabled: true
-    - Class: rviz_default_plugins/PointCloud2
-      Name: LiDAR
+    # ---------- /map  (RTABMap occupancy grid) ----------
+    - Class: rviz_default_plugins/Map
+      Name: Map
       Topic:
-        Value: /livox/lidar
+        Value: /map
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+      Alpha: 0.7
+      Color Scheme: map
+      Draw Behind: true
+      Enabled: true
+    # ---------- /cloud_viz_clipped  (FAST-LIO accumulated cloud, z-clipped) ----------
+    # Falls back to /cloud_registered if you set enable_viz_clip:=false.
+    - Class: rviz_default_plugins/PointCloud2
+      Name: Cloud (world)
+      Topic:
+        Value: /cloud_viz_clipped
         Depth: 5
         Durability Policy: Volatile
         History Policy: Keep Last
@@ -63,6 +94,36 @@ Visualization Manager:
       Axis: Z
       Use rainbow: true
       Enabled: true
+    # ---------- /livox/lidar  (current scan, body frame) ----------
+    - Class: rviz_default_plugins/PointCloud2
+      Name: LiDAR (live)
+      Topic:
+        Value: /livox/lidar
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+      Selectable: false
+      Style: Points
+      Size (Pixels): 1
+      Color Transformer: FlatColor
+      Color: 200; 200; 200
+      Enabled: false
+    # ---------- /scan  (pointcloud_to_laserscan output, fed to Nav2 costmaps) ----------
+    - Class: rviz_default_plugins/LaserScan
+      Name: LaserScan (Nav2)
+      Topic:
+        Value: /scan
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+      Style: Points
+      Size (Pixels): 3
+      Color Transformer: FlatColor
+      Color: 0; 255; 255
+      Enabled: false
+    # ---------- D435 RGB-D pointcloud (raw mode only) ----------
     - Class: rviz_default_plugins/PointCloud2
       Name: D435 Front Pointcloud
       Topic:
@@ -75,17 +136,97 @@ Visualization Manager:
       Style: Points
       Size (Pixels): 2
       Color Transformer: RGB8
+      Enabled: false
+    # ---------- Nav2 costmaps ----------
+    - Class: rviz_default_plugins/Map
+      Name: Global Costmap
+      Topic:
+        Value: /global_costmap/costmap
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+      Alpha: 0.5
+      Color Scheme: costmap
+      Draw Behind: false
       Enabled: true
+    - Class: rviz_default_plugins/Map
+      Name: Local Costmap
+      Topic:
+        Value: /local_costmap/costmap
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+      Alpha: 0.5
+      Color Scheme: costmap
+      Draw Behind: false
+      Enabled: true
+    # ---------- Nav2 planned paths ----------
+    - Class: rviz_default_plugins/Path
+      Name: Plan
+      Topic:
+        Value: /plan
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+      Color: 25; 255; 0
+      Line Width: 0.05
+      Enabled: true
+    - Class: rviz_default_plugins/Path
+      Name: Local Plan
+      Topic:
+        Value: /local_plan
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+      Color: 0; 0; 255
+      Line Width: 0.04
+      Enabled: true
+    # ---------- Live odometry from FAST-LIO ----------
+    - Class: rviz_default_plugins/Odometry
+      Name: Odometry
+      Topic:
+        Value: /Odometry
+        Depth: 100
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+      Position Tolerance: 0.1
+      Angle Tolerance: 0.1
+      Keep: 100
+      Shape: Arrow
+      Color: 255; 25; 0
+      Alpha: 0.5
+      Enabled: false
 
   Global Options:
+    # Default to `map` so navigation + saved RTABMap data are visible.
+    # If you launch with no map (sensor-only), this will warn until
+    # RTABMap publishes map → camera_init. Switch to `base_link` for
+    # purely sensor-rig debugging.
     Background Color: 48; 48; 48
-    Fixed Frame: base_link
+    Fixed Frame: map
     Frame Rate: 30
 
   Tools:
     - Class: rviz_default_plugins/MoveCamera
     - Class: rviz_default_plugins/FocusCamera
     - Class: rviz_default_plugins/Measure
+    # 2D Pose Estimate publishes /initialpose — RTABMap can use this as
+    # a relocalization seed when it's lost in the saved map.
+    - Class: rviz_default_plugins/SetInitialPose
+      Topic:
+        Value: /initialpose
+    # 2D Goal Pose publishes /goal_pose — Nav2 BT entrypoint.
+    - Class: rviz_default_plugins/SetGoal
+      Topic:
+        Value: /goal_pose
+    - Class: rviz_default_plugins/PublishPoint
+      Topic:
+        Value: /clicked_point
 
   Value: true
 
@@ -93,15 +234,21 @@ Visualization Manager:
     Current:
       Class: rviz_default_plugins/Orbit
       Name: Orbit
-      Distance: 1.5
+      Distance: 8.0
       Focal Point:
         X: 0
         Y: 0
-        Z: 0.07
-      Pitch: 0.4
+        Z: 0.0
+      Pitch: 1.0
       Yaw: 0.8
       Target Frame: base_link
 
 Window Geometry:
   Height: 900
   Width: 1600
+  Displays:
+    collapsed: false
+  Navigation 2:
+    collapsed: false
+  SlamToolboxPlugin:
+    collapsed: false
