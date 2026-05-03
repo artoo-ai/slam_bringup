@@ -3,17 +3,23 @@
 # Idempotent: kills every layered piece before relaunching.
 #
 # Pass-through args:
-#   ./start_slam.sh                                 # bench_fixture, fresh resume of last DB
-#   ./start_slam.sh platform:=go2                   # (once go2 PLATFORM_BRIDGES entry lands)
+#   ./start_slam.sh                                 # mecanum (default), append to last DB
+#   ./start_slam.sh platform:=bench_fixture         # rare bench-only debug
 #   ./start_slam.sh delete_db_on_start:=true        # wipe rtabmap.db, start fresh map
 #   ./start_slam.sh localization:=true              # reuse existing DB, no new mapping
 #   ./start_slam.sh nav2:=true localization:=true   # add Nav2 (or use ./start_nav.sh)
-#   ./start_slam.sh rviz:=true                      # spawn rviz2 alongside Foxglove
+#   ./start_slam.sh force_3dof:=false               # (default true now — mecanum is wheeled)
+#
+# Foxglove bridge auto-spawns in the background (Foxglove on the dev
+# machine is the canonical viewer). Set SLAM_NO_FOXGLOVE=1 to suppress.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 source /opt/ros/humble/setup.bash
 source ~/slam_ws/install/setup.bash
+# shellcheck source=start_helpers.sh
+source "$SCRIPT_DIR/start_helpers.sh"
+ensure_foxglove
 
 # Kill every layer of the stack before relaunching. Order matters:
 # Nav2 first (depends on /map + /Odometry), then RTABMap (depends on

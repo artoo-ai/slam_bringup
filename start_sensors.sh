@@ -15,6 +15,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 source /opt/ros/humble/setup.bash
 source ~/slam_ws/install/setup.bash
+# shellcheck source=start_helpers.sh
+source "$SCRIPT_DIR/start_helpers.sh"
+ensure_foxglove
 
 NEEDS_CLEAN=0
 pgrep -f livox_ros_driver2_node              > /dev/null && NEEDS_CLEAN=1

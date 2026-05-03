@@ -132,8 +132,10 @@ def generate_launch_description():
     default_nav2_params = pkg_share / 'config' / 'nav2_params.yaml'
 
     platform_arg = DeclareLaunchArgument(
-        'platform', default_value='bench_fixture',
-        description='Selects URDF + body→base_link bridge from PLATFORM_BRIDGES.',
+        'platform', default_value='mecanum',
+        description='Selects URDF + body→base_link bridge from PLATFORM_BRIDGES. '
+                    'Default `mecanum` because it is the working test bed; pass '
+                    '`platform:=bench_fixture` for the rare standalone-rig debug case.',
     )
     use_sim_time_arg = DeclareLaunchArgument(
         'use_sim_time', default_value='false',
@@ -150,11 +152,14 @@ def generate_launch_description():
         DeclareLaunchArgument('database_path',      default_value='~/.ros/rtabmap.db'),
         DeclareLaunchArgument('delete_db_on_start', default_value='false'),
         DeclareLaunchArgument('localization',       default_value='false'),
-        # force_3dof clamps z/roll/pitch on flat-ground rovers. See
-        # rtabmap.launch.py for the rationale. Off by default; turn on
-        # for the actual rover (Roboscout/Go2/mecanum) — symptoms it
-        # fixes: tf2_echo map base_link shows z drift while stationary.
-        DeclareLaunchArgument('force_3dof',         default_value='false'),
+        # force_3dof clamps z/roll/pitch in RTABMap's loop-closure
+        # optimizer — the right model for an indoor wheeled rover on a
+        # flat floor. Default ON because the mecanum rover is the
+        # working platform; flip to false only when handheld / bench
+        # testing where the rig genuinely uses 6 DoF. Symptom this
+        # avoids: tf2_echo map base_link reporting z = -4 m while
+        # stationary.
+        DeclareLaunchArgument('force_3dof',         default_value='true'),
     ]
 
     # Visualization-only z-clip on /cloud_registered. See viz_clip.launch.py.

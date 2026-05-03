@@ -4,12 +4,16 @@ Loads a previously-built `~/.ros/rtabmap.db` in localization mode and runs Nav2 
 
 ## What it does
 
-Wraps `slam.launch.py` with three forced args:
+Wraps `slam.launch.py` with four forced args:
 - `localization:=true` (RTABMap read-only)
 - `nav2:=true` (Nav2 navigation pipeline included)
 - `delete_db_on_start:=false` (refuses to clobber the map)
+- `enable_drive:=true` (spawns the Yahboom mecanum bridge — pass `enable_drive:=false` to override on bench fixture)
 
 Refuses to launch if the saved DB doesn't exist, or if you try to pass `delete_db_on_start:=true`. Everything else is a normal slam.launch.py arg.
+
+Foxglove bridge auto-spawns. View on your dev machine:
+`Foxglove Studio → New Connection → ws://gizmo.local:8765`.
 
 What runs:
 - `start_slam.sh`'s full layer stack in localization mode (RTABMap loads DB, no new keyframes)
@@ -33,10 +37,11 @@ NOT run: `map_server` (RTABMap publishes `/map`) or `amcl` (RTABMap publishes th
 ```
 
 What you get:
-- Platform: `bench_fixture` (Nav2 plans, but `/cmd_vel` has no consumer)
+- Platform: `mecanum` (the rover physically moves on goal-pose clicks)
 - Loads `~/.ros/rtabmap.db`
-- 6 DoF pose (override with `force_3dof:=true` on wheeled rovers)
-- Drive bridge OFF
+- `force_3dof: true` (clamps z/roll/pitch on the wheeled rover)
+- Drive bridge ON (`enable_drive:=true` forced — Yahboom subscribed to `/cmd_vel`)
+- Foxglove bridge auto-spawns
 - No Jetson-side RViz
 
 ## Parameters

@@ -23,8 +23,13 @@ YAW=0.0
 PARENT=livox_frame
 CHILD=camera_link
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 source /opt/ros/humble/setup.bash
 source ~/slam_ws/install/setup.bash
+# shellcheck source=start_helpers.sh
+source "$SCRIPT_DIR/start_helpers.sh"
+ensure_foxglove
 
 # Match only our own edge — pgrep on parent+child names so an unrelated
 # static_transform_publisher elsewhere is left alone.

@@ -7,11 +7,13 @@
 # map — it loads the existing one read-only and runs Nav2 on top.
 #
 # Usage:
-#   ./start_nav.sh                                          # bench_fixture, default DB
-#   ./start_nav.sh platform:=go2                            # (once go2 bridge lands)
-#   ./start_nav.sh database_path:=~/maps/house.db            # alternate DB
-#   ./start_nav.sh nav2_params_file:=~/cfg/go2_nav2.yaml    # per-platform tuning
-#   ./start_nav.sh rviz:=true                               # spawn RViz for "2D Goal Pose"
+#   ./start_nav.sh                                          # mecanum + drive bridge enabled
+#   ./start_nav.sh platform:=bench_fixture enable_drive:=false   # rare bench debug
+#   ./start_nav.sh database_path:=~/maps/house.db           # alternate DB
+#   ./start_nav.sh nav2_params_file:=~/cfg/foo_nav2.yaml    # per-platform tuning
+#
+# Foxglove bridge auto-spawns in the background (the canonical viewer).
+# Set SLAM_NO_FOXGLOVE=1 to suppress.
 #
 # What it does (vs start_slam.sh):
 #   localization:=true     — RTABMap loads ~/.ros/rtabmap.db read-only
@@ -31,6 +33,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 source /opt/ros/humble/setup.bash
 source ~/slam_ws/install/setup.bash
+# shellcheck source=start_helpers.sh
+source "$SCRIPT_DIR/start_helpers.sh"
+ensure_foxglove
 
 DB_PATH="${HOME}/.ros/rtabmap.db"
 for arg in "$@"; do
@@ -69,4 +74,5 @@ exec ros2 launch slam_bringup slam.launch.py \
     nav2:=true \
     localization:=true \
     delete_db_on_start:=false \
+    enable_drive:=true \
     "$@"

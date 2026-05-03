@@ -12,6 +12,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 source /opt/ros/humble/setup.bash
 source ~/slam_ws/install/setup.bash
+# shellcheck source=start_helpers.sh
+source "$SCRIPT_DIR/start_helpers.sh"
+ensure_foxglove
 
 # Clean any stale launches before we relaunch — robot_state_publisher
 # survives Ctrl-C surprisingly often, and a duplicate publisher of

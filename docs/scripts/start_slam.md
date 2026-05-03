@@ -31,21 +31,23 @@ No other scripts need to be running first — `start_slam.sh` brings up the whol
 ```
 
 What you get:
-- Platform: `bench_fixture` (the standalone test rig)
+- Platform: `mecanum` (the working test bed)
 - DB: `~/.ros/rtabmap.db` — **appended** to if it exists
-- 6 DoF pose estimation (use `force_3dof:=true` on wheeled rovers)
+- `force_3dof: true` (clamps z/roll/pitch in RTABMap — required on wheeled rovers)
+- Foxglove bridge auto-spawns in the background (`ws://<host>:8765`)
 - No RViz on the Jetson (run RViz on your dev machine)
 - Top-down `/cloud_viz_clipped` enabled with z range `[-3.0, 3.0]` m
 - Nav2 disabled
+- Drive bridge OFF (use `start_nav.sh` to enable)
 
 ## Parameters
 
 | Arg | Default | What it does | When to override |
 |---|---|---|---|
-| `platform` | `bench_fixture` | Selects URDF + per-platform `body→base_link` static TF from `PLATFORM_BRIDGES` in `launch/slam.launch.py`. | `mecanum` for the Yahboom rover (placeholder offset — measure to make accurate). Other platforms (`go2`, `r2d2`, `roboscout`) are stubbed; passing them errors out with the exact instruction to add a `PLATFORM_BRIDGES` entry. |
+| `platform` | `mecanum` | Selects URDF + per-platform `body→base_link` static TF from `PLATFORM_BRIDGES` in `launch/slam.launch.py`. | `bench_fixture` for the rare standalone-rig debug case. Other platforms (`go2`, `r2d2`, `roboscout`) are stubbed; passing them errors out with the exact instruction to add a `PLATFORM_BRIDGES` entry. |
 | `delete_db_on_start` | `false` | Wipe `~/.ros/rtabmap.db` at launch. **Appending** is the default — multiple sessions accumulate into one DB. | `true` ONLY when you really mean to throw away the saved map. `start_nav.sh` rejects this. |
 | `localization` | `false` | RTABMap loads the DB read-only (`Mem/IncrementalMemory: false`) — no new keyframes. | `true` when you want to navigate against a saved map without modifying it. `start_nav.sh` forces this on. |
-| `force_3dof` | `false` | RTABMap clamps z/roll/pitch to 0 in the loop-closure optimizer. | **Always `true` on wheeled rovers** — without it, FAST-LIO drifts in altitude/tilt and `tf2_echo map base_link` reports nonsense z. Leave `false` only on the bench fixture / handheld rig. |
+| `force_3dof` | `true` | RTABMap clamps z/roll/pitch to 0 in the loop-closure optimizer. **Default ON** because mecanum is the default platform. | `false` on the bench fixture or any handheld rig that genuinely uses 6 DoF. Leaving `true` on a 6 DoF rig will lock altitude wrong. |
 | `rviz` | `false` | Spawn `rviz2` on the Jetson. | Almost never — Jetson CPU is precious. Run RViz on your dev machine over the LAN. The fast_lio rviz spawn is pinned off here so you don't get two windows. |
 | `nav2` | `false` | Include `nav2.launch.py` in the same launch. | `true` (paired with `localization:=true`) when you want one command for navigation. `start_nav.sh` is the convenience wrapper for this. |
 | `nav2_params_file` | `config/nav2_params.yaml` | Path to Nav2 YAML. | Per-platform tuning — point at e.g. `~/cfg/mecanum_nav2.yaml`. |
@@ -59,23 +61,26 @@ What you get:
 ## Examples
 
 ```bash
-# First time mapping a new space — wipe and start fresh:
+# First time mapping a new space — wipe and start fresh (mecanum is the default):
 ./start_slam.sh delete_db_on_start:=true
 
-# Mapping on the mecanum rover (CRITICAL: force_3dof):
-./start_slam.sh platform:=mecanum force_3dof:=true delete_db_on_start:=true
-
-# Append a new room to an existing map (default behaviour, called out for clarity):
+# Append a new room to the existing map (default behaviour):
 ./start_slam.sh
 
-# High-ceiling space — bump the z-clip ceiling so you don't lose the cloud:
+# High-ceiling space — bump the z-clip ceiling:
 ./start_slam.sh viz_z_max:=4.5
 
 # Snapshot map to a named DB instead of clobbering ~/.ros/rtabmap.db:
 ./start_slam.sh database_path:=~/maps/lab-2026-05-03.db delete_db_on_start:=true
 
+# Bench fixture (standalone rig, 6 DoF):
+./start_slam.sh platform:=bench_fixture force_3dof:=false
+
 # Navigation in one command instead of using start_nav.sh:
-./start_slam.sh nav2:=true localization:=true force_3dof:=true platform:=mecanum enable_drive:=true
+./start_slam.sh nav2:=true localization:=true enable_drive:=true
+
+# Headless / CI — suppress the Foxglove bridge auto-spawn:
+SLAM_NO_FOXGLOVE=1 ./start_slam.sh
 ```
 
 ## After Ctrl-C

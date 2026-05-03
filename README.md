@@ -69,32 +69,29 @@ Common `start_sensors.sh` arg overrides:
 ./start_sensors.sh enable_witmotion:=false          # drop one sensor for isolated debugging
 ```
 
+**Default platform is `mecanum`.** The mecanum UGV is the working test bed; bench-fixture and handheld testing are rare debug flows. The defaults below assume that. Override with `platform:=bench_fixture` only when you genuinely need it.
+
 **Full SLAM workflow** (URDF + sensors + FAST-LIO2 + RTABMap, builds `~/.ros/rtabmap.db`):
 
 ```bash
-# Bench fixture (default platform):
 cd ~/slam_ws/src/slam_bringup && ./start_slam.sh delete_db_on_start:=true
-
-# Wheeled rover (Roboscout etc.) — clamp z/roll/pitch drift:
-cd ~/slam_ws/src/slam_bringup && ./start_slam.sh force_3dof:=true delete_db_on_start:=true
 ```
 
-Walk / drive the rig through the space; Ctrl-C saves to `~/.ros/rtabmap.db`. See [Navigation (Nav2)](#navigation-nav2) for the full doc and [Map persistence](#map-persistence-and-rosrtabmapdb) for inspecting the saved DB.
+`force_3dof` is **on by default** (clamps z/roll/pitch — required on wheeled rovers, see Drift section in Troubleshooting). Foxglove bridge auto-spawns in the background.
+
+Drive the rover through the space; Ctrl-C saves to `~/.ros/rtabmap.db`. View live from Foxglove Studio on your dev machine: `New Connection → Foxglove WebSocket → ws://gizmo.local:8765`. See [Navigation (Nav2)](#navigation-nav2) for the next step and [Map persistence](#map-persistence-and-rosrtabmapdb) for inspecting the saved DB.
 
 **Navigation workflow** (loads the saved map, runs Nav2 on top — no new mapping):
 
 ```bash
-# Wheeled rover — assumes ~/.ros/rtabmap.db exists from a previous start_slam.sh.
-# View RViz from your dev machine, NOT the Jetson (rviz:=true eats CPU). Just open
-# RViz on your Mac/laptop with the same ROS_DOMAIN_ID and rmw_cyclonedds.
-cd ~/slam_ws/src/slam_bringup && ./start_nav.sh force_3dof:=true
-
-# Mecanum UGV — same plus the Yahboom drive bridge (real motion!):
-cd ~/slam_ws/src/slam_bringup && ./start_nav.sh \
-    platform:=mecanum force_3dof:=true enable_drive:=true
+cd ~/slam_ws/src/slam_bringup && ./start_nav.sh
 ```
 
-`start_nav.sh` forces `localization:=true` + `nav2:=true` and refuses to launch against an empty DB. `enable_drive:=true` spawns the Yahboom `/cmd_vel` bridge — see [Mecanum drive (Yahboom YB-ERF01)](#mecanum-drive-yahboom-yb-erf01) below.
+That single command brings up: SLAM stack in localization mode + Nav2 + Yahboom drive bridge (`enable_drive:=true` is forced). The rover physically moves on `2D Goal Pose`. Foxglove auto-spawns; connect from your dev machine and click **2D Goal Pose** on the saved `/map`.
+
+`start_nav.sh` refuses to launch against an empty DB. To navigate without driving (planner-visualization on the bench), pass `platform:=bench_fixture enable_drive:=false`.
+
+**Foxglove auto-spawn:** every `start_*.sh` runs `ensure_foxglove` from `start_helpers.sh` — idempotent background spawn of `foxglove_bridge`. Set `SLAM_NO_FOXGLOVE=1` to suppress (e.g. headless / CI). The bridge survives Ctrl-C of the foreground stack.
 
 This section tracks the **latest working command set** for whatever phase is current. Check the [Status](#status) section for what's wired up.
 

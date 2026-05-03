@@ -8,6 +8,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 source /opt/ros/humble/setup.bash
 source ~/slam_ws/install/setup.bash
+# shellcheck source=start_helpers.sh
+source "$SCRIPT_DIR/start_helpers.sh"
+ensure_foxglove
 
 if pgrep -f realsense2_camera_node > /dev/null \
    || pgrep -f "ros2 launch slam_bringup d435" > /dev/null; then
