@@ -129,6 +129,13 @@ check_pkg witmotion_ros
 check_pkg fast_lio
 check_pkg realsense2_camera
 check_pkg rtabmap_ros optional
+# Nav2 layer (start_nav.sh / nav2.launch.py). Required for navigation;
+# the SLAM-only pipeline still works without them, but start_nav.sh
+# fails at launch with "package 'pointcloud_to_laserscan' not found"
+# or "package 'nav2_bringup' not found". Install with:
+#   sudo apt install ros-humble-nav2-bringup ros-humble-pointcloud-to-laserscan
+check_pkg nav2_bringup
+check_pkg pointcloud_to_laserscan
 
 # Launch + config file listings (live under install/ share dir)
 PREFIX="$(ros2 pkg prefix slam_bringup 2>/dev/null || echo "")"
