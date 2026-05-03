@@ -636,6 +636,36 @@ sudo apt install \
 
 ---
 
+## `./build.sh --all` fails on `mecanum_drive_controller` (Jazzy/Rolling API)
+
+**Symptom:** `./build.sh --all` (or plain `colcon build` over the whole workspace) fails inside the upstream `yahboom_rosmaster` repo with errors like:
+
+```
+'get_lifecycle_state' was not declared in this scope
+'const class hardware_interface::LoanedStateInterface' has no member named 'get_optional'
+could not convert ... LoanedCommandInterface::set_value(...) from 'void' to 'bool'
+realtime_tools::RealtimeBox::set/get(...) — cannot convert lambda to const T&
+```
+
+…and aborts `mecanum_drive_controller`, `yahboom_rosmaster_navigation`, and `yahboom_rosmaster_system_tests`.
+
+**Cause:** Those three packages target the **Jazzy/Rolling** `ros2_control` + `realtime_tools` API. Humble's API differs (no `get_lifecycle_state()`, `LoanedCommandInterface::set_value()` returns `void`, `RealtimeBox::set/get` take a `const T&` not a callback, no `LoanedStateInterface::get_optional()`).
+
+**Why we don't need them:** Our stack uses **Path A** (direct Python `Rosmaster_Lib` bridge via `slam_bringup/yahboom_bridge_node.py` → `bot.set_car_motion(vx, vy, wz)`), not `ros2_control`. `mecanum_drive_controller` is the ros2_control hardware interface for the YB-ERF01; we bypass it entirely.
+
+**Fix:** `./build.sh --all` now skips these packages via `--packages-skip`. If you invoke `colcon build` directly:
+
+```bash
+colcon build --symlink-install --packages-skip \
+  mecanum_drive_controller \
+  yahboom_rosmaster_navigation \
+  yahboom_rosmaster_system_tests
+```
+
+If you ever need real `ros2_control` mecanum support on Humble, the upstream repo's `humble` branch (if it exists) is the correct source — don't try to backport the `main` branch by hand.
+
+---
+
 ## CloudCompare shows just a "line" / sparse cloud after `export_map.sh`
 
 **Symptom:** Open `~/maps/<timestamp>/cloud.ply` in CloudCompare and see only a thin trajectory of dots, not a dense scan cloud.

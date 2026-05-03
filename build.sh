@@ -89,6 +89,17 @@ cd "$WS_ROOT"
 BUILD_ARGS=(--symlink-install --cmake-args -DROS_EDITION=ROS2 "-DDISTRO_ROS=${ROS_DISTRO}")
 if [ $BUILD_ALL -eq 0 ]; then
   BUILD_ARGS+=(--packages-select "${PACKAGES[@]}")
+else
+  # Upstream yahboom_rosmaster ships three packages that target Jazzy/Rolling's
+  # ros2_control API (RealtimeBox::set/get signatures, LoanedCommandInterface::
+  # set_value() return type, get_lifecycle_state(), LoanedStateInterface::
+  # get_optional()). They do not compile on Humble. Our stack uses Path A
+  # (direct Python Rosmaster_Lib bridge via yahboom_bridge_node.py), not
+  # ros2_control, so these packages are unused. Skip them.
+  BUILD_ARGS+=(--packages-skip
+    mecanum_drive_controller
+    yahboom_rosmaster_navigation
+    yahboom_rosmaster_system_tests)
 fi
 
 info "colcon build ${BUILD_ARGS[*]}"
