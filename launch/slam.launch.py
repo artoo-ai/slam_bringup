@@ -142,6 +142,11 @@ def generate_launch_description():
         DeclareLaunchArgument('database_path',      default_value='~/.ros/rtabmap.db'),
         DeclareLaunchArgument('delete_db_on_start', default_value='false'),
         DeclareLaunchArgument('localization',       default_value='false'),
+        # force_3dof clamps z/roll/pitch on flat-ground rovers. See
+        # rtabmap.launch.py for the rationale. Off by default; turn on
+        # for the actual rover (Roboscout/Go2/mecanum) — symptoms it
+        # fixes: tf2_echo map base_link shows z drift while stationary.
+        DeclareLaunchArgument('force_3dof',         default_value='false'),
     ]
 
     # Visualization-only z-clip on /cloud_registered. See viz_clip.launch.py.
@@ -203,6 +208,7 @@ def generate_launch_description():
             'database_path':      LaunchConfiguration('database_path'),
             'delete_db_on_start': LaunchConfiguration('delete_db_on_start'),
             'localization':       LaunchConfiguration('localization'),
+            'force_3dof':         LaunchConfiguration('force_3dof'),
         }.items(),
     )
 

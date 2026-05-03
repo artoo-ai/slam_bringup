@@ -74,6 +74,17 @@ def generate_launch_description():
         'localization', default_value='false',
         description='true = localization-only mode (no new mapping; reuse existing DB)',
     )
+    # Force3DoF clamps z/roll/pitch to 0 — required for indoor wheeled rovers
+    # where FAST-LIO drifts in altitude and tilt without LiDAR ceiling
+    # constraints. Default false because the bench fixture / handheld rig
+    # genuinely uses 6 DoF; enable on the actual rover with force_3dof:=true.
+    # Symptoms when this is needed: tf2_echo map base_link shows z drift
+    # (e.g. z=-4m while stationary) or persistent pitch/roll while the
+    # rover sits still on a flat floor.
+    force_3dof_arg = DeclareLaunchArgument(
+        'force_3dof', default_value='false',
+        description='Constrain pose to x/y/yaw only (recommended for wheeled rovers)',
+    )
     rgb_topic_arg = DeclareLaunchArgument(
         'rgb_topic',
         default_value='/d435_front/camera/color/image_raw',
@@ -129,7 +140,10 @@ def generate_launch_description():
 
         # --- Registration: ICP scan-matching (Livox needs this) ------------
         'Reg/Strategy': '1',               # 0 = vis only, 1 = ICP, 2 = vis+ICP
-        'Reg/Force3DoF': 'false',          # full 6 DoF for handheld + Go2
+        # Reg/Force3DoF is overridden at launch time via force_3dof:=true,
+        # see _spawn_rtabmap below. Default 'false' here is the 6 DoF
+        # baseline used by handheld + bench testing.
+        'Reg/Force3DoF': 'false',
         'Icp/PointToPlane': 'true',
         'Icp/Iterations': '10',
         'Icp/VoxelSize': '0.1',
@@ -174,13 +188,15 @@ def generate_launch_description():
     }
 
     def _spawn_rtabmap(context, *args, **kwargs):
-        """Resolve delete_db_on_start + localization at launch time so the
-        rtabmap CLI flag and the Mem/IncrementalMemory param actually
-        reflect what the user passed. Plain LaunchConfiguration in
-        Node.arguments doesn't gate a flag — empty string vs. flag has to
-        be decided after substitution, which is what OpaqueFunction does."""
+        """Resolve delete_db_on_start + localization + force_3dof at launch
+        time so the rtabmap CLI flag and the Mem/IncrementalMemory and
+        Reg/Force3DoF params actually reflect what the user passed. Plain
+        LaunchConfiguration in Node.arguments doesn't gate a flag — empty
+        string vs. flag has to be decided after substitution, which is
+        what OpaqueFunction does."""
         delete_db = LaunchConfiguration('delete_db_on_start').perform(context).lower() in ('true', '1')
         localize  = LaunchConfiguration('localization').perform(context).lower() in ('true', '1')
+        force3dof = LaunchConfiguration('force_3dof').perform(context).lower() in ('true', '1')
 
         node_args = []
         if delete_db:
@@ -189,6 +205,8 @@ def generate_launch_description():
         params = dict(rtabmap_params)
         if localize:
             params.update(localization_params)
+        if force3dof:
+            params['Reg/Force3DoF'] = 'true'
 
         return [Node(
             package='rtabmap_slam',
@@ -221,6 +239,7 @@ def generate_launch_description():
         database_path_arg,
         delete_db_on_start_arg,
         localization_arg,
+        force_3dof_arg,
         rgb_topic_arg,
         depth_topic_arg,
         camera_info_topic_arg,
