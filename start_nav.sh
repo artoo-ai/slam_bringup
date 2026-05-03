@@ -53,6 +53,7 @@ if [ ! -f "$DB_PATH_EXPANDED" ]; then
 fi
 
 # Idempotent — kill the layered stack first.
+"$SCRIPT_DIR/kill_yahboom.sh"  2>/dev/null
 "$SCRIPT_DIR/kill_nav.sh"      2>/dev/null
 "$SCRIPT_DIR/kill_rtabmap.sh"  2>/dev/null
 "$SCRIPT_DIR/kill_fast_lio.sh" 2>/dev/null

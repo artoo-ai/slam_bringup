@@ -73,12 +73,17 @@ Walk / drive the rig through the space; Ctrl-C saves to `~/.ros/rtabmap.db`. See
 **Navigation workflow** (loads the saved map, runs Nav2 on top — no new mapping):
 
 ```bash
-# Wheeled rover — assumes ~/.ros/rtabmap.db exists from a previous start_slam.sh:
-cd ~/slam_ws/src/slam_bringup && ./start_nav.sh rviz:=true force_3dof:=true
-# In RViz: click "2D Goal Pose", drop somewhere in the saved-map area.
+# Wheeled rover — assumes ~/.ros/rtabmap.db exists from a previous start_slam.sh.
+# View RViz from your dev machine, NOT the Jetson (rviz:=true eats CPU). Just open
+# RViz on your Mac/laptop with the same ROS_DOMAIN_ID and rmw_cyclonedds.
+cd ~/slam_ws/src/slam_bringup && ./start_nav.sh force_3dof:=true
+
+# Mecanum UGV — same plus the Yahboom drive bridge (real motion!):
+cd ~/slam_ws/src/slam_bringup && ./start_nav.sh \
+    platform:=mecanum force_3dof:=true enable_drive:=true
 ```
 
-`start_nav.sh` forces `localization:=true` + `nav2:=true` and refuses to launch against an empty DB.
+`start_nav.sh` forces `localization:=true` + `nav2:=true` and refuses to launch against an empty DB. `enable_drive:=true` spawns the Yahboom `/cmd_vel` bridge — see [Mecanum drive (Yahboom YB-ERF01)](#mecanum-drive-yahboom-yb-erf01) below.
 
 This section tracks the **latest working command set** for whatever phase is current. Check the [Status](#status) section for what's wired up.
 
@@ -277,8 +282,10 @@ One-liner wrappers around the launches that also handle "the driver got wedged a
 | `./start_perception.sh` | Launch URDF (`platform:=bench_fixture` default) + all sensors + optional rviz2. No SLAM — for visualizing sensor placement against the URDF tree. |
 | `./start_slam.sh` | Launch the full SLAM stack: URDF + sensors (slam_mode) + FAST-LIO2 + RTABMap + per-platform `body→base_link` bridge. Pass-through args: `platform:=`, `delete_db_on_start:=`, `localization:=`, `nav2:=`, `rviz:=`. |
 | `./kill_slam.sh` | Force-kill every layer of the SLAM stack (chains `kill_nav.sh`, `kill_rtabmap.sh`, `kill_fast_lio.sh`, `kill_viz_clip.sh`, `kill_sensors.sh`). |
-| `./start_nav.sh` | Launch the SLAM stack in **navigation mode**: localization-only RTABMap + Nav2. Requires an existing `~/.ros/rtabmap.db` built by `start_slam.sh` first. |
+| `./start_nav.sh` | Launch the SLAM stack in **navigation mode**: localization-only RTABMap + Nav2. Requires an existing `~/.ros/rtabmap.db` built by `start_slam.sh` first. Add `enable_drive:=true` for the mecanum rover. |
 | `./kill_nav.sh` | Force-kill the Nav2 nodes + `pointcloud_to_laserscan`. Called automatically by `kill_slam.sh`. |
+| `./start_yahboom.sh` | Launch the Yahboom YB-ERF01 `/cmd_vel` → mecanum bridge over USB-serial. Standalone (no SLAM) for bench-testing the drive base with `teleop_twist_keyboard`. See [Mecanum drive (Yahboom YB-ERF01)](#mecanum-drive-yahboom-yb-erf01). |
+| `./kill_yahboom.sh` | Force-kill the Yahboom bridge. Called automatically by `kill_slam.sh`. |
 | `./start_bench_tf.sh` | Publish `livox_frame → camera_link` static TF for multi-sensor visualization (see below) |
 | `./start_foxglove.sh` | Start `foxglove_bridge` on the Jetson for remote Studio/App connections |
 
@@ -404,6 +411,65 @@ Nav2 plugins reference `map`, `odom`, and `base_link`. The `camera_init → odom
 - A `/cmd_vel` consumer for the bench fixture (it has no wheels). Add a per-platform velocity bridge in the platform's own launch file.
 - Recovery behaviors specific to a platform (Go2 stand-up sequence, mecanum gear shift, etc.) — extend `behavior_server.behavior_plugins` per platform.
 - Speed-limit zones / dynamic obstacle layers — add `costmap_filter` or `STVL` plugins as needed.
+
+### Mecanum drive (Yahboom YB-ERF01)
+
+The mecanum UGV uses a Yahboom YB-ERF01-V3.0 board (STM32F103RCT6 + DRV8833) running ROSMASTER X3 firmware (`car_type=0x01` = 4-wheel mecanum). Wiring + Taranis SBUS RC config is documented in the Obsidian vault at *Robotics → Robots → Mecanum UGV → "Yahboom Mecanum Configuration - Motor Wiring and Taranis SBUS Setup"*. The driver path we use is **Path A — direct Python bridge** from *"Mecanum UGV - GitHub - AutomaticAddison ROSMASTER X3 ROS2"*: subscribe to `/cmd_vel`, call `Rosmaster_Lib.set_car_motion(vx, vy, wz)` over USB-serial. The STM32 firmware does the mecanum inverse kinematics internally.
+
+**One-time setup on the Jetson:**
+
+```bash
+# 1. Plug the Yahboom board's USB-C to the Jetson. Verify enumeration:
+ls -l /dev/serial/by-id/      # → usb-1a86_USB_Serial-if00-port0 -> ../../ttyUSB0
+
+# 2. Pin the device path (so /dev/myserial survives reordering across boots):
+sudo tee /etc/udev/rules.d/99-yahboom.rules <<'EOF'
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="myserial", MODE="0666"
+EOF
+sudo udevadm control --reload-rules && sudo udevadm trigger
+ls -l /dev/myserial           # → ../../ttyUSB0
+
+# 3. Install Yahboom's Python lib (NOT on PyPI — download from
+#    https://www.yahboom.net/study/ROSMASTER-X3 → Resources → Source code).
+#    Inside the zip, find Rosmaster_Lib/ with setup.py and:
+cd path/to/Rosmaster_Lib && pip3 install --user .
+python3 -c "from Rosmaster_Lib import Rosmaster; print('OK')"
+```
+
+**Bench-test BEFORE Nav2** (wheels off the ground — `Verification Order` in the Obsidian wiring note):
+
+```bash
+./start_yahboom.sh                            # bridge only, no SLAM
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+# Press 'b' to enable holonomic mode (mecanum strafe)
+# i = forward, , = backward
+# u/o    = forward-strafe-left / forward-strafe-right
+# j/l    = pure yaw (left/right)
+# Run through the three sanity tests:
+#   vx=+0.1 → all four wheels forward
+#   vy=+0.1 → MA+MD forward, MB+MC backward (strafe right)
+#   vz=+0.1 → MA+MB backward, MC+MD forward (yaw left)
+# Fix any wrong wheel via the firmware POLARITY FLAG, never by swapping wires.
+```
+
+**Full autonomous nav** (after bench-test passes):
+
+```bash
+./start_nav.sh platform:=mecanum force_3dof:=true enable_drive:=true
+```
+
+This launches the URDF + sensors + FAST-LIO2 + RTABMap (localization-only) + Nav2 + Yahboom bridge in one command. View from your Mac via Foxglove or RViz with the same `ROS_DOMAIN_ID` / `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`.
+
+**Velocity caps** in `slam_bringup/yahboom_bridge_node.py`: default `max_vx=0.5`, `max_vy=0.3`, `max_wz=1.0` rad/s. Override per-launch:
+
+```bash
+./start_yahboom.sh max_vx:=0.3 max_vy:=0.2     # tighter for first runs
+```
+
+Also configured:
+- **Watchdog** — if `/cmd_vel` goes silent for 0.5 s the bridge commands zero. Stops the rover dead if Nav2 / teleop crashes.
+- **No telemetry republished** — the bridge does NOT publish `/odom` or `/imu/data` because FAST-LIO and Mid-360 already own those topics. Re-enabling Yahboom telemetry would create duplicate publishers.
+- **SBUS RC stays live** — the Taranis path is independent of `/cmd_vel`; both feed the same firmware kinematics block. Keep RC enabled as the manual-override / kill-switch layer.
 
 ### Map persistence and `~/.ros/rtabmap.db`
 
@@ -644,7 +710,8 @@ Phase 3 (Navigation) landed 2026-05-02. Detailed task checklist in [PLAN.md](./P
   - [x] `pointcloud_to_laserscan` from `/cloud_registered_body` → `/scan`
   - [x] `force_3dof` launch arg for wheeled rovers
   - [x] `kill_helpers.sh` orphan-process escalation across all `kill_*.sh`
-  - [ ] Per-platform `cmd_vel → drive base` bridges (Roboscout, Go2, mecanum) — without these, Nav2 plans but the rover doesn't move
+  - [x] **Mecanum** `/cmd_vel` bridge — Yahboom YB-ERF01 / ROSMASTER X3 via USB-serial (`./start_yahboom.sh`, `enable_drive:=true`). Path A (direct Python bridge) per the Obsidian AutomaticAddison note. URDF + measured `body→base_link` offset for `mecanum` platform pending; current PLATFORM_BRIDGES entry is a placeholder.
+  - [ ] **Go2** / **R2D2** / **Roboscout** `/cmd_vel` bridges
   - [ ] Per-platform `nav2_<platform>_params.yaml` files
 - [ ] Phase 1.7 — URDF (`go2`, `r2d2`, `roboscout`, `mecanum`) — bench_fixture done, others stubbed
 - [ ] Phase 1.8 — Go2 SDK integration check

@@ -12,6 +12,7 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 FAILED=0
+"$SCRIPT_DIR/kill_yahboom.sh"  || FAILED=1
 "$SCRIPT_DIR/kill_nav.sh"      || FAILED=1
 "$SCRIPT_DIR/kill_rtabmap.sh"  || FAILED=1
 "$SCRIPT_DIR/kill_fast_lio.sh" || FAILED=1

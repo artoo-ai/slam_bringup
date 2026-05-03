@@ -1531,7 +1531,9 @@ Nav2 was added on top of the SLAM stack mid-session and is fully documented in *
 - `kill_helpers.sh` introduced — every `kill_*.sh` (except `kill_d435.sh`) now uses `nuke_processes` which escalates SIGINT → SIGKILL → `sudo` SIGKILL with `pgrep` verification at each stage. Surviving orphans (the cause of two earlier "lidar loop back" debugging sessions) now block the next launch via exit 1 instead of silently coexisting.
 
 **Tasks remaining for Phase 3 to be platform-complete:**
-- [ ] Per-platform `cmd_vel → drive base` bridge (Roboscout, Go2, mecanum). Without this, Nav2 plans but the rover doesn't move.
+- [x] **Mecanum cmd_vel bridge** — `slam_bringup.yahboom_bridge_node` subscribes `/cmd_vel`, calls `Rosmaster_Lib.set_car_motion(vx, vy, wz)` over `/dev/myserial`. Path A (direct Python bridge) per the Obsidian AutomaticAddison note — STM32 firmware does mecanum kinematics internally with `car_type=0x01`. Wired into `slam.launch.py` via `enable_drive:=true`. Standalone via `./start_yahboom.sh`.
+- [ ] Mecanum URDF + measured `body→base_link` offset (current PLATFORM_BRIDGES entry is a placeholder).
+- [ ] Roboscout / Go2 `/cmd_vel → drive base` bridges. Without these, Nav2 plans but those platforms don't move.
 - [ ] Per-platform `nav2_<platform>_params.yaml` — tuned `robot_radius`, footprint, vel limits.
 - [ ] Per-platform `scan_max_height` defaults — `0.45` works for small rovers, ~`0.8` for Go2 standing, `~1.2` for the bench fixture.
 

@@ -70,6 +70,15 @@ PLATFORM_BRIDGES = {
     # BELOW body, so the static TF translation is (0, 0, -0.244280).
     'bench_fixture': (0.0, 0.0, -0.244280, 0.0, 0.0, 0.0),
 
+    # Mecanum UGV (Yahboom YB-ERF01-V3.0 chassis, ROSMASTER X3 firmware).
+    # PLACEHOLDER offset — measure from the wheel-bottom contact point
+    # (= base_link in the Yahboom URDF convention) up to the top of the
+    # sensor plate, then add the plate-top → livox_frame offset (36.61 mm
+    # per Livox datasheet). Until measured, falls back to the bench-fixture
+    # number minus an estimated 100 mm chassis height. Re-measure before
+    # trusting the map z-axis.
+    'mecanum':   (0.0, 0.0, -0.144280, 0.0, 0.0, 0.0),
+
     # Stubs — fill in once each platform's URDF + measured plate offsets
     # are landed. Until then `platform:=<name>` will exit with a clear
     # error (see _build_bridge below). Numbers below are placeholders;
@@ -77,7 +86,6 @@ PLATFORM_BRIDGES = {
     # 'go2':       (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
     # 'r2d2':      (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
     # 'roboscout': (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
-    # 'mecanum':   (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
 }
 
 
@@ -167,6 +175,15 @@ def generate_launch_description():
         DeclareLaunchArgument('nav2_autostart',   default_value='true'),
     ]
 
+    # Per-platform /cmd_vel → drive-base bridge. Off by default because
+    # the bench fixture has no motors and most early debugging doesn't
+    # want a watchdog timer running on a serial port. Enable on the
+    # mecanum rover with `enable_drive:=true` (only valid with
+    # platform:=mecanum today; other platforms need their own bridge).
+    drive_args = [
+        DeclareLaunchArgument('enable_drive', default_value='false'),
+    ]
+
     # ---------- perception (URDF + sensors in SLAM mode) ----------
     perception = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(str(launch_dir / 'perception.launch.py')),
@@ -233,15 +250,26 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration('nav2')),
     )
 
+    # ---------- Drive-base bridge (optional, per-platform) ----------
+    # Currently only mecanum is wired (Yahboom YB-ERF01 over USB-serial).
+    # Go2 / R2D2 / Roboscout will get their own includes here once their
+    # bridges land.
+    yahboom = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(str(launch_dir / 'yahboom.launch.py')),
+        condition=IfCondition(LaunchConfiguration('enable_drive')),
+    )
+
     return LaunchDescription([
         platform_arg, use_sim_time_arg, rviz_arg,
         *rtabmap_args,
         *viz_clip_args,
         *nav2_args,
+        *drive_args,
         perception,
         bridge,
         fast_lio,
         rtabmap,
         viz_clip,
         nav2,
+        yahboom,
     ])

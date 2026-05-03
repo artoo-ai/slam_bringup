@@ -33,6 +33,11 @@ setup(
             # /livox/imu (units of g) → /livox/imu_ms2 (m/s²) republisher.
             # See slam_bringup/imu_units_node.py for the rationale.
             'imu_units_g_to_ms2 = slam_bringup.imu_units_node:main',
+            # /cmd_vel → Yahboom YB-ERF01 (mecanum X3) over USB-serial.
+            # See slam_bringup/yahboom_bridge_node.py + the Obsidian note
+            # "Mecanum UGV - GitHub - AutomaticAddison ROSMASTER X3 ROS2"
+            # (Path A — direct Python bridge).
+            'yahboom_bridge = slam_bringup.yahboom_bridge_node:main',
         ],
     },
 )
