@@ -208,8 +208,17 @@ set -u
 # livox_ros_driver2 requires -DROS_EDITION=ROS2 -DDISTRO_ROS=<distro> to pick
 # the humble/jazzy branch in its CMakeLists (upstream build.sh passes these).
 # Other packages ignore unused cmake vars, so it's safe to pass globally.
+# Upstream yahboom_rosmaster ships three packages that target Jazzy/Rolling's
+# ros2_control + realtime_tools API and do not compile on Humble. Our stack
+# uses Path A (direct Python Rosmaster_Lib bridge via yahboom_bridge_node.py),
+# not ros2_control, so these packages are unused. Skip them. See
+# docs/troubleshooting.md "build.sh --all fails on mecanum_drive_controller".
 colcon build --symlink-install \
-  --cmake-args -DROS_EDITION=ROS2 "-DDISTRO_ROS=${ROS_DISTRO}"
+  --cmake-args -DROS_EDITION=ROS2 "-DDISTRO_ROS=${ROS_DISTRO}" \
+  --packages-skip \
+    mecanum_drive_controller \
+    yahboom_rosmaster_navigation \
+    yahboom_rosmaster_system_tests
 
 cat <<EOF
 
