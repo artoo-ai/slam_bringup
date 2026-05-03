@@ -56,13 +56,29 @@ def generate_launch_description():
         'nav2_autostart', default_value='true',
         description='If true, lifecycle_manager activates Nav2 nodes immediately.',
     )
+    scan_min_height_arg = DeclareLaunchArgument(
+        'scan_min_height', default_value='0.10',
+        description='m above base_link. Lower bound of pointcloud→laserscan slice. '
+                    'Raise above 0 to skip the floor; lower for low-clearance platforms.',
+    )
+    scan_max_height_arg = DeclareLaunchArgument(
+        'scan_max_height', default_value='0.45',
+        description='m above base_link. Upper bound of pointcloud→laserscan slice. '
+                    'Default 0.45 covers rover-collision height; raise for taller platforms '
+                    '(0.8 for Go2 standing, 1.2 for handheld test fixture).',
+    )
 
     # ---------- /cloud_registered_body → /scan ---------------------------
     # Slice the Mid-360 body-frame cloud into a 2D laserscan at robot
-    # height. Bench fixture / Go2 / R2D2 all live somewhere between the
-    # floor and 2 m, so [0.1, 2.0] catches walls/furniture without the
-    # ceiling. target_frame=base_link puts /scan in the URDF root frame
-    # so Nav2's costmaps don't need extra TF hops.
+    # collision height. Bigger ranges grab more obstacles but ALSO grab
+    # furniture-tops / ceiling-fan blades / shelves — anything the rover
+    # can fit underneath but the laserscan reports as a wall, painting
+    # the costmap solid. [0.10, 0.45] is the rover-collision band: above
+    # the floor, below the average rover top, which is what Nav2's 2D
+    # planner actually needs to know about.
+    #
+    # Override per-platform via scan_min_height / scan_max_height; raise
+    # max for taller platforms, lower min for very-low-clearance ones.
     pc2laser = Node(
         package='pointcloud_to_laserscan',
         executable='pointcloud_to_laserscan_node',
@@ -72,8 +88,8 @@ def generate_launch_description():
             'use_sim_time':          LaunchConfiguration('use_sim_time'),
             'target_frame':          'base_link',
             'transform_tolerance':   0.05,
-            'min_height':            0.1,
-            'max_height':            2.0,
+            'min_height':            LaunchConfiguration('scan_min_height'),
+            'max_height':            LaunchConfiguration('scan_max_height'),
             'angle_min':            -3.14159,
             'angle_max':             3.14159,
             'angle_increment':       0.0087,   # ~0.5°
@@ -130,6 +146,8 @@ def generate_launch_description():
         use_sim_time_arg,
         params_file_arg,
         autostart_arg,
+        scan_min_height_arg,
+        scan_max_height_arg,
         pc2laser,
         camera_init_to_odom,
         nav2,

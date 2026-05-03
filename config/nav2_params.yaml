@@ -157,7 +157,12 @@ local_costmap:
       width: 6
       height: 6
       resolution: 0.05
-      robot_radius: 0.4
+      # robot_radius shrunk from 0.4 → 0.25 for the indoor rover. Combined
+      # with inflation_radius below, the ring of "definitely-can't-go"
+      # cells around obstacles shrinks from ~0.95 m to ~0.55 m, leaving
+      # actual traversable corridors in the costmap. Override per-platform
+      # if your rover is bigger.
+      robot_radius: 0.25
       plugins: ["obstacle_layer", "inflation_layer"]
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
@@ -165,18 +170,25 @@ local_costmap:
         observation_sources: scan
         scan:
           topic: /scan
-          max_obstacle_height: 2.0
+          # max_obstacle_height matches the upper end of nav2.launch.py's
+          # pointcloud→laserscan slice. Set higher than scan_max_height
+          # only wastes CPU; set lower silently drops legit obstacles.
+          max_obstacle_height: 0.5
           clearing: True
           marking: True
           data_type: "LaserScan"
-          raytrace_max_range: 30.0
+          raytrace_max_range: 15.0
           raytrace_min_range: 0.0
-          obstacle_max_range: 25.0
+          obstacle_max_range: 10.0
           obstacle_min_range: 0.0
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
-        inflation_radius: 0.55
+        # inflation_radius shrunk 0.55 → 0.30. Old value was tuned for
+        # outdoor robots; indoor with 0.55 + robot_radius 0.4 = 0.95 m
+        # forbidden zone, which painted living-room costmaps solid
+        # magenta. 0.30 leaves enough margin for a small indoor rover.
+        inflation_radius: 0.30
       always_send_full_costmap: True
 
   # FAST-LIO2 publishes /Odometry with parent=camera_init, child=body.
@@ -193,32 +205,29 @@ global_costmap:
       global_frame: map
       robot_base_frame: base_link
       use_sim_time: false
-      robot_radius: 0.4
+      robot_radius: 0.25
       resolution: 0.05
       track_unknown_space: true
-      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+      # IMPORTANT: obstacle_layer is INTENTIONALLY OMITTED from the
+      # global costmap. Reasons:
+      #   1. The global plan should follow the saved RTABMap occupancy
+      #      grid (static_layer ← /map), not transient live obstacles
+      #      that may include FAST-LIO drift artifacts.
+      #   2. With FAST-LIO drift between sessions, live /scan obstacles
+      #      don't perfectly align with /map, so adding obstacle_layer
+      #      here double-stamps cells with mismatched poses, producing
+      #      walls of magenta that block every plan.
+      #   3. Local_costmap still has obstacle_layer for transient
+      #      reactivity — that's where it belongs.
+      plugins: ["static_layer", "inflation_layer"]
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
         map_subscribe_transient_local: True
         subscribe_to_updates: True
-      obstacle_layer:
-        plugin: "nav2_costmap_2d::ObstacleLayer"
-        enabled: True
-        observation_sources: scan
-        scan:
-          topic: /scan
-          max_obstacle_height: 2.0
-          clearing: True
-          marking: True
-          data_type: "LaserScan"
-          raytrace_max_range: 30.0
-          raytrace_min_range: 0.0
-          obstacle_max_range: 25.0
-          obstacle_min_range: 0.0
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
-        inflation_radius: 0.55
+        inflation_radius: 0.30
       always_send_full_costmap: True
 
 planner_server:
