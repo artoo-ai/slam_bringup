@@ -150,6 +150,17 @@ def generate_launch_description():
         'Icp/MaxCorrespondenceDistance': '1.0',
         'Icp/Epsilon': '0.001',
         'Icp/MaxTranslation': '2.0',
+        # RGBD/LocalImmunityRadius: how close (in odom space) two
+        # keyframes must be for RTABMap to consider a "local" loop
+        # closure. Default 1.0 m is too tight for our stack — FAST-LIO
+        # drift makes neighboring real-world keyframes look 1.06–1.13 m
+        # apart in odom space ("Ignoring local loop closure with X
+        # because resulting transform is too large!? (1.060074m >
+        # 1.000000m)"). 2.0 m absorbs the drift without admitting
+        # genuinely-distant closures.
+        'RGBD/LocalImmunizationRatio': '0.0',
+        'RGBD/MaxLocalRetrieved':      '5',
+        'RGBD/LocalRadius':            '2.0',
 
         # --- Occupancy grid (Livox-unorganized-cloud rules) -----------------
         'Grid/Sensor':              '0',     # 0 = laser-scan mode
