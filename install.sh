@@ -167,6 +167,37 @@ if ! id -nG "$USER" | grep -qw dialout; then
 fi
 
 # ---------------------------------------------------------------------------
+# Yahboom YB-ERF01 udev rule — pin the CH340 serial chip to /dev/myserial
+# so yahboom_bridge_node.py finds it regardless of plug order. The device
+# enumerates as 1a86:7523 (CH340/CH341 USB-Serial). MODE=0666 plus dialout
+# group above gives the bridge node read/write without sudo.
+# ---------------------------------------------------------------------------
+YAHBOOM_UDEV_RULE='SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="myserial", MODE="0666"'
+YAHBOOM_UDEV_FILE="/etc/udev/rules.d/99-yahboom.rules"
+if [ ! -f "$YAHBOOM_UDEV_FILE" ] || ! sudo grep -qF "$YAHBOOM_UDEV_RULE" "$YAHBOOM_UDEV_FILE"; then
+  echo "==> Installing Yahboom udev rule at $YAHBOOM_UDEV_FILE"
+  echo "$YAHBOOM_UDEV_RULE" | sudo tee "$YAHBOOM_UDEV_FILE" >/dev/null
+  sudo udevadm control --reload-rules
+  sudo udevadm trigger
+else
+  echo "==> Yahboom udev rule already installed"
+fi
+
+# Soft USB-enumeration check — informational only (the board may not be
+# plugged in during install). If it IS connected, verify /dev/myserial
+# resolved correctly.
+if ls /dev/serial/by-id/ 2>/dev/null | grep -q "1a86_USB_Serial"; then
+  if [ -e /dev/myserial ]; then
+    echo "==> Yahboom YB-ERF01 detected → /dev/myserial → $(readlink -f /dev/myserial)"
+  else
+    echo "!!  Yahboom USB-serial device present but /dev/myserial symlink missing."
+    echo "    Try: sudo udevadm trigger; or unplug/replug the USB cable."
+  fi
+else
+  echo "==> Yahboom YB-ERF01 not currently plugged in (skip — udev rule will fire on plug-in)"
+fi
+
+# ---------------------------------------------------------------------------
 # Yahboom Rosmaster_Lib (mecanum drive bridge — vendored)
 # ---------------------------------------------------------------------------
 # Yahboom does not publish Rosmaster_Lib to PyPI. We vendor v3.3.9 in
