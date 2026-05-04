@@ -171,16 +171,48 @@ fi
 # so yahboom_bridge_node.py finds it regardless of plug order. The device
 # enumerates as 1a86:7523 (CH340/CH341 USB-Serial). MODE=0666 plus dialout
 # group above gives the bridge node read/write without sudo.
+#
+# IMPORTANT: if the system has more than one CH340 (e.g. a debug adapter,
+# the YB-ERF01's micro-USB port enumerating alongside its USB-C port, or
+# anything else with a 1a86:7523), the simple idVendor/idProduct rule
+# races and /dev/myserial randomly points at the wrong one. We resolve
+# this by pinning to the YB-ERF01's USB port path via KERNELS, falling
+# back to the broad rule only when there's a single CH340.
 # ---------------------------------------------------------------------------
-YAHBOOM_UDEV_RULE='SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="myserial", MODE="0666"'
 YAHBOOM_UDEV_FILE="/etc/udev/rules.d/99-yahboom.rules"
-if [ ! -f "$YAHBOOM_UDEV_FILE" ] || ! sudo grep -qF "$YAHBOOM_UDEV_RULE" "$YAHBOOM_UDEV_FILE"; then
-  echo "==> Installing Yahboom udev rule at $YAHBOOM_UDEV_FILE"
-  echo "$YAHBOOM_UDEV_RULE" | sudo tee "$YAHBOOM_UDEV_FILE" >/dev/null
-  sudo udevadm control --reload-rules
-  sudo udevadm trigger
+YAHBOOM_USB_PATH="${YAHBOOM_USB_PATH:-}"     # override via env, e.g. YAHBOOM_USB_PATH=1-2.1.3
+
+# Count current CH340s so we know whether we need to pin by port path
+CH340_COUNT=$(lsusb 2>/dev/null | grep -c "1a86:7523" || true)
+
+if [ -z "$YAHBOOM_USB_PATH" ] && [ "$CH340_COUNT" -gt 1 ]; then
+  echo "!!  Found $CH340_COUNT CH340 (1a86:7523) devices on the bus."
+  echo "    The vendor/product-only udev rule will race between them."
+  echo "    Identify the YB-ERF01's USB port path:"
+  echo "      udevadm info -a /dev/ttyUSB0 | grep 'KERNELS==\"[0-9].*[0-9.]*\"' | head -1"
+  echo "    …then re-run install.sh with:"
+  echo "      YAHBOOM_USB_PATH=1-2.1.3 ./install.sh   # use your own path"
+  echo "    Skipping udev rule install for now."
+elif [ -n "$YAHBOOM_USB_PATH" ]; then
+  YAHBOOM_UDEV_RULE='SUBSYSTEM=="tty", KERNELS=="'"$YAHBOOM_USB_PATH"'", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="myserial", MODE="0666"'
+  if [ ! -f "$YAHBOOM_UDEV_FILE" ] || ! sudo grep -qF "$YAHBOOM_UDEV_RULE" "$YAHBOOM_UDEV_FILE"; then
+    echo "==> Installing Yahboom udev rule pinned to USB path $YAHBOOM_USB_PATH"
+    echo "$YAHBOOM_UDEV_RULE" | sudo tee "$YAHBOOM_UDEV_FILE" >/dev/null
+    sudo udevadm control --reload-rules
+    sudo udevadm trigger
+  else
+    echo "==> Yahboom udev rule already installed (pinned to $YAHBOOM_USB_PATH)"
+  fi
 else
-  echo "==> Yahboom udev rule already installed"
+  YAHBOOM_UDEV_RULE='SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="myserial", MODE="0666"'
+  if [ ! -f "$YAHBOOM_UDEV_FILE" ] || ! sudo grep -qF "$YAHBOOM_UDEV_RULE" "$YAHBOOM_UDEV_FILE"; then
+    echo "==> Installing Yahboom udev rule (single CH340 — broad match)"
+    echo "$YAHBOOM_UDEV_RULE" | sudo tee "$YAHBOOM_UDEV_FILE" >/dev/null
+    sudo udevadm control --reload-rules
+    sudo udevadm trigger
+  else
+    echo "==> Yahboom udev rule already installed"
+  fi
 fi
 
 # Soft USB-enumeration check — informational only (the board may not be
