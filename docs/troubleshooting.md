@@ -25,6 +25,8 @@ Entries are sorted roughly by severity / how often we've hit them.
 - [Yahboom bridge: Rosmaster_Lib not installed](#yahboom-bridge-rosmaster_lib-not-installed)
 - [Yahboom bridge: serial port permission denied](#yahboom-bridge-serial-port-permission-denied)
 - [Yahboom bench-test: a wheel spins backward / strafe inverted](#yahboom-bench-test-a-wheel-spins-backward--strafe-inverted)
+- [Rover drives backward / opposite of Nav2 goal direction](#rover-drives-backward--opposite-of-nav2-goal-direction)
+- [Nav2 wanders / rotates-then-drives instead of strafing on the mecanum](#nav2-wanders--rotates-then-drives-instead-of-strafing-on-the-mecanum)
 - [Mid-360 driver fails to bind UDP sockets](#mid-360-driver-fails-to-bind-udp-sockets)
 - [D435 "Frames didn't arrive within 5 seconds" / "Device or resource busy"](#d435-frames-didnt-arrive-within-5-seconds--device-or-resource-busy)
 - [WitMotion: "Device or resource busy" / no /imu/data](#witmotion-device-or-resource-busy--no-imudata)
@@ -467,6 +469,81 @@ groups | grep dialout        # must contain dialout
 **Fix (strafe broken even after individual wheels are right):** Port assignment error. Re-check the MA/MB/MC/MD corner mapping in the Obsidian *"Yahboom Mecanum Configuration - Motor Wiring and Taranis SBUS Setup"* note §2. The firmware kinematics matrix expects MA/MB/MC/MD at specific corners; polarity flags can't compensate for swapped ports.
 
 **Wheel-roller direction:** must form an **"X" pattern when viewed from above**. "O" pattern means diagonals fight each other and strafe disappears.
+
+---
+
+## Rover drives backward / opposite of Nav2 goal direction
+
+**Symptom:** Teleop forward (`i` in `teleop_twist_keyboard`) drives the rover *away* from the sensor mast, OR Nav2 plans paths to a goal in front of the rover but the wheels spin to drive it *backward*.
+
+**Cause:** The YB-ERF01 chassis on this rover is mounted with firmware-+X (the direction `Rosmaster_Lib.set_car_motion(+vx)` drives) pointing OPPOSITE to the sensor mast — the side the URDF treats as the rover's "front" (`base_link.+X`). Without correction, every Twist with positive `linear.x` drives backward in `base_link`.
+
+**Diagnose:**
+```bash
+./kill_nav.sh
+./start_yahboom.sh
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+# Press 'i' once. Watch the rover.
+#   moves toward Livox/D435 side  → frame is correct
+#   moves away from sensor side   → inversion is needed
+```
+
+**Fix:** Inversion flags in the bridge are already on by default (commit `72c2674`). If you somehow disabled them and the rover drives backward, restore:
+
+```bash
+./start_yahboom.sh invert_vx:=true invert_vy:=true
+# or via start_nav.sh:
+./start_nav.sh platform:=mecanum force_3dof:=true enable_drive:=true \
+    invert_vx:=true invert_vy:=true
+```
+
+If a future chassis is rebuilt with firmware-+X already facing the sensors, pass `invert_vx:=false invert_vy:=false`. `wz` is never inverted — yaw rotation is identical regardless of in-plane heading flip.
+
+**Do NOT fix this by rotating `body→base_link` in `PLATFORM_BRIDGES`.** A 180° yaw there does make the wheels turn the right way, but it also flips Nav2's costmap, footprint orientation, `/scan` frame, and URDF visuals 180° from physical reality. Result: Nav2 plans paths in a mirrored world and drives backward to every goal anyway. The bridge is the right layer for chassis-frame ↔ base_link conversion because FAST-LIO odom comes from the lidar (not from `/cmd_vel`), so inverting the bridge does NOT desync odom from commands.
+
+---
+
+## Nav2 wanders / rotates-then-drives instead of strafing on the mecanum
+
+**Symptom:** With Nav2 + the mecanum bridge, the rover takes a roundabout path to the goal — rotating in place, driving forward, rotating again — instead of using the holonomic shortcut (drive diagonally / strafe sideways).
+
+**Cause:** DWB local planner has its Y-axis sample/velocity/acceleration limits set to zero, so it never samples a strafe trajectory and falls back to diff-drive behavior. Default `config/nav2_params.yaml` is now mecanum-first (commit `bc9bfab`), but a per-platform override or stale params file may zero them out.
+
+**Diagnose:**
+```bash
+ros2 param get /controller_server FollowPath.max_vel_y
+ros2 param get /controller_server FollowPath.vy_samples
+ros2 param get /velocity_smoother  max_velocity   # second element should be > 0
+```
+
+If `max_vel_y == 0.0` or `vy_samples <= 1`, DWB will never plan strafe.
+
+**Fix (in `config/nav2_params.yaml` or a per-platform override):**
+
+```yaml
+controller_server:
+  ros__parameters:
+    min_y_velocity_threshold: 0.001    # not 0.5! that kills small strafes
+    FollowPath:
+      min_vel_y: -0.3
+      max_vel_y:  0.3
+      acc_lim_y:  2.0
+      decel_lim_y: -2.0
+      vy_samples: 10                    # > 1 so DWB actually samples vy
+
+velocity_smoother:
+  ros__parameters:
+    max_velocity: [0.5, 0.3, 1.0]      # 2nd element > 0
+    min_velocity: [-0.26, -0.3, -1.0]
+    max_accel:    [2.5, 2.0, 3.2]
+    max_decel:    [-2.5, -2.0, -3.2]
+```
+
+Numbers should match the bridge's `max_vy` (default 0.3) — going higher means DWB plans trajectories the bridge will silently clamp.
+
+**For diff-drive platforms** (Go2/R2D2): override these to 0.0 in a per-platform params file. The default mecanum config will otherwise emit vy that the firmware can't execute.
+
+If `RotateToGoal` critic stays in the `critics:` list and you still see a "spin to face goal then drive" pattern at the end of paths, that's working as designed — DWB rotates to align yaw with the goal heading. Mecanum platforms can usually leave it on (yaw goal still matters), but drop it from the list if you want a pure strafe-to-pose finish.
 
 ---
 

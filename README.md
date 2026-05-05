@@ -408,7 +408,7 @@ Nav2 plugins reference `map`, `odom`, and `base_link`. The `camera_init → odom
 - `robot_radius` (or `footprint:` for non-circular shapes) — bigger for Go2 (~0.35), smaller for tabletop bots
 - `inflation_radius` — increase for cluttered spaces, decrease if rover keeps refusing valid paths
 - `max_vel_x` / `max_vel_theta` and `acc_lim_*` in the `FollowPath` (DWB) section
-- `max_vel_y`: keep `0.0` for diff-drive (Go2/R2D2); raise for mecanum
+- `max_vel_y`: defaults to `0.3` because mecanum is the primary platform — DWB samples strafe trajectories so Nav2 picks "drive sideways toward goal" over "rotate-then-drive". Override to `0.0` (and zero out `acc_lim_y`/`decel_lim_y` and the Y entries in `velocity_smoother.max_velocity` / `min_velocity` / `max_accel` / `max_decel`) on a diff-drive platform (Go2/R2D2), otherwise DWB will emit vy that the firmware can't execute
 - `velocity_smoother.max_velocity` / `max_accel` to match the controller_server limits
 - `obstacle_layer.scan.max_obstacle_height` (in `local_costmap`) should match `scan_max_height` from the launch args
 
@@ -479,6 +479,8 @@ Also configured:
 - **Watchdog** — if `/cmd_vel` goes silent for 0.5 s the bridge commands zero. Stops the rover dead if Nav2 / teleop crashes.
 - **No telemetry republished** — the bridge does NOT publish `/odom` or `/imu/data` because FAST-LIO and Mid-360 already own those topics. Re-enabling Yahboom telemetry would create duplicate publishers.
 - **SBUS RC stays live** — the Taranis path is independent of `/cmd_vel`; both feed the same firmware kinematics block. Keep RC enabled as the manual-override / kill-switch layer.
+- **Chassis-frame inversion** — this rover's YB-ERF01 is mounted with firmware-+X (the direction `set_car_motion(+vx)` drives) pointing OPPOSITE to the sensor mast. The bridge corrects this with `invert_vx:=true invert_vy:=true` (defaults), so Nav2 / teleop "+vx" drives toward the sensors as expected. Do **not** try to fix this by rotating `body→base_link` — that flips Nav2's costmap, footprint orientation, and `/scan` frame and breaks navigation. If a future chassis is mounted with firmware-+X already facing the sensors, override with `./start_yahboom.sh invert_vx:=false invert_vy:=false`. `wz` is never inverted (yaw rotation is the same regardless of in-plane heading flip).
+- **Nav2 mecanum config** — `config/nav2_params.yaml` enables Y-axis sampling for DWB (`max_vel_y=0.3`, `vy_samples=10`, matching `acc_lim_y`/`decel_lim_y` and Y entries in `velocity_smoother`). DWB will sample strafe trajectories so Nav2 picks the holonomic shortcut to a goal. Diff-drive platforms must override these to 0.0 in a per-platform params file.
 
 ### Map persistence and `~/.ros/rtabmap.db`
 
