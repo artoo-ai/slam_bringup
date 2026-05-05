@@ -133,6 +133,13 @@ class YahboomBridge(Node):
         # don't compute per-wheel velocities here.
         self.bot.set_car_motion(vx, vy, wz)
         self._last_cmd_time = self.get_clock().now()
+        # Throttled visibility — without this the bridge looks identical
+        # whether /cmd_vel is reaching it or not. Nav2 / teleop debugging
+        # both want to see "yes, the callback is firing with these values."
+        self.get_logger().info(
+            f"cmd_vel → vx={vx:+.3f} vy={vy:+.3f} wz={wz:+.3f}",
+            throttle_duration_sec=1.0,
+        )
 
     def _watchdog(self):
         elapsed_ns = (self.get_clock().now() - self._last_cmd_time).nanoseconds
