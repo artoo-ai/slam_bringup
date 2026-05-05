@@ -81,7 +81,7 @@ def _resolve_serial_port(context, *args, **kwargs):
         emulate_tty=True,
         parameters=[{
             'serial_port': resolved,
-            'car_type':    LaunchConfiguration('car_type').perform(context),
+            'car_type':    int(LaunchConfiguration('car_type').perform(context)),
             'cmd_timeout': float(LaunchConfiguration('cmd_timeout').perform(context)),
             'max_vx':      float(LaunchConfiguration('max_vx').perform(context)),
             'max_vy':      float(LaunchConfiguration('max_vy').perform(context)),
