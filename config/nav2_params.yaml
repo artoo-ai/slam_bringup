@@ -92,7 +92,7 @@ controller_server:
     use_sim_time: false
     controller_frequency: 20.0
     min_x_velocity_threshold: 0.001
-    min_y_velocity_threshold: 0.5
+    min_y_velocity_threshold: 0.001
     min_theta_velocity_threshold: 0.001
     failure_tolerance: 0.3
     odom_topic: /Odometry
@@ -108,28 +108,33 @@ controller_server:
       plugin: "nav2_controller::SimpleGoalChecker"
       xy_goal_tolerance: 0.25
       yaw_goal_tolerance: 0.25
-    # DWB local planner — works for diff-drive AND holonomic (mecanum).
-    # max_vel_y is non-zero so mecanum platforms can use it; diff-drive
-    # platforms should override max_vel_y to 0.0 in a per-platform file.
+    # DWB local planner — configured for HOLONOMIC (mecanum) by default.
+    # The mecanum rover (YB-ERF01 X3) is the primary platform, so vy is
+    # enabled so DWB samples strafe trajectories. Diff-drive platforms
+    # MUST override max_vel_y/acc_lim_y/decel_lim_y to 0.0 in a
+    # per-platform params file (otherwise DWB will emit vy that the
+    # firmware can't execute). Y limits match the bridge's max_vy default
+    # (0.3 m/s) — going higher would have DWB plan trajectories the
+    # bridge will silently clamp.
     FollowPath:
       plugin: "dwb_core::DWBLocalPlanner"
       debug_trajectory_details: False
       min_vel_x: -0.26
-      min_vel_y: 0.0
+      min_vel_y: -0.3
       max_vel_x: 0.5
-      max_vel_y: 0.0
+      max_vel_y: 0.3
       max_vel_theta: 1.0
       min_speed_xy: 0.0
       max_speed_xy: 0.5
       min_speed_theta: 0.0
       acc_lim_x: 2.5
-      acc_lim_y: 0.0
+      acc_lim_y: 2.0
       acc_lim_theta: 3.2
       decel_lim_x: -2.5
-      decel_lim_y: 0.0
+      decel_lim_y: -2.0
       decel_lim_theta: -3.2
       vx_samples: 20
-      vy_samples: 5
+      vy_samples: 10
       vtheta_samples: 20
       sim_time: 1.7
       linear_granularity: 0.05
@@ -302,10 +307,13 @@ velocity_smoother:
     smoothing_frequency: 20.0
     scale_velocities: False
     feedback: "OPEN_LOOP"
-    max_velocity: [0.5, 0.0, 1.0]
-    min_velocity: [-0.26, 0.0, -1.0]
-    max_accel: [2.5, 0.0, 3.2]
-    max_decel: [-2.5, 0.0, -3.2]
+    # Y axis enabled for mecanum. Numbers track DWB FollowPath limits
+    # above; if you swap to a diff-drive platform, zero the Y entries
+    # in a per-platform override file.
+    max_velocity: [0.5, 0.3, 1.0]
+    min_velocity: [-0.26, -0.3, -1.0]
+    max_accel: [2.5, 2.0, 3.2]
+    max_decel: [-2.5, -2.0, -3.2]
     odom_topic: "/Odometry"
     odom_duration: 0.1
     deadband_velocity: [0.0, 0.0, 0.0]
