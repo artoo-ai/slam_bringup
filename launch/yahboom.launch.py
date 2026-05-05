@@ -86,6 +86,8 @@ def _resolve_serial_port(context, *args, **kwargs):
             'max_vx':      float(LaunchConfiguration('max_vx').perform(context)),
             'max_vy':      float(LaunchConfiguration('max_vy').perform(context)),
             'max_wz':      float(LaunchConfiguration('max_wz').perform(context)),
+            'invert_vx':   LaunchConfiguration('invert_vx').perform(context).lower() in ('1', 'true', 'yes'),
+            'invert_vy':   LaunchConfiguration('invert_vy').perform(context).lower() in ('1', 'true', 'yes'),
         }],
     )]
 
@@ -110,6 +112,13 @@ def generate_launch_description():
     max_vx_arg = DeclareLaunchArgument('max_vx', default_value='0.5')
     max_vy_arg = DeclareLaunchArgument('max_vy', default_value='0.3')
     max_wz_arg = DeclareLaunchArgument('max_wz', default_value='1.0')
+    # Default true: this rover's YB-ERF01 is mounted with firmware-+X
+    # opposite to the sensor mast (see PLATFORM_BRIDGES['mecanum'] in
+    # slam.launch.py for the full story). Pass invert_vx:=false /
+    # invert_vy:=false on a chassis where firmware-+X already faces the
+    # sensor side.
+    invert_vx_arg = DeclareLaunchArgument('invert_vx', default_value='true')
+    invert_vy_arg = DeclareLaunchArgument('invert_vy', default_value='true')
 
     return LaunchDescription([
         serial_port_arg,
@@ -118,5 +127,7 @@ def generate_launch_description():
         max_vx_arg,
         max_vy_arg,
         max_wz_arg,
+        invert_vx_arg,
+        invert_vy_arg,
         OpaqueFunction(function=_resolve_serial_port),
     ])

@@ -78,14 +78,15 @@ PLATFORM_BRIDGES = {
     # number minus an estimated 100 mm chassis height. Re-measure before
     # trusting the map z-axis.
     #
-    # Yaw = π: the YB-ERF01 chassis is mounted with its firmware-+X
-    # (where set_car_motion(+vx) drives) pointing OPPOSITE to the
-    # sensor mast / Livox-facing side that we treat as "front" in
-    # base_link. Confirmed empirically 2026-05-04 with teleop: pressing
-    # `i` (+vx) drove the rover away from the Livox side until this
-    # 180° was added. Without it, Nav2 paths execute backwards even
-    # though localization is correct.
-    'mecanum':   (0.0, 0.0, -0.144280, 0.0, 0.0, 3.141593),
+    # Yaw = 0: base_link stays aligned with the URDF (sensors at +X of
+    # base_link). The YB-ERF01 firmware drives +vx in the OPPOSITE
+    # direction; that mismatch is corrected inside yahboom_bridge_node
+    # via invert_vx / invert_vy parameters (set true for this platform
+    # in yahboom.launch.py). Doing it in the bridge keeps Nav2's
+    # costmap, footprint orientation, and /scan frame consistent with
+    # physical reality — rotating base_link here flipped them all
+    # 180° and broke navigation.
+    'mecanum':   (0.0, 0.0, -0.144280, 0.0, 0.0, 0.0),
 
     # Stubs — fill in once each platform's URDF + measured plate offsets
     # are landed. Until then `platform:=<name>` will exit with a clear

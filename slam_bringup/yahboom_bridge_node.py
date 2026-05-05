@@ -83,6 +83,15 @@ class YahboomBridge(Node):
         self.declare_parameter('max_vx',     0.5)
         self.declare_parameter('max_vy',     0.3)
         self.declare_parameter('max_wz',     1.0)
+        # Sign-flip flags for chassis-frame ↔ base_link mismatch.
+        # The YB-ERF01 chassis on this rover is mounted with firmware-+X
+        # opposite to the sensor mast (= base_link.+X in the URDF).
+        # Inverting here keeps Nav2's costmap / footprint / scan frames
+        # aligned with physical reality (the URDF stays honest), while
+        # still sending the firmware the sign it expects. wz is unchanged
+        # — yaw rotation is the same regardless of in-plane heading flip.
+        self.declare_parameter('invert_vx', True)
+        self.declare_parameter('invert_vy', True)
 
         port      = self.get_parameter('serial_port').value
         car_type  = int(self.get_parameter('car_type').value)
@@ -90,6 +99,8 @@ class YahboomBridge(Node):
         self.max_vx = float(self.get_parameter('max_vx').value)
         self.max_vy = float(self.get_parameter('max_vy').value)
         self.max_wz = float(self.get_parameter('max_wz').value)
+        self.vx_sign = -1.0 if bool(self.get_parameter('invert_vx').value) else 1.0
+        self.vy_sign = -1.0 if bool(self.get_parameter('invert_vy').value) else 1.0
 
         # Open the board. set_car_type belt-and-suspenders: even if the
         # board's flash already has X3 from a previous 0x15 packet, this
@@ -125,8 +136,10 @@ class YahboomBridge(Node):
         return max(-lim, min(lim, v))
 
     def cmd_vel_cb(self, msg: Twist):
-        vx = self._clamp(msg.linear.x,  self.max_vx)
-        vy = self._clamp(msg.linear.y,  self.max_vy)
+        # Apply chassis-frame sign flips BEFORE the safety clamp so the
+        # log line below reflects what's actually going to the firmware.
+        vx = self._clamp(self.vx_sign * msg.linear.x,  self.max_vx)
+        vy = self._clamp(self.vy_sign * msg.linear.y,  self.max_vy)
         wz = self._clamp(msg.angular.z, self.max_wz)
         # set_car_motion takes body-frame velocities m/s, m/s, rad/s.
         # The STM32 firmware does the mecanum inverse kinematics — we
