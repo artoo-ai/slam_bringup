@@ -1,0 +1,55 @@
+<?xml version="1.0"?>
+<!--
+  Mecanum UGV URDF — Yahboom YB-ERF01-V3.0 chassis (ROSMASTER X3 firmware).
+
+  Used as platform:=mecanum in perception.launch.py / slam.launch.py.
+
+  base_link is at the wheel-contact plane (REP-105 footprint).
+
+  Stack-up (from base_link upward):
+    base_link             Z = 0           (wheel contact / floor)
+        ↑ ~0.107670 m     chassis + sensor mast (UNMEASURED — placeholder)
+    sensor_plate          Z = 0.107670    (top of plate)
+        → see sensors_common.urdf.xacro for everything above this point
+
+  IMPORTANT: 0.107670 m is a PLACEHOLDER derived from slam.launch.py's
+  PLATFORM_BRIDGES mecanum entry (body → base_link = -0.144280 m) minus
+  the plate-top → livox_frame Z offset (36.61 mm per Livox datasheet).
+  Re-measure base_link → sensor-plate-top with calipers and update both
+  this xacro AND PLATFORM_BRIDGES['mecanum'] in slam.launch.py before
+  trusting the map z-axis.
+
+  The chassis visual below is cosmetic only (RViz). Yahboom X3 outer
+  dimensions are approximate; they don't affect SLAM math, only what
+  you see in the URDF preview.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="mecanum_x3">
+
+  <xacro:include filename="$(find slam_bringup)/urdf/sensors_common.urdf.xacro"/>
+
+  <!-- Approximate Yahboom X3 chassis bbox — REPLACE with measured values
+       once a tape measure is in hand. -->
+  <xacro:property name="base_link_to_plate_top" value="0.107670"/>
+  <xacro:property name="chassis_length"         value="0.280"/>
+  <xacro:property name="chassis_width"          value="0.230"/>
+  <xacro:property name="chassis_height"         value="0.090"/>
+
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 ${chassis_height/2}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${chassis_length} ${chassis_width} ${chassis_height}"/>
+      </geometry>
+      <material name="chassis_x3">
+        <color rgba="0.15 0.15 0.18 0.6"/>
+      </material>
+    </visual>
+  </link>
+
+  <joint name="base_link_to_sensor_plate" type="fixed">
+    <parent link="base_link"/>
+    <child  link="sensor_plate"/>
+    <origin xyz="0 0 ${base_link_to_plate_top}" rpy="0 0 0"/>
+  </joint>
+
+</robot>
