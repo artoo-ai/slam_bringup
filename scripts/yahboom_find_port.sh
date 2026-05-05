@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # yahboom_find_port.sh — discover the YB-ERF01's stable /dev/serial/by-path
-# entry by sending a beep to each candidate CH340 and asking which one
-# actually beeped.
+# entry by classifying each CH340 by its serial-traffic fingerprint.
 #
 # Why: when both the YB-ERF01 and the WitMotion (also CH340 1a86:7523) are
 # on the bus, /dev/myserial races between them. /dev/serial/by-path/*
@@ -9,25 +8,31 @@
 # and are stable per port — but with two CH340s, you still need to know
 # WHICH one is the YB-ERF01.
 #
-# We use a one-way beep packet (FUNC_BEEP = 0x02) instead of reading
-# FUNC_VERSION because some YB-ERF01 firmware revisions — especially with
-# auto-report disabled in flash — accept commands fine but never respond
-# to FUNC_REQUEST_DATA. The beep is audible, irrefutable, and survives
-# even a totally muted RX line. The WitMotion ignores Yahboom protocol
-# bytes entirely, so it stays silent.
+# Classification strategy (passive — no commands sent first):
+#   - WitMotion WT901 streams 0x55 0x5{1,2,3} packets continuously at boot.
+#   - YB-ERF01 with auto-report ENABLED streams 0xFF 0xFC ... packets.
+#   - YB-ERF01 with auto-report DISABLED (yahboom_configure.py default) is
+#     silent on the RX line.
+# So we open each port read-only for ~1.2s and tally the headers seen.
+#
+# Why not the beep probe: some YB-ERF01 firmware revisions / hardware have
+# the buzzer disabled or muted, but motion commands still work. Passive
+# classification needs no audible feedback.
+#
+# Fallback when both ports are silent (both YB-ERF01 with reports off, or
+# WitMotion mid-reset): we send a brief wheel-spin to each port and ask
+# the user which rover moved. Wheels-on-blocks recommended.
 #
 # Usage:
 #   ./scripts/yahboom_find_port.sh
 #
-# Listen for which port produces a beep, type the path number when
-# prompted, and the script writes it to ~/.yahboom_serial_port.
+# Writes the chosen path to ~/.yahboom_serial_port.
 # ./start_yahboom.sh picks that up automatically.
 
 set -euo pipefail
 
 CFG_FILE="$HOME/.yahboom_serial_port"
 
-# Find every CH340 USB-Serial via stable by-path symlinks
 mapfile -t BY_PATH_LINKS < <(
   for link in /dev/serial/by-path/*; do
     [ -e "$link" ] || continue
@@ -47,67 +52,158 @@ echo "Found ${#BY_PATH_LINKS[@]} CH340 by-path entries:"
 printf '  %s\n' "${BY_PATH_LINKS[@]}"
 echo
 
-beep_port() {
+# Classify by passive read. Returns: WITMOTION / YAHBOOM_REPORTING / SILENT
+classify_port() {
   local port="$1"
   python3 - "$port" <<'PY'
-import sys, time, serial
+import sys, serial
 port = sys.argv[1]
-HEAD, DEVICE_ID, COMPLEMENT = 0xFF, 0xFC, 1   # 257 - 0xFC
-FUNC_BEEP = 0x02
-val = (300).to_bytes(2, 'little')              # 300 ms beep — long enough to hear clearly
-cmd = [HEAD, DEVICE_ID, 0x05, FUNC_BEEP, val[0], val[1]]
-chk = (sum(cmd) + COMPLEMENT) & 0xFF
-cmd.append(chk)
 try:
-    s = serial.Serial(port, 115200, timeout=0.2)
-    s.write(bytes(cmd))
-    s.flush()
-    time.sleep(0.5)
+    s = serial.Serial(port, 115200, timeout=1.2)
+    data = s.read(512)
     s.close()
 except Exception as e:
-    print(f"  → open/write failed: {e}", file=sys.stderr)
-    sys.exit(1)
+    print(f"ERROR:{e}", file=sys.stderr)
+    print("UNREADABLE")
+    sys.exit(0)
+
+# Count packet-header signatures
+wit_hits = 0       # 0x55 followed by 0x50..0x5F (WT901 packet types)
+yah_hits = 0       # 0xFF 0xFC (YB-ERF01 reply / auto-report header)
+for i in range(len(data) - 1):
+    b0, b1 = data[i], data[i+1]
+    if b0 == 0x55 and 0x50 <= b1 <= 0x5F:
+        wit_hits += 1
+    elif b0 == 0xFF and b1 == 0xFC:
+        yah_hits += 1
+
+if wit_hits >= 3:
+    print(f"WITMOTION:{wit_hits}:{len(data)}")
+elif yah_hits >= 2:
+    print(f"YAHBOOM_REPORTING:{yah_hits}:{len(data)}")
+else:
+    print(f"SILENT:{len(data)}")
 PY
 }
 
-echo "Sending a 300 ms beep to each port. Listen carefully."
-echo "Tip: the YB-ERF01 buzzer is mounted near the USB-C ports."
-echo
-
-declare -a BEEPED
+declare -a CLASS
+echo "Classifying each port (1.2s passive read each)..."
 for i in "${!BY_PATH_LINKS[@]}"; do
   link="${BY_PATH_LINKS[$i]}"
-  echo "[$((i+1))/${#BY_PATH_LINKS[@]}] Beeping $link ..."
-  beep_port "$link" || true
-  sleep 1.0   # space the beeps so the user can tell them apart
+  result="$(classify_port "$link")"
+  CLASS[$i]="$result"
+  echo "  [$((i+1))] $link → $result"
+done
+echo
+
+# Decision logic
+WINNER=""
+WIT_IDX=-1
+YAH_IDX=-1
+SILENT_IDXS=()
+for i in "${!CLASS[@]}"; do
+  case "${CLASS[$i]}" in
+    WITMOTION:*)         WIT_IDX=$i ;;
+    YAHBOOM_REPORTING:*) YAH_IDX=$i ;;
+    SILENT:*)            SILENT_IDXS+=("$i") ;;
+  esac
 done
 
-echo
-echo "Which beep number did you hear (1-${#BY_PATH_LINKS[@]}, or 'r' to retry, or '0' for none)?"
-read -r CHOICE
+if [ "$YAH_IDX" -ge 0 ]; then
+  WINNER="${BY_PATH_LINKS[$YAH_IDX]}"
+  echo "YB-ERF01 identified by 0xFF 0xFC auto-report stream → $WINNER"
+elif [ "$WIT_IDX" -ge 0 ] && [ ${#SILENT_IDXS[@]} -eq 1 ]; then
+  WINNER="${BY_PATH_LINKS[${SILENT_IDXS[0]}]}"
+  WIT_PATH="${BY_PATH_LINKS[$WIT_IDX]}"
+  echo "WitMotion identified by 0x55 stream → $WIT_PATH"
+  echo "YB-ERF01 = the other (silent) port → $WINNER"
+elif [ ${#BY_PATH_LINKS[@]} -eq 1 ] && [ ${#SILENT_IDXS[@]} -eq 1 ]; then
+  WINNER="${BY_PATH_LINKS[0]}"
+  echo "Only one CH340 present, silent — assuming YB-ERF01 → $WINNER"
+else
+  echo "Could not auto-classify. Falling back to motion probe."
+  echo "WHEELS-ON-BLOCKS RECOMMENDED. Press Enter when ready, or Ctrl-C to abort."
+  read -r _
 
-case "$CHOICE" in
-  r|R)
-    exec "$0" ;;
-  0|"")
-    echo
-    echo "ERROR: no beep heard. The YB-ERF01 is not communicating."
-    echo "Verify in order:"
-    echo "  1. The USB-C cable is in the *data* port on the board (not power-only)."
-    echo "  2. Cable is data-capable (some USB-C cables are charge-only)."
-    echo "  3. Buzzer isn't disabled — try 'sudo dmesg | tail' for any USB errors."
-    echo "  4. Board has 24 V motor power if it requires it for buzzer."
-    echo "  5. Re-flash factory defaults: python3 scripts/yahboom_configure.py --factory-reset"
-    echo "     (run with /dev/serial/by-path/<port> using --port <path>)"
-    exit 2
-    ;;
-  *)
-    if ! [[ "$CHOICE" =~ ^[0-9]+$ ]] || [ "$CHOICE" -lt 1 ] || [ "$CHOICE" -gt ${#BY_PATH_LINKS[@]} ]; then
-      echo "Invalid choice: $CHOICE"; exit 1
-    fi
-    WINNER="${BY_PATH_LINKS[$((CHOICE-1))]}"
-    ;;
-esac
+  spin_port() {
+    local port="$1"
+    python3 - "$port" <<'PY'
+import sys, time
+sys.path.insert(0, '/home/rico/slam_ws/src/slam_bringup/vendor/Rosmaster_Lib_3.3.9')
+try:
+    from Rosmaster_Lib import Rosmaster
+except Exception:
+    # fall back to packing motion command manually
+    import serial
+    port = sys.argv[1]
+    HEAD, DEVICE_ID, COMPLEMENT = 0xFF, 0xFC, 1
+    FUNC_MOTION = 0x12
+    def pack_short(v):
+        v = max(-1.0, min(1.0, v))
+        i = int(v * 1000)
+        if i < 0: i += 0x10000
+        return [i & 0xFF, (i >> 8) & 0xFF]
+    payload = pack_short(0.2) + pack_short(0.0) + pack_short(0.0)
+    cmd = [HEAD, DEVICE_ID, 0x09, FUNC_MOTION] + payload
+    chk = (sum(cmd) + COMPLEMENT) & 0xFF
+    cmd.append(chk)
+    s = serial.Serial(port, 115200, timeout=0.2)
+    end = time.time() + 1.5
+    while time.time() < end:
+        s.write(bytes(cmd)); s.flush()
+        time.sleep(0.1)
+    # zero out
+    payload = pack_short(0) + pack_short(0) + pack_short(0)
+    cmd = [HEAD, DEVICE_ID, 0x09, FUNC_MOTION] + payload
+    chk = (sum(cmd) + COMPLEMENT) & 0xFF
+    cmd.append(chk)
+    s.write(bytes(cmd)); s.flush()
+    s.close()
+    sys.exit(0)
+port = sys.argv[1]
+bot = Rosmaster(com=port, debug=False)
+bot.create_receive_threading()
+time.sleep(0.2)
+end = time.time() + 1.5
+while time.time() < end:
+    bot.set_car_motion(0.2, 0.0, 0.0)
+    time.sleep(0.1)
+bot.set_car_motion(0.0, 0.0, 0.0)
+time.sleep(0.2)
+PY
+  }
+
+  for i in "${!BY_PATH_LINKS[@]}"; do
+    link="${BY_PATH_LINKS[$i]}"
+    echo "[$((i+1))/${#BY_PATH_LINKS[@]}] Driving wheels via $link for 1.5 s ..."
+    spin_port "$link" || true
+    sleep 1.0
+  done
+
+  echo
+  echo "Which port number made the wheels move (1-${#BY_PATH_LINKS[@]}, 'r' to retry, '0' for none)?"
+  read -r CHOICE
+  case "$CHOICE" in
+    r|R) exec "$0" ;;
+    0|"")
+      echo
+      echo "ERROR: no wheels moved. The YB-ERF01 isn't responding to motion either."
+      echo "Verify in order:"
+      echo "  1. Motor power (24 V battery) is connected and switched on."
+      echo "  2. USB-C cable is plugged into the *data* port (not power-only)."
+      echo "  3. Cable is data-capable."
+      echo "  4. dmesg has no recent USB errors:  sudo dmesg | tail"
+      echo "  5. Factory reset: python3 scripts/yahboom_configure.py --factory-reset --port <path>"
+      exit 2
+      ;;
+    *)
+      if ! [[ "$CHOICE" =~ ^[0-9]+$ ]] || [ "$CHOICE" -lt 1 ] || [ "$CHOICE" -gt ${#BY_PATH_LINKS[@]} ]; then
+        echo "Invalid choice: $CHOICE"; exit 1
+      fi
+      WINNER="${BY_PATH_LINKS[$((CHOICE-1))]}"
+      ;;
+  esac
+fi
 
 echo
 echo "YB-ERF01 → $WINNER"
