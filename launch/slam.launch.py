@@ -154,6 +154,15 @@ def generate_launch_description():
         'rviz', default_value='false',
         description='Spawn rviz2 alongside (off by default — Foxglove on the Jetson).',
     )
+    # Default rviz config = rviz/slam.rviz (3D mapping view). start_nav.sh
+    # overrides this to rviz/nav.rviz when nav2:=true is in play, since
+    # the nav config has costmaps + plans + Nav2 panel turned on by default.
+    rviz_config_arg = DeclareLaunchArgument(
+        'rviz_config',
+        default_value=str(pkg_share / 'rviz' / 'slam.rviz'),
+        description='RViz config path. Defaults to rviz/slam.rviz; pass '
+                    'rviz_config:=...nav.rviz from start_nav.sh.',
+    )
 
     # RTABMap pass-through — common knobs we want at the top level
     # without users having to drill into rtabmap.launch.py.
@@ -205,6 +214,7 @@ def generate_launch_description():
             'platform':          LaunchConfiguration('platform'),
             'use_sim_time':      LaunchConfiguration('use_sim_time'),
             'rviz':              LaunchConfiguration('rviz'),
+            'rviz_config':       LaunchConfiguration('rviz_config'),
             # SLAM-mode forcings — these are NOT user-overridable args
             # at this level on purpose. SLAM needs:
             'slam_mode':         'true',     # D435 align_depth on, RealSense pointcloud off
@@ -274,7 +284,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        platform_arg, use_sim_time_arg, rviz_arg,
+        platform_arg, use_sim_time_arg, rviz_arg, rviz_config_arg,
         *rtabmap_args,
         *viz_clip_args,
         *nav2_args,

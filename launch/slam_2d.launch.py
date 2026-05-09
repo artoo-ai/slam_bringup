@@ -185,6 +185,15 @@ def generate_launch_description():
         'rviz', default_value='false',
         description='Spawn rviz2 alongside (off by default — Foxglove on the Jetson).',
     )
+    # Default rviz config = rviz/slam_2d.rviz (2D mapping view, with
+    # SlamToolbox Serialize-Map panel). start_nav_2d.sh overrides this
+    # to rviz/nav_2d.rviz which adds costmaps + plans + Nav2 panel.
+    rviz_config_arg = DeclareLaunchArgument(
+        'rviz_config',
+        default_value=str(pkg_share / 'rviz' / 'slam_2d.rviz'),
+        description='RViz config path. Defaults to rviz/slam_2d.rviz; pass '
+                    'rviz_config:=...nav_2d.rviz from start_nav_2d.sh.',
+    )
 
     # Phase selector. mapping (default) builds a new graph; localization
     # loads a serialized graph + (optionally) starts Nav2 on top.
@@ -299,6 +308,7 @@ def generate_launch_description():
             'platform':          LaunchConfiguration('platform'),
             'use_sim_time':      use_sim_time,
             'rviz':              LaunchConfiguration('rviz'),
+            'rviz_config':       LaunchConfiguration('rviz_config'),
             'slam_mode':         'true',
             'lidar_xfer_format': '0',         # PointCloud2 (NOT CustomMsg)
             'enable_witmotion':  'false',
@@ -390,7 +400,7 @@ def generate_launch_description():
     option_b_notice = OpaqueFunction(function=_option_b_warning)
 
     return LaunchDescription([
-        platform_arg, use_sim_time_arg, rviz_arg,
+        platform_arg, use_sim_time_arg, rviz_arg, rviz_config_arg,
         mode_arg, map_file_arg,
         nav2_arg, nav2_params_arg, nav2_autostart_arg,
         use_wheel_odom_arg, use_imu_ekf_arg,

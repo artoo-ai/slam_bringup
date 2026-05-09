@@ -1,0 +1,255 @@
+# RViz config for ./start_nav.sh — 3D navigation (RTABMap localization + Nav2).
+#
+# Superset of slam.rviz with Nav2 layers turned on by default.
+#
+# What you'll see (default):
+#   Grid, TF, RobotModel
+#   Map                   — saved RTABMap occupancy grid (/map)
+#   Cloud (world)         — accumulated map cloud (/cloud_viz_clipped)
+#   LaserScan (Nav2)      — Nav2's 2D scan input (/scan, cyan)
+#   Global Costmap        — /global_costmap/costmap (rainbow heatmap)
+#   Local Costmap         — /local_costmap/costmap (rolling, robot-centered)
+#   Plan                  — global plan (/plan, green)
+#   Local Plan            — local controller plan (/local_plan, blue)
+#   Odometry              — /Odometry trail (red arrows)
+#
+# Off by default:
+#   LiDAR (live), D435 Front Pointcloud
+#
+# Panels:
+#   Navigation 2          — Nav2 lifecycle controls + goal feedback.
+#                           Requires `apt install ros-humble-nav2-rviz-plugins`.
+#
+# How to send a goal:
+#   - Click "2D Goal Pose" tool, then click+drag on the map.
+#   - Or: ros2 topic pub /goal_pose geometry_msgs/PoseStamped ... --once
+#
+# How to relocalize if RTABMap is lost:
+#   - Click "2D Pose Estimate" tool, click+drag the rover's actual location
+#     on the map. Publishes /initialpose; RTABMap re-seeds from there.
+
+Panels:
+  - Class: rviz_common/Displays
+    Help Height: 78
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /Global Options1
+        - /TF1
+        - /RobotModel1
+        - /Map1
+        - /Global Costmap1
+        - /Local Costmap1
+        - /Plan1
+        - /Local Plan1
+      Splitter Ratio: 0.5
+    Tree Height: 700
+  - Class: rviz_common/Selection
+    Name: Selection
+  - Class: rviz_common/Tool Properties
+    Name: Tool Properties
+  - Class: rviz_common/Views
+    Name: Views
+  - Class: nav2_rviz_plugins/Navigation 2
+    Name: Navigation 2
+
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Cell Size: 1
+      Color: 160; 160; 164
+      Plane: XY
+      Plane Cell Count: 20
+      Reference Frame: <Fixed Frame>
+      Enabled: true
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Show Names: true
+      Show Axes: true
+      Show Arrows: false
+      Marker Scale: 0.2
+      Frame Timeout: 15
+      Enabled: true
+    - Class: rviz_default_plugins/RobotModel
+      Name: RobotModel
+      Description Topic:
+        Value: /robot_description
+        Depth: 5
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+      Visual Enabled: true
+      Collision Enabled: false
+      Enabled: true
+    - Class: rviz_default_plugins/Map
+      Name: Map
+      Topic:
+        Value: /map
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+      Alpha: 0.7
+      Color Scheme: map
+      Draw Behind: true
+      Enabled: true
+    - Class: rviz_default_plugins/PointCloud2
+      Name: Cloud (world)
+      Topic:
+        Value: /cloud_viz_clipped
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+      Selectable: false
+      Style: Points
+      Size (Pixels): 2
+      Color Transformer: AxisColor
+      Axis: Z
+      Use rainbow: true
+      Enabled: true
+    - Class: rviz_default_plugins/PointCloud2
+      Name: LiDAR (live)
+      Topic:
+        Value: /livox/lidar
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+      Selectable: false
+      Style: Points
+      Size (Pixels): 1
+      Color Transformer: FlatColor
+      Color: 200; 200; 200
+      Enabled: false
+    - Class: rviz_default_plugins/LaserScan
+      Name: LaserScan (Nav2)
+      Topic:
+        Value: /scan
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+      Style: Points
+      Size (Pixels): 3
+      Color Transformer: FlatColor
+      Color: 0; 255; 255
+      Enabled: true
+    - Class: rviz_default_plugins/PointCloud2
+      Name: D435 Front Pointcloud
+      Topic:
+        Value: /d435_front/camera/depth/color/points
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+      Selectable: false
+      Style: Points
+      Size (Pixels): 2
+      Color Transformer: RGB8
+      Enabled: false
+    - Class: rviz_default_plugins/Map
+      Name: Global Costmap
+      Topic:
+        Value: /global_costmap/costmap
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+      Alpha: 0.5
+      Color Scheme: costmap
+      Draw Behind: false
+      Enabled: true
+    - Class: rviz_default_plugins/Map
+      Name: Local Costmap
+      Topic:
+        Value: /local_costmap/costmap
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+      Alpha: 0.5
+      Color Scheme: costmap
+      Draw Behind: false
+      Enabled: true
+    - Class: rviz_default_plugins/Path
+      Name: Plan
+      Topic:
+        Value: /plan
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+      Color: 25; 255; 0
+      Line Width: 0.05
+      Enabled: true
+    - Class: rviz_default_plugins/Path
+      Name: Local Plan
+      Topic:
+        Value: /local_plan
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+      Color: 0; 0; 255
+      Line Width: 0.04
+      Enabled: true
+    - Class: rviz_default_plugins/Odometry
+      Name: Odometry
+      Topic:
+        Value: /Odometry
+        Depth: 100
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+      Position Tolerance: 0.1
+      Angle Tolerance: 0.1
+      Keep: 100
+      Shape: Arrow
+      Color: 255; 25; 0
+      Alpha: 0.5
+      Enabled: true
+
+  Global Options:
+    Background Color: 48; 48; 48
+    Fixed Frame: map
+    Frame Rate: 30
+
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+    - Class: rviz_default_plugins/SetInitialPose
+      Topic:
+        Value: /initialpose
+    - Class: rviz_default_plugins/SetGoal
+      Topic:
+        Value: /goal_pose
+    - Class: rviz_default_plugins/PublishPoint
+      Topic:
+        Value: /clicked_point
+
+  Value: true
+
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Name: Orbit
+      Distance: 12.0
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0.0
+      Pitch: 1.3
+      Yaw: 0.8
+      Target Frame: base_link
+
+Window Geometry:
+  Height: 900
+  Width: 1600
+  Displays:
+    collapsed: false
+  Navigation 2:
+    collapsed: false

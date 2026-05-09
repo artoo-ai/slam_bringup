@@ -1,0 +1,193 @@
+# RViz config for ./start_slam_2d.sh — 2D mapping (slam_toolbox + rf2o).
+#
+# What you'll see (default):
+#   Grid, TF, RobotModel  — robot URDF + frame tree
+#   Map                   — slam_toolbox occupancy grid (/map)
+#   LaserScan (live)      — flattened Mid-360 scan (/scan, cyan single-line ring)
+#   Odometry (rf2o)       — laser-derived odom trail (/odom, green arrows)
+#
+# Off by default (toggle on as needed):
+#   LiDAR (3D context)    — full Mid-360 cloud (/livox/lidar) — useful to
+#                           verify the 2D-projection band [scan_z_min,
+#                           scan_z_max] is hitting the right geometry
+#   D435 Front Pointcloud — RGB-D cloud; not part of the 2D path
+#
+# Panels:
+#   SlamToolboxPlugin     — *** the Serialize Map / Save Map buttons live
+#                           here. THIS is where you save the .data /
+#                           .posegraph pair that start_nav_2d.sh loads.
+#                           Use absolute paths in the filename field
+#                           (e.g. /home/rico/maps/livingroom).
+#                           Requires `apt install ros-humble-slam-toolbox`.
+#
+# QoS notes if a display reads "0 publishers":
+#   /map               Reliable + Transient Local
+#   /scan              Best Effort
+#   /odom              Reliable (set Reliability Policy: Reliable on Odometry display)
+#   /livox/lidar       Best Effort
+
+Panels:
+  - Class: rviz_common/Displays
+    Help Height: 78
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /Global Options1
+        - /TF1
+        - /RobotModel1
+        - /Map1
+        - /LaserScan (live)1
+        - /Odometry (rf2o)1
+      Splitter Ratio: 0.5
+    Tree Height: 700
+  - Class: rviz_common/Selection
+    Name: Selection
+  - Class: rviz_common/Tool Properties
+    Name: Tool Properties
+  - Class: rviz_common/Views
+    Name: Views
+  # SlamToolbox panel: Serialize/Save/Deserialize Map, manual loop closures.
+  # In mapping mode this is THE button you click after driving around.
+  - Class: slam_toolbox::SlamToolboxPlugin
+    Name: SlamToolboxPlugin
+
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Cell Size: 1
+      Color: 160; 160; 164
+      Plane: XY
+      Plane Cell Count: 20
+      Reference Frame: <Fixed Frame>
+      Enabled: true
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Show Names: true
+      Show Axes: true
+      Show Arrows: false
+      Marker Scale: 0.2
+      Frame Timeout: 15
+      Enabled: true
+    - Class: rviz_default_plugins/RobotModel
+      Name: RobotModel
+      Description Topic:
+        Value: /robot_description
+        Depth: 5
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+      Visual Enabled: true
+      Collision Enabled: false
+      Enabled: true
+    - Class: rviz_default_plugins/Map
+      Name: Map
+      Topic:
+        Value: /map
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+      Alpha: 0.7
+      Color Scheme: map
+      Draw Behind: true
+      Enabled: true
+    - Class: rviz_default_plugins/LaserScan
+      Name: LaserScan (live)
+      Topic:
+        Value: /scan
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+      Style: Points
+      Size (Pixels): 4
+      Color Transformer: FlatColor
+      Color: 0; 255; 255
+      Enabled: true
+    - Class: rviz_default_plugins/PointCloud2
+      Name: LiDAR (3D context)
+      Topic:
+        Value: /livox/lidar
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+      Selectable: false
+      Style: Points
+      Size (Pixels): 1
+      Color Transformer: AxisColor
+      Axis: Z
+      Use rainbow: true
+      Enabled: false
+    - Class: rviz_default_plugins/PointCloud2
+      Name: D435 Front Pointcloud
+      Topic:
+        Value: /d435_front/camera/depth/color/points
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+      Selectable: false
+      Style: Points
+      Size (Pixels): 2
+      Color Transformer: RGB8
+      Enabled: false
+    - Class: rviz_default_plugins/Odometry
+      Name: Odometry (rf2o)
+      Topic:
+        Value: /odom
+        Depth: 100
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+      Position Tolerance: 0.1
+      Angle Tolerance: 0.1
+      Keep: 100
+      Shape: Arrow
+      Color: 25; 255; 0
+      Alpha: 0.5
+      Enabled: true
+
+  Global Options:
+    Background Color: 48; 48; 48
+    Fixed Frame: map
+    Frame Rate: 30
+
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+    # 2D Pose Estimate publishes /initialpose — useful for slam_toolbox
+    # initial pose hints during mapping, even more useful in localization
+    # mode (see nav_2d.rviz).
+    - Class: rviz_default_plugins/SetInitialPose
+      Topic:
+        Value: /initialpose
+    - Class: rviz_default_plugins/PublishPoint
+      Topic:
+        Value: /clicked_point
+
+  Value: true
+
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Name: Orbit
+      Distance: 8.0
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0.0
+      Pitch: 1.2
+      Yaw: 0.8
+      Target Frame: base_link
+
+Window Geometry:
+  Height: 900
+  Width: 1600
+  Displays:
+    collapsed: false
+  SlamToolboxPlugin:
+    collapsed: false

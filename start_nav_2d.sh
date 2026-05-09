@@ -84,8 +84,14 @@ pkill -9 -f nav2_                             2>/dev/null
 pkill -9 -f "ros2 launch slam_bringup slam_2d" 2>/dev/null
 pkill -9 -f "ros2 launch slam_bringup slam"    2>/dev/null
 
+# Nav phase uses rviz/nav_2d.rviz (slam_2d.rviz superset with costmaps +
+# plans + Nav2 panel + SlamToolbox panel turned on by default). Resolve
+# path via the install share so this works regardless of cwd.
+NAV_RVIZ="$(ros2 pkg prefix slam_bringup)/share/slam_bringup/rviz/nav_2d.rviz"
+
 exec ros2 launch slam_bringup slam_2d.launch.py \
     mode:=localization \
     nav2:=true \
     enable_drive:=true \
+    rviz_config:="$NAV_RVIZ" \
     "$@"
