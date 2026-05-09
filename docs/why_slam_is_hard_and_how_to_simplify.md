@@ -490,7 +490,195 @@ WitMotion stays in the rig as a backup IMU but isn't the default for SLAM.
 
 ---
 
-## 10. The Big Picture Lesson
+## 10. Live Test Results — Working Baseline (2026-05-09)
+
+After landing the simplified 2D stack and iterating Nav2 tuning across
+two test sessions, this is what's actually working on the Yahboom
+YB-ERF01 mecanum rover. Use these numbers as the starting point for any
+future platform or environment.
+
+### What works first try
+
+- **Map quality** — slam_toolbox + Mid-360 (flattened to 2D) produced
+  a clean occupancy grid on the first mapping run. Walls connected, no
+  double-walled drift artifacts, hallway extension visible cleanly.
+  Loop closure handled the entire main floor without manual scan
+  matches.
+- **Hallway navigation** — rover plans through and follows a narrow
+  indoor hallway after `robot_radius` and `inflation_radius` were
+  tightened to match the actual chassis (see §10.3).
+- **Dynamic obstacle avoidance** — pets walking near or stopping in
+  front of the rover are handled by the local costmap's obstacle
+  layer; rover routes around them without aborting.
+- **Wall clearance** — gets close to walls and door frames but does
+  not bump them. Tight enough to be useful, loose enough to be safe.
+
+### What sort-of works (slow but converges)
+
+- **Final-pose yaw convergence** — rover always reaches the goal
+  position. Final orientation correction is slow: typical convergence
+  ~60 s of in-place yawing/sliding before reaching the "Goal Reached"
+  state. **Always reaches it eventually**, no longer aborts. This is
+  the mecanum yaw-at-stop physical limit (see §10.4) — not a tunable
+  bug. Without architectural change (different wheels or a
+  yaw-and-creep behavior), 60 s is roughly the floor for this rig.
+
+### Working baseline parameters
+
+The Nav2 params landed in `config/nav2_params_2d.yaml` after live
+tuning. Each row's "why" is in the inline comments in the YAML.
+
+| Param | Value | Rationale |
+|---|---|---|
+| `robot_radius` (both costmaps) | 0.18 | Yahboom X3 chassis ~27×24 cm → 0.18 m bounding circle. |
+| `inflation_radius` (both costmaps) | 0.15 | Total forbidden zone 0.33 m → corridors ≥ 0.66 m clear. |
+| `general_goal_checker.yaw_goal_tolerance` | 0.40 rad (~23°) | Mecanum cannot reliably converge tighter at-goal. |
+| `progress_checker_plugin` | PoseProgressChecker | Counts yaw motion as progress. Critical. |
+| `progress_checker.movement_time_allowance` | 25.0 s | Enough for slow yaw convergence. |
+| `controller_server.min_theta_velocity_threshold` | 0.05 | Below this, mecanum slips in place. |
+| `FollowPath.max_vel_theta` | 1.5 rad/s | Impulsive — breaks static friction. |
+| `FollowPath.acc_lim_theta` / `decel_lim_theta` | ±5.0 | Faster ramp = more impulsive command. |
+| `FollowPath.vtheta_samples` | 8 | Coarser samples force bigger discrete commands. |
+| `FollowPath.RotateToGoal.slowing_factor` | 2.0 | 5.0 crawled below mecanum-rotation threshold. |
+| `FollowPath.RotateToGoal.lookahead_time` | 0.5 | Snap to heading; -1.0 = endless oscillation. |
+| `velocity_smoother` theta limits | 1.5 / 5.0 | Match DWB; don't re-clamp impulsive output. |
+| `behavior_server` rotational limits | 1.5 / 0.5 / 5.0 | Match DWB for spin recovery. |
+
+### Things that made it WORSE (don't repeat)
+
+- **`FollowPath.min_speed_xy: 0.05`** — the intuitive
+  "drift-while-yawing" trick. At-goal, forcing translation pushes the
+  rover *out* of the xy goal, which kicks the controller out of
+  RotateToGoal back into FollowPath, then back into RotateToGoal —
+  feedback oscillation, much worse than pure rotation. **Confirmed in
+  live testing.** Mecanum yaw-and-creep needs to be implemented
+  outside DWB; you can't fake it with min_speed_xy.
+
+### What's NOT worth tuning further on this rig
+
+- **Tighter than ~0.40 rad final yaw.** Static friction asymmetry
+  between the four mecanum wheels means the rover cannot converge
+  tighter at-stop. Workarounds require a chassis change (diff-drive)
+  or a custom yaw-and-creep behavior — neither is cheap, neither is
+  necessary for typical indoor nav.
+- **Faster yaw convergence than ~60 s.** Same root cause. The bumps
+  from the 2026-05-08 → 2026-05-09 tuning got us from "aborts forever"
+  to "always converges in ~60 s" — that's the practical floor without
+  architectural work.
+
+### What's still open / future work
+
+- **Option B (wheel-odom + IMU EKF)** still stubbed in
+  `slam_2d.launch.py`. Would need: (1) `yahboom_bridge` `publish_odom`
+  opt-in, (2) `config/ekf_mecanum.yaml` with mecanum-tuned covariances,
+  (3) actual node wiring. Worth doing if rf2o ever loses track in
+  featureless rooms; until then the 2D stack works without it.
+- **Cleaning the rubber rollers** — pending physical task on the
+  rover; expected to reduce friction asymmetry between wheels and
+  shorten the 60 s yaw convergence somewhat.
+
+---
+
+## 11. Next Session Plan (2026-05-10)
+
+We have a real navigation setup. The rover maps on the first try,
+navigates hallways and doorways, avoids dynamic obstacles, and reaches
+every goal — even if final yaw convergence is slow. From here, the
+work splits into three buckets: physical maintenance, behavioral
+validation, and architectural depth. Pick from each in priority order.
+
+### Priority 1 — Physical: validate the wheel hypothesis
+
+1. Clean the rubber rollers on all four mecanum wheels. Dust/hair/floor
+   debris reduces contact-patch friction asymmetrically wheel-to-wheel,
+   which directly drives the at-goal yaw oscillation. Use isopropyl
+   alcohol or mild rubber cleaner; don't soak.
+2. Re-test final yaw convergence with the same goal pose used in §10.
+   Stopwatch from "xy goal reached" to "Goal Reached." Goal: see if
+   ~60 s drops to ~30 s. Anything < 30 s means wheel friction was the
+   dominant remaining factor.
+3. Inspect for worn rollers. Cracked/flat-spotted/hardened rollers should
+   be replaced before further tuning — mecanum performance degrades
+   non-linearly with roller condition.
+
+### Priority 2 — Behavioral: stress-test what we have
+
+Now that point-to-point nav works, exercise what a real rover has to do.
+
+1. Multi-goal waypoint sequences via Nav2's waypoint_follower (already
+   in the launch — `waypoint_pause_duration: 200` ms today). Chain 4–5
+   goals: kitchen → hallway → bedroom → back. Confirm each xy reached
+   in sequence; yaw convergence at intermediate waypoints (not just
+   final); total time vs sum-of-individual-times to spot re-planning
+   costs.
+2. Re-localization across power cycles. Stop the rover. `kill_nav_2d.sh`.
+   Power-cycle the Jetson (or restart `start_nav_2d.sh`). Drop the rover
+   roughly where it was. Verify slam_toolbox re-localizes against the
+   saved graph without manual `2D Pose Estimate` correction. If it can't,
+   our `map_start_at_dock: true` setting needs revisiting (probably want
+   `map_start_pose` with a recorded "home" pose instead).
+3. Featureless-room test. Park the rover in a mostly-bare-walled room.
+   Watch for rf2o drift. If pose visibly slides while the rover sits
+   still, that's the signal we need Option B (wheel-odom + IMU EKF) to
+   anchor pose.
+4. Floor-surface test. Try at least two surfaces (hardwood, carpet, tile).
+   Note whether the 60 s yaw convergence is surface-dependent. Decides
+   whether yaw_goal_tolerance should stay environment-agnostic or become
+   platform+surface specific.
+
+### Priority 3 — Architectural: start filling in Option B
+
+Option B (`use_wheel_odom:=true use_imu_ekf:=true`) is stubbed today —
+falls back to Option A with a notice. If §2's featureless-room test or
+any sustained drift exposes a need, build it in this order:
+
+1. Extend `yahboom_bridge_node.py` with `publish_odom` opt-in.
+   - Param `publish_odom: false` (default).
+   - When true, read `Rosmaster_Lib.get_motion_data()` at ~20 Hz,
+     integrate (vx, vy, yaw) over time, publish nav_msgs/Odometry on
+     `/wheel/odom` with frame_id=odom, child_frame_id=base_link.
+   - twist.covariance: vx 0.05, vy 0.5 (10× higher — slip), vyaw 1.0.
+   - Do NOT publish a TF — EKF owns odom → base_link.
+   - Sanity test: drive forward 1 m → x ≈ 1 m on /wheel/odom; strafe
+     1 m → y ≈ 1 m, x small. Reveals encoder polarity/gain issues.
+2. Add `config/ekf_mecanum.yaml`. robot_localization EKF fusing
+   /wheel/odom (vx, vy only, NOT yaw) + /livox/imu (yaw + ang vel
+   only). See §7/§8 for the full config matrix.
+3. Wire Option B into `slam_2d.launch.py`. Replace the
+   `_option_b_warning` stub with actual nodes when use_wheel_odom and
+   use_imu_ekf both true. Disable rf2o in that mode (EKF owns /odom).
+4. A/B test on the same drive. Same goal sequence as §2, once with
+   Option A, once with Option B. Compare yaw convergence and pose
+   stability while stopped.
+
+### Priority 4 — Optional polish
+
+- Per-platform Nav2 param overrides. When non-mecanum platforms land
+  (Go2, R2D2, Roboscout), each needs its own
+  `nav2_params_<platform>.yaml` — make `start_nav_2d.sh` auto-pick by
+  `platform:=`.
+- A "yaw-and-creep" custom controller. True architectural fix for the
+  mecanum yaw stall: a Nav2 controller that, while in RotateToGoal mode,
+  commands a slow circular drift (vx ≈ 0.05, vy varying, vtheta full)
+  instead of pure rotation. Rollers spin freely, friction is even, yaw
+  converges in seconds. ~1 day of work, replaces 60 s patient wait
+  with ~5 s. Worth it if we ever do precision docking.
+- Per-room map serialization. Save separate slam_toolbox graphs per
+  area (kitchen.data, livingroom.data); `start_nav_2d.sh map_set:=...`.
+- Foxglove dashboard with goal status, costmap, /scan, /odom drift, yaw
+  error — see what's happening at a glance.
+
+### Suggested first-thing-tomorrow
+
+Do Priority 1 (5 min — clean wheels), then Priority 2.1 (multi-goal
+waypoint sequence — 15 min once everything is up). Quantified yaw
+delta + stress test of the working stack, both before lunch. Use the
+rest of the session for §2.2/§2.3 if waypoints work clean, or §3.1 if
+drift shows up.
+
+---
+
+## 12. The Big Picture Lesson
 
 > The vacuum's advantage is not better hardware or better algorithms. It is
 > a tighter match between the problem, the sensor, the motion model, and the
