@@ -93,7 +93,11 @@ controller_server:
     controller_frequency: 20.0
     min_x_velocity_threshold: 0.001
     min_y_velocity_threshold: 0.001
-    min_theta_velocity_threshold: 0.001
+    # Mecanum-tuned: below ~0.05 rad/s the wheels slip in place without
+    # actually rotating the chassis (static friction wins). Old value 0.001
+    # made the controller try tiny yaw corrections that produced no motion,
+    # so it would sit "trying" near the goal until progress_checker aborted.
+    min_theta_velocity_threshold: 0.05
     failure_tolerance: 0.3
     odom_topic: /odom
     progress_checker_plugin: "progress_checker"
@@ -107,7 +111,11 @@ controller_server:
       stateful: True
       plugin: "nav2_controller::SimpleGoalChecker"
       xy_goal_tolerance: 0.25
-      yaw_goal_tolerance: 0.25
+      # Loosened 0.25 → 0.35 rad (~14° → ~20°). Mecanum struggles to converge
+      # the last few degrees of yaw at zero linear velocity; 20° is the
+      # sweet spot most consumer indoor robots use, and it gets the rover
+      # to "facing roughly the right direction" without endless spinning.
+      yaw_goal_tolerance: 0.35
     # DWB local planner — configured for HOLONOMIC (mecanum) by default.
     # The mecanum rover (YB-ERF01 X3) is the primary platform, so vy is
     # enabled so DWB samples strafe trajectories. Diff-drive platforms
@@ -153,7 +161,11 @@ controller_server:
       PathDist.scale: 32.0
       GoalDist.scale: 24.0
       RotateToGoal.scale: 32.0
-      RotateToGoal.slowing_factor: 5.0
+      # slowing_factor 5.0 was too aggressive — robot crawled into the goal
+      # heading at velocities below the mecanum-rotation threshold and the
+      # progress checker would abort before convergence. 2.0 lets it close
+      # the heading at a useful rate while still slowing near the target.
+      RotateToGoal.slowing_factor: 2.0
       RotateToGoal.lookahead_time: -1.0
 
 local_costmap:
@@ -168,12 +180,13 @@ local_costmap:
       width: 6
       height: 6
       resolution: 0.05
-      # robot_radius shrunk from 0.4 → 0.25 for the indoor rover. Combined
-      # with inflation_radius below, the ring of "definitely-can't-go"
-      # cells around obstacles shrinks from ~0.95 m to ~0.55 m, leaving
-      # actual traversable corridors in the costmap. Override per-platform
-      # if your rover is bigger.
-      robot_radius: 0.25
+      # robot_radius matches the Yahboom YB-ERF01 X3 mecanum's actual
+      # bounding circle — chassis is ~27×24 cm, so √((0.135)² + (0.12)²)
+      # ≈ 0.18 m. Old 0.25 was a generic indoor default; combined with
+      # inflation_radius 0.30 it left a 0.55 m forbidden zone from every
+      # wall and refused to plan through doorways < 1.10 m wide. Override
+      # per-platform if your rover is bigger.
+      robot_radius: 0.18
       plugins: ["obstacle_layer", "inflation_layer"]
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
@@ -195,11 +208,14 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
-        # inflation_radius shrunk 0.55 → 0.30. Old value was tuned for
-        # outdoor robots; indoor with 0.55 + robot_radius 0.4 = 0.95 m
-        # forbidden zone, which painted living-room costmaps solid
-        # magenta. 0.30 leaves enough margin for a small indoor rover.
-        inflation_radius: 0.30
+        # inflation_radius reduced 0.30 → 0.15 to let the planner thread
+        # through narrow doorways/corridors. With robot_radius 0.18, the
+        # total forbidden zone from a wall is now 0.33 m, so corridors
+        # ≥ 0.66 m have a clear centerline. A typical interior doorway is
+        # ~0.76 m, so this leaves ~5 cm clearance per side — tight but
+        # navigable. Raise back to 0.20–0.25 if the rover starts clipping
+        # door frames.
+        inflation_radius: 0.15
       always_send_full_costmap: True
 
   # In the 2D stack, slam_toolbox (localization mode) publishes map → odom
@@ -215,7 +231,8 @@ global_costmap:
       global_frame: map
       robot_base_frame: base_link
       use_sim_time: false
-      robot_radius: 0.25
+      # Match local_costmap robot_radius (Yahboom mecanum bounding circle).
+      robot_radius: 0.18
       resolution: 0.05
       track_unknown_space: true
       # IMPORTANT: obstacle_layer is INTENTIONALLY OMITTED from the
@@ -237,7 +254,8 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
-        inflation_radius: 0.30
+        # Match local_costmap inflation — see comment above for the math.
+        inflation_radius: 0.15
       always_send_full_costmap: True
 
 planner_server:
