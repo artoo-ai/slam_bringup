@@ -64,14 +64,20 @@ sudo apt install -y \
 
 # ---------------------------------------------------------------------------
 # SLAM stack — RTABMap, Nav2, CycloneDDS (required middleware for Mid-360)
+# pointcloud_to_laserscan + slam_toolbox: required by launch/slam_2d.launch.py
+# (the simplified 2D path; see docs/why_slam_is_hard_and_how_to_simplify.md).
+# Both apt packages are small and harmless on a Jetson — install always so
+# the 2D path "just works" without a second install pass.
 # ---------------------------------------------------------------------------
-echo "==> apt: SLAM stack (RTABMap, Nav2, CycloneDDS)"
+echo "==> apt: SLAM stack (RTABMap, Nav2, CycloneDDS, slam_toolbox, pointcloud_to_laserscan)"
 sudo apt install -y \
   ros-${ROS_DISTRO}-rtabmap-ros \
   ros-${ROS_DISTRO}-navigation2 \
   ros-${ROS_DISTRO}-nav2-bringup \
   ros-${ROS_DISTRO}-cyclonedds \
-  ros-${ROS_DISTRO}-rmw-cyclonedds-cpp
+  ros-${ROS_DISTRO}-rmw-cyclonedds-cpp \
+  ros-${ROS_DISTRO}-slam-toolbox \
+  ros-${ROS_DISTRO}-pointcloud-to-laserscan
 
 # ---------------------------------------------------------------------------
 # Remote viewing — foxglove_bridge lets a MacBook / Foxglove Studio client
@@ -132,6 +138,18 @@ clone_if_missing https://github.com/Livox-SDK/livox_ros_driver2.git      livox_r
 # witmotion_IMU_ros: default branch is ROS1 (catkin); ROS2 code lives on the `ros2` branch
 clone_if_missing https://github.com/ElettraSciComp/witmotion_IMU_ros.git witmotion_ros       ros2
 clone_if_missing https://github.com/Ericsii/FAST_LIO_ROS2.git            FAST_LIO_ROS2
+
+# rf2o_laser_odometry — laser-only 2D odometry, used by launch/slam_2d.launch.py
+# (Option A in docs/why_slam_is_hard_and_how_to_simplify.md). Not packaged for
+# Humble in apt as of 2026-05; build from source.
+#
+# MAPIRlab is the canonical upstream. ROS2 support has historically lived on
+# different branches across forks. If `colcon build` fails on rf2o because
+# master has reverted to ROS1, fall back manually:
+#   cd src/rf2o_laser_odometry && git checkout ros2
+# (or try a maintained fork). Once a branch is known-good for our distro,
+# pin it as the third arg to clone_if_missing.
+clone_if_missing https://github.com/MAPIRlab/rf2o_laser_odometry.git     rf2o_laser_odometry
 
 # livox_ros_driver2 ships package_ROS1.xml + package_ROS2.xml (dual-distro repo).
 # Upstream build.sh selects one before building; replicate that for colcon.
@@ -291,6 +309,12 @@ cat <<EOF
 Next steps:
   source $WS_ROOT/install/setup.bash
   ros2 launch slam_bringup perception.launch.py platform:=go2
+
+  # Full 3D stack (FAST-LIO2 + RTABMap):
+  ./start_slam.sh
+
+  # Simplified 2D stack (pointcloud_to_laserscan + rf2o + slam_toolbox):
+  ./start_slam_2d.sh
 
 If you were just added to the dialout group, log out and back in before
 running witmotion.launch.py (it needs /dev/ttyUSB* access).

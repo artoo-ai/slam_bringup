@@ -1,0 +1,84 @@
+# slam_toolbox params for the simplified 2D mapping path (Option A / B).
+#
+# Tuned for indoor mapping in small-to-medium rooms with the Mid-360
+# flattened to a 2D scan via pointcloud_to_laserscan. Override at launch
+# time with `slam_params_file:=/path/to/your.yaml`.
+#
+# Notes on the choices below:
+#   - mode: mapping (set to 'localization' to load and re-localize on a
+#     saved serialized graph; not used at this stage).
+#   - resolution 0.05 m matches Nav2 defaults; gives ~5 cm cells.
+#   - max_laser_range 20.0 m is generous for an indoor room and well below
+#     the Mid-360's true range; the limiter is the pointcloud_to_laserscan
+#     range_max (also 20.0) and the room itself.
+#   - minimum_time_interval 0.2 s is aggressive but matches our 10 Hz scan
+#     rate (one keyframe per scan max). Bump to 0.5 if the optimizer falls
+#     behind on the Jetson Orin Nano.
+#   - Loop closure params left at slam_toolbox defaults — they're sane for
+#     a single-room environment. Tighten loop_search_maximum_distance once
+#     we expand to multi-room runs.
+
+slam_toolbox:
+  ros__parameters:
+
+    # ---------- Frames ----------
+    map_frame: map
+    odom_frame: odom
+    base_frame: base_link
+
+    # ---------- Topics ----------
+    scan_topic: /scan
+    use_map_saver: true
+
+    # ---------- Mode ----------
+    # mapping = build a new graph. localization = load existing.
+    mode: mapping
+
+    # ---------- TF / sync ----------
+    transform_publish_period: 0.05      # 20 Hz map→odom TF
+    map_update_interval: 1.0            # how often to redraw /map (s)
+    transform_timeout: 0.2
+    tf_buffer_duration: 30.0
+    stack_size_to_use: 40000000
+
+    # ---------- Resolution ----------
+    resolution: 0.05                    # m/cell
+    max_laser_range: 20.0               # m
+    minimum_time_interval: 0.2          # s between keyframes
+    minimum_travel_distance: 0.1        # m
+    minimum_travel_heading: 0.1         # rad
+    enable_interactive_mode: true
+
+    # ---------- Scan matcher (Karto under the hood) ----------
+    use_scan_matching: true
+    use_scan_barycenter: true
+    scan_buffer_size: 10
+    scan_buffer_maximum_scan_distance: 10.0
+    link_match_minimum_response_fine: 0.1
+    link_scan_maximum_distance: 1.5
+    do_loop_closing: true
+    loop_match_minimum_chain_size: 10
+    loop_match_maximum_variance_coarse: 3.0
+    loop_match_minimum_response_coarse: 0.35
+    loop_match_minimum_response_fine: 0.45
+    loop_search_maximum_distance: 3.0
+
+    # ---------- Correlation grid (search space) ----------
+    correlation_search_space_dimension: 0.5
+    correlation_search_space_resolution: 0.01
+    correlation_search_space_smear_deviation: 0.1
+
+    # Loop-closure correlation grid (broader search)
+    loop_search_space_dimension: 8.0
+    loop_search_space_resolution: 0.05
+    loop_search_space_smear_deviation: 0.03
+
+    # ---------- Optimizer ----------
+    distance_variance_penalty: 0.5
+    angle_variance_penalty: 1.0
+    fine_search_angle_offset: 0.00349
+    coarse_search_angle_offset: 0.349
+    coarse_angle_resolution: 0.0349
+    minimum_angle_penalty: 0.9
+    minimum_distance_penalty: 0.5
+    use_response_expansion: true
