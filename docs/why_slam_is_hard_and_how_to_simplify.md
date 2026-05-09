@@ -554,6 +554,18 @@ tuning. Each row's "why" is in the inline comments in the YAML.
   live testing.** Mecanum yaw-and-creep needs to be implemented
   outside DWB; you can't fake it with min_speed_xy.
 
+### Things that did NOT help (tested, ruled out)
+
+- **Cleaning the rubber rollers (2026-05-09).** Tested: cleaned all
+  four mecanum rollers with isopropyl, re-ran the same goal poses.
+  **Made very little difference**, and the small effect that did
+  appear degraded within ~2 minutes of driving — the rollers
+  re-contaminate immediately from ambient floor dust/hair. Implication:
+  the 60 s yaw convergence is **not** a wheel-condition problem, it's
+  a fundamental mecanum-on-typical-floor physics problem. Cleaning
+  isn't a path forward; the only real fixes are architectural
+  (yaw-and-creep custom controller, or chassis swap).
+
 ### What's NOT worth tuning further on this rig
 
 - **Tighter than ~0.40 rad final yaw.** Static friction asymmetry
@@ -573,9 +585,10 @@ tuning. Each row's "why" is in the inline comments in the YAML.
   opt-in, (2) `config/ekf_mecanum.yaml` with mecanum-tuned covariances,
   (3) actual node wiring. Worth doing if rf2o ever loses track in
   featureless rooms; until then the 2D stack works without it.
-- **Cleaning the rubber rollers** — pending physical task on the
-  rover; expected to reduce friction asymmetry between wheels and
-  shorten the 60 s yaw convergence somewhat.
+- ~~**Cleaning the rubber rollers**~~ — *Tested 2026-05-09, did not
+  help.* Effect degrades within ~2 minutes as rollers re-contaminate.
+  The yaw stall is mecanum physics, not wheel condition. See "Things
+  that did NOT help" above.
 
 ---
 
@@ -583,27 +596,18 @@ tuning. Each row's "why" is in the inline comments in the YAML.
 
 We have a real navigation setup. The rover maps on the first try,
 navigates hallways and doorways, avoids dynamic obstacles, and reaches
-every goal — even if final yaw convergence is slow. From here, the
-work splits into three buckets: physical maintenance, behavioral
-validation, and architectural depth. Pick from each in priority order.
+every goal — even if final yaw convergence is slow.
 
-### Priority 1 — Physical: validate the wheel hypothesis
+**Updated 2026-05-09 evening:** wheel cleaning did NOT help — the 60 s
+yaw is mecanum-physics, not maintenance. That changes the priority
+order. The work now splits into two real buckets: behavioral
+validation of what we already have, and architectural depth if we want
+to push past the 60 s ceiling.
 
-1. Clean the rubber rollers on all four mecanum wheels. Dust/hair/floor
-   debris reduces contact-patch friction asymmetrically wheel-to-wheel,
-   which directly drives the at-goal yaw oscillation. Use isopropyl
-   alcohol or mild rubber cleaner; don't soak.
-2. Re-test final yaw convergence with the same goal pose used in §10.
-   Stopwatch from "xy goal reached" to "Goal Reached." Goal: see if
-   ~60 s drops to ~30 s. Anything < 30 s means wheel friction was the
-   dominant remaining factor.
-3. Inspect for worn rollers. Cracked/flat-spotted/hardened rollers should
-   be replaced before further tuning — mecanum performance degrades
-   non-linearly with roller condition.
+### Priority 1 — Behavioral: stress-test what we have
 
-### Priority 2 — Behavioral: stress-test what we have
-
-Now that point-to-point nav works, exercise what a real rover has to do.
+Cheapest, highest-value next step. Exercise the working stack on real
+tasks before changing anything else.
 
 1. Multi-goal waypoint sequences via Nav2's waypoint_follower (already
    in the launch — `waypoint_pause_duration: 200` ms today). Chain 4–5
@@ -622,14 +626,49 @@ Now that point-to-point nav works, exercise what a real rover has to do.
    still, that's the signal we need Option B (wheel-odom + IMU EKF) to
    anchor pose.
 4. Floor-surface test. Try at least two surfaces (hardwood, carpet, tile).
-   Note whether the 60 s yaw convergence is surface-dependent. Decides
-   whether yaw_goal_tolerance should stay environment-agnostic or become
-   platform+surface specific.
+   Note whether the 60 s yaw convergence is surface-dependent — keeping
+   in mind this is mecanum physics, not wheel cleanliness, so big
+   improvements aren't expected from surface alone.
+
+### Priority 2 — Architectural: yaw-and-creep custom controller
+
+**Promoted from Priority 4.** With wheel cleaning ruled out, this is
+now the only real lever for sub-60 s yaw convergence.
+
+The DWB RotateToGoal critic commands pure rotation (vx=0, vy=0,
+vtheta>0) once at-goal. On mecanum that's the failure mode — rollers
+scrub, friction grabs/slips asymmetrically, rover oscillates. The
+architectural fix: while in RotateToGoal mode, command a slow circular
+drift instead of pure rotation. Rollers spin freely (because the
+wheels translate), friction is even, yaw converges in seconds.
+
+Rough implementation outline:
+
+1. Custom controller plugin (Nav2 supports drop-in plugins via
+   `controller_plugins:`). Inherit from `nav2_core::Controller` or wrap
+   DWB.
+2. Detect "at goal but not at heading" — same condition DWB's
+   RotateToGoal does internally. Easiest path: subscribe to
+   `general_goal_checker` state or check xy distance manually each tick.
+3. While in that state, command vx ≈ 0.05, vy = vx * tan(small_angle),
+   vtheta = max_vtheta. Pick the sign of vy based on which direction
+   the goal is from the current xy — drift toward the goal in a slow
+   arc rather than away from it.
+4. Hand back to RotateToGoal once heading is within tolerance OR
+   continued drift would break xy_goal_tolerance.
+
+Estimated effort: ~1 day. Replaces the 60 s patient wait with ~5 s.
+Worth doing if we ever care about precision docking, photographing a
+specific direction, or any task where final heading matters quickly.
+
+If too much engineering before validating other things, **just accept
+60 s and skip to Priority 3.** The rover always converges eventually —
+this is polish, not a blocker.
 
 ### Priority 3 — Architectural: start filling in Option B
 
 Option B (`use_wheel_odom:=true use_imu_ekf:=true`) is stubbed today —
-falls back to Option A with a notice. If §2's featureless-room test or
+falls back to Option A with a notice. If §1's featureless-room test or
 any sustained drift exposes a need, build it in this order:
 
 1. Extend `yahboom_bridge_node.py` with `publish_odom` opt-in.
@@ -647,7 +686,7 @@ any sustained drift exposes a need, build it in this order:
 3. Wire Option B into `slam_2d.launch.py`. Replace the
    `_option_b_warning` stub with actual nodes when use_wheel_odom and
    use_imu_ekf both true. Disable rf2o in that mode (EKF owns /odom).
-4. A/B test on the same drive. Same goal sequence as §2, once with
+4. A/B test on the same drive. Same goal sequence as §1.1, once with
    Option A, once with Option B. Compare yaw convergence and pose
    stability while stopped.
 
@@ -657,12 +696,6 @@ any sustained drift exposes a need, build it in this order:
   (Go2, R2D2, Roboscout), each needs its own
   `nav2_params_<platform>.yaml` — make `start_nav_2d.sh` auto-pick by
   `platform:=`.
-- A "yaw-and-creep" custom controller. True architectural fix for the
-  mecanum yaw stall: a Nav2 controller that, while in RotateToGoal mode,
-  commands a slow circular drift (vx ≈ 0.05, vy varying, vtheta full)
-  instead of pure rotation. Rollers spin freely, friction is even, yaw
-  converges in seconds. ~1 day of work, replaces 60 s patient wait
-  with ~5 s. Worth it if we ever do precision docking.
 - Per-room map serialization. Save separate slam_toolbox graphs per
   area (kitchen.data, livingroom.data); `start_nav_2d.sh map_set:=...`.
 - Foxglove dashboard with goal status, costmap, /scan, /odom drift, yaw
@@ -670,11 +703,16 @@ any sustained drift exposes a need, build it in this order:
 
 ### Suggested first-thing-tomorrow
 
-Do Priority 1 (5 min — clean wheels), then Priority 2.1 (multi-goal
-waypoint sequence — 15 min once everything is up). Quantified yaw
-delta + stress test of the working stack, both before lunch. Use the
-rest of the session for §2.2/§2.3 if waypoints work clean, or §3.1 if
-drift shows up.
+Updated 2026-05-09 evening: wheel-cleaning didn't help, so the original
+"clean wheels first" plan is dead. New first step: run **Priority 1.1**
+(multi-goal waypoint sequence — ~15 min) to confirm the working stack
+handles real chained tasks. Then pick:
+
+- §1.2/§1.3 if waypoints work clean — exercise re-localization and
+  featureless-room drift to see if Option B is needed.
+- §3.1 (yahboom_bridge `publish_odom`) if drift showed up in §1.3.
+- §2 (yaw-and-creep controller) only if the 60 s yaw is genuinely
+  blocking real use cases. For exploration / general nav, skip for now.
 
 ---
 
