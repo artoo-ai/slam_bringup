@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>2D SLAM Projection — how pointcloud_to_laserscan works</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    background: #0a0a1a;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    min-height: 100vh;
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    color: #e2e8f0;
+    overflow-x: hidden;
+}
+canvas { display: block; }
+.controls {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(15, 23, 42, 0.95);
+    border-top: 1px solid #334155;
+    padding: 14px 28px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px 28px;
+    align-items: center;
+    z-index: 10;
+    backdrop-filter: blur(8px);
+}
+.controls .group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(30, 41, 59, 0.6);
+    border-radius: 6px;
+    padding: 6px 12px;
+    border: 1px solid #334155;
+}
+.controls label {
+    color: #94a3b8;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+.controls .pname {
+    color: #cbd5e1;
+    font-size: 12px;
+    font-family: 'JetBrains Mono', 'Fira Mono', monospace;
+    min-width: 110px;
+}
+.controls .pval {
+    color: #67e8f9;
+    font-size: 12px;
+    font-family: 'JetBrains Mono', 'Fira Mono', monospace;
+    min-width: 56px;
+    text-align: right;
+}
+.controls input[type=range] {
+    width: 130px;
+    accent-color: #67e8f9;
+}
+.controls select, .controls button {
+    padding: 6px 12px;
+    background: #1e293b;
+    color: #cbd5e1;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 12px;
+}
+.controls button:hover { background: #334155; color: #f1f5f9; }
+.controls .title {
+    color: #64748b;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+    margin-right: -8px;
+}
+.legend {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 12px 16px;
+    font-size: 11px;
+    line-height: 1.7;
+    z-index: 5;
+    backdrop-filter: blur(4px);
+}
+.legend .swatch {
+    display: inline-block;
+    width: 14px;
+    height: 10px;
+    margin-right: 6px;
+    vertical-align: middle;
+    border-radius: 2px;
+}
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<div class="legend">
+    <div style="color:#94a3b8;font-weight:600;margin-bottom:6px;">Legend</div>
+    <div><span class="swatch" style="background:#22c55e;"></span>Object inside Z-band (visible to /scan)</div>
+    <div><span class="swatch" style="background:#475569;"></span>Object outside Z-band (invisible)</div>
+    <div><span class="swatch" style="background:rgba(74,222,128,0.18);border:1px solid #22c55e;"></span>Z-band slice</div>
+    <div><span class="swatch" style="background:#67e8f9;"></span>/scan output (per-bin hit)</div>
+    <div><span class="swatch" style="background:#facc15;"></span>Robot (Mid-360 origin)</div>
+</div>
+
+<div class="controls">
+    <span class="title">scene</span>
+    <select id="scene" onchange="setScene(this.value)">
+        <option value="living_room" selected>Living room (mixed heights)</option>
+        <option value="hallway">Narrow hallway (featureless)</option>
+        <option value="cluttered">Cluttered (chairs + tables)</option>
+        <option value="empty">Empty room</option>
+        <option value="low_obstacles">Low-only (cables / strips)</option>
+        <option value="high_obstacles">High-only (lamps / ceiling)</option>
+    </select>
+
+    <span class="title">params</span>
+
+    <div class="group">
+        <span class="pname">min_height</span>
+        <input type="range" id="minH" min="0" max="2.5" step="0.01" value="0.15" oninput="onParam()">
+        <span class="pval" id="minHv">0.15 m</span>
+    </div>
+    <div class="group">
+        <span class="pname">max_height</span>
+        <input type="range" id="maxH" min="0" max="2.5" step="0.01" value="0.45" oninput="onParam()">
+        <span class="pval" id="maxHv">0.45 m</span>
+    </div>
+    <div class="group">
+        <span class="pname">range_min</span>
+        <input type="range" id="rMin" min="0" max="2" step="0.05" value="0.20" oninput="onParam()">
+        <span class="pval" id="rMinv">0.20 m</span>
+    </div>
+    <div class="group">
+        <span class="pname">range_max</span>
+        <input type="range" id="rMax" min="2" max="30" step="0.5" value="20.0" oninput="onParam()">
+        <span class="pval" id="rMaxv">20.0 m</span>
+    </div>
+    <div class="group">
+        <span class="pname">num_bins</span>
+        <input type="range" id="nBins" min="36" max="1440" step="36" value="720" oninput="onParam()">
+        <span class="pval" id="nBinsv">720</span>
+    </div>
+
+    <button onclick="resetParams()">Reset params</button>
+    <button onclick="downloadPNG()">Download PNG</button>
+</div>
+
+<script>
+// ─── Canvas ───────────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+canvas.width = 1920;
+canvas.height = 1000;
+
+function fitCanvas() {
+    const sx = window.innerWidth / 1920;
+    const sy = (window.innerHeight - 130) / 1000;  // leave room for controls
+    const s = Math.min(sx, sy, 1);
+    canvas.style.width = (1920 * s) + 'px';
+    canvas.style.height = (1000 * s) + 'px';
+}
+fitCanvas();
+window.addEventListener('resize', fitCanvas);
+
+// ─── Parameters ───────────────────────────────────────────────────────
+const PARAMS = {
+    min_height: 0.15,
+    max_height: 0.45,
+    range_min: 0.20,
+    range_max: 20.0,
+    num_bins: 720,
+};
+const PARAM_DEFAULTS = { ...PARAMS };
+
+function onParam() {
+    PARAMS.min_height = parseFloat(document.getElementById('minH').value);
+    PARAMS.max_height = parseFloat(document.getElementById('maxH').value);
+    PARAMS.range_min  = parseFloat(document.getElementById('rMin').value);
+    PARAMS.range_max  = parseFloat(document.getElementById('rMax').value);
+    PARAMS.num_bins   = parseInt(document.getElementById('nBins').value);
+    // Enforce min <= max
+    if (PARAMS.min_height > PARAMS.max_height) {
+        PARAMS.min_height = PARAMS.max_height;
+        document.getElementById('minH').value = PARAMS.min_height;
+    }
+    document.getElementById('minHv').textContent = PARAMS.min_height.toFixed(2) + ' m';
+    document.getElementById('maxHv').textContent = PARAMS.max_height.toFixed(2) + ' m';
+    document.getElementById('rMinv').textContent = PARAMS.range_min.toFixed(2) + ' m';
+    document.getElementById('rMaxv').textContent = PARAMS.range_max.toFixed(1) + ' m';
+    document.getElementById('nBinsv').textContent = PARAMS.num_bins;
+    draw();
+}
+function resetParams() {
+    Object.assign(PARAMS, PARAM_DEFAULTS);
+    document.getElementById('minH').value = PARAMS.min_height;
+    document.getElementById('maxH').value = PARAMS.max_height;
+    document.getElementById('rMin').value = PARAMS.range_min;
+    document.getElementById('rMax').value = PARAMS.range_max;
+    document.getElementById('nBins').value = PARAMS.num_bins;
+    onParam();
+}
+
+// ─── Scenes ───────────────────────────────────────────────────────────
+// Each primitive: { x, y, w, d, z_min, z_max, name }
+// (x, y) is the center; (w, d) is full width/depth (X and Y extents).
+function roomWalls(xExt, yExt, ceiling) {
+    return [
+        { x: -xExt/2 - 0.05, y: 0, w: 0.1, d: yExt, z_min: 0, z_max: ceiling, name: 'wall W' },
+        { x:  xExt/2 + 0.05, y: 0, w: 0.1, d: yExt, z_min: 0, z_max: ceiling, name: 'wall E' },
+        { x: 0, y: -yExt/2 - 0.05, w: xExt, d: 0.1, z_min: 0, z_max: ceiling, name: 'wall S' },
+        { x: 0, y:  yExt/2 + 0.05, w: xExt, d: 0.1, z_min: 0, z_max: ceiling, name: 'wall N' },
+    ];
+}
+
+const SCENES = {
+    living_room: [
+        ...roomWalls(12, 8, 2.5),
+        // Power strip on floor — below default min_height
+        { x: 2.0, y: 0.5, w: 0.30, d: 0.10, z_min: 0.00, z_max: 0.04, name: 'power strip' },
+        // Chair: legs + seat, mostly in default band
+        { x: -1.5, y: 1.8, w: 0.50, d: 0.50, z_min: 0.00, z_max: 0.50, name: 'chair' },
+        // Table TOP — above default band, invisible by default
+        { x:  2.7, y: 1.5, w: 1.20, d: 0.60, z_min: 0.72, z_max: 0.75, name: 'table top' },
+        // Table LEGS — 4 thin pillars in default band (kept simple as box)
+        { x:  2.7, y: 1.5, w: 0.05, d: 0.05, z_min: 0.0, z_max: 0.72, name: 'table leg NE',
+          legOffset: { dx: 0.55, dy: 0.25 } },
+        // Bookshelf — tall, definitely visible
+        { x:  3.8, y: -2.0, w: 0.40, d: 1.00, z_min: 0.00, z_max: 1.80, name: 'bookshelf' },
+        // Floor lamp — thin and tall
+        { x: -3.2, y: -2.2, w: 0.12, d: 0.12, z_min: 0.00, z_max: 1.60, name: 'floor lamp' },
+        // Ceiling fan blade — above ceiling band
+        { x:  0.0, y: 2.2, w: 1.00, d: 0.10, z_min: 2.20, z_max: 2.30, name: 'ceiling fan' },
+        // Hanging cable — middle height, default-invisible
+        { x:  1.5, y: -2.5, w: 0.06, d: 0.06, z_min: 1.50, z_max: 2.40, name: 'cable' },
+        // Wall art — flat, on north wall, default-invisible (high)
+        { x: 0.0, y: 3.85, w: 0.80, d: 0.05, z_min: 1.20, z_max: 1.70, name: 'art' },
+    ],
+    hallway: [
+        // Long narrow hallway, 2m wide × 12m long, no objects → tests rf2o featureless drift
+        { x: -1.05, y: 0, w: 0.1, d: 12.0, z_min: 0, z_max: 2.5, name: 'wall W' },
+        { x:  1.05, y: 0, w: 0.1, d: 12.0, z_min: 0, z_max: 2.5, name: 'wall E' },
+        { x: 0, y: -6.05, w: 2.1, d: 0.1, z_min: 0, z_max: 2.5, name: 'wall S' },
+        { x: 0, y:  6.05, w: 2.1, d: 0.1, z_min: 0, z_max: 2.5, name: 'wall N' },
+    ],
+    cluttered: [
+        ...roomWalls(12, 8, 2.5),
+        { x: -1.5, y: 1.5, w: 0.5, d: 0.5, z_min: 0.0, z_max: 0.5, name: 'chair 1' },
+        { x:  1.0, y: 1.5, w: 0.5, d: 0.5, z_min: 0.0, z_max: 0.5, name: 'chair 2' },
+        { x: -1.5, y: -1.5, w: 0.5, d: 0.5, z_min: 0.0, z_max: 0.5, name: 'chair 3' },
+        { x:  1.0, y: -1.5, w: 0.5, d: 0.5, z_min: 0.0, z_max: 0.5, name: 'chair 4' },
+        { x:  3.0, y:  0.0, w: 1.2, d: 0.6, z_min: 0.72, z_max: 0.75, name: 'table top' },
+        { x:  3.0, y:  0.0, w: 0.08, d: 0.08, z_min: 0.0, z_max: 0.72, name: 'table leg' },
+        { x: -3.5, y: -2.5, w: 0.4, d: 1.0, z_min: 0.0, z_max: 1.8, name: 'bookshelf' },
+        { x: -3.5, y:  2.5, w: 0.6, d: 0.4, z_min: 0.0, z_max: 0.9, name: 'side table' },
+        { x:  3.5, y: -2.5, w: 0.4, d: 0.4, z_min: 0.0, z_max: 1.0, name: 'pedestal' },
+    ],
+    empty: [
+        ...roomWalls(12, 8, 2.5),
+    ],
+    low_obstacles: [
+        ...roomWalls(12, 8, 2.5),
+        { x:  2.0, y:  0.0, w: 0.3, d: 0.1, z_min: 0.00, z_max: 0.04, name: 'power strip' },
+        { x: -2.0, y: -2.0, w: 0.1, d: 1.0, z_min: 0.00, z_max: 0.03, name: 'cable run' },
+        { x: -2.0, y:  2.0, w: 0.5, d: 0.5, z_min: 0.00, z_max: 0.08, name: 'door threshold' },
+        { x:  3.0, y: -1.5, w: 0.4, d: 0.4, z_min: 0.00, z_max: 0.05, name: 'floor mat edge' },
+    ],
+    high_obstacles: [
+        ...roomWalls(12, 8, 2.5),
+        { x:  0.0, y:  2.2, w: 1.0, d: 0.1, z_min: 2.20, z_max: 2.30, name: 'ceiling fan' },
+        { x:  1.5, y: -2.5, w: 0.06, d: 0.06, z_min: 1.50, z_max: 2.40, name: 'hanging cable' },
+        { x:  0.0, y:  3.85, w: 0.8, d: 0.05, z_min: 1.20, z_max: 1.70, name: 'wall art' },
+        { x:  3.0, y:  0.0, w: 1.2, d: 0.6, z_min: 0.72, z_max: 0.75, name: 'table top (no legs)' },
+        { x: -3.0, y:  0.0, w: 0.5, d: 0.5, z_min: 0.85, z_max: 0.90, name: 'shelf' },
+    ],
+};
+
+let currentScene = 'living_room';
+function setScene(name) { currentScene = name; draw(); }
+function getPrims() { return SCENES[currentScene]; }
+
+// ─── Geometry helpers ─────────────────────────────────────────────────
+function inBand(prim) {
+    // Does prim's Z range overlap [min_height, max_height]?
+    return prim.z_max > PARAMS.min_height && prim.z_min < PARAMS.max_height;
+}
+
+// Ray–axis-aligned-rectangle intersection in 2D.
+// Ray starts at (0,0), heading (dx, dy). Rectangle = [x-w/2, x+w/2] × [y-d/2, y+d/2].
+// Returns the smallest positive t such that (t*dx, t*dy) is on rect boundary,
+// or Infinity if no hit.
+function rayRectHit(prim, dx, dy) {
+    const xmin = prim.x - prim.w / 2;
+    const xmax = prim.x + prim.w / 2;
+    const ymin = prim.y - prim.d / 2;
+    const ymax = prim.y + prim.d / 2;
+    // Slab method
+    const inv_dx = dx === 0 ? Infinity : 1 / dx;
+    const inv_dy = dy === 0 ? Infinity : 1 / dy;
+    const t1 = (xmin) * inv_dx;
+    const t2 = (xmax) * inv_dx;
+    const t3 = (ymin) * inv_dy;
+    const t4 = (ymax) * inv_dy;
+    const tmin = Math.max(Math.min(t1, t2), Math.min(t3, t4));
+    const tmax = Math.min(Math.max(t1, t2), Math.max(t3, t4));
+    if (tmax < 0 || tmin > tmax) return Infinity;
+    // First positive entry is tmin (if positive) else tmax
+    return tmin > 0 ? tmin : (tmax > 0 ? tmax : Infinity);
+}
+
+// Compute /scan: array of length num_bins, ranges (or Infinity for empty bins)
+function computeScan() {
+    const N = PARAMS.num_bins;
+    const scan = new Array(N).fill(Infinity);
+    const prims = getPrims().filter(inBand);
+    for (let i = 0; i < N; i++) {
+        const ang = -Math.PI + (i + 0.5) * (2 * Math.PI / N);
+        const dx = Math.cos(ang);
+        const dy = Math.sin(ang);
+        let minR = Infinity;
+        for (const p of prims) {
+            const t = rayRectHit(p, dx, dy);
+            if (t < minR) minR = t;
+        }
+        if (minR >= PARAMS.range_min && minR <= PARAMS.range_max) {
+            scan[i] = minR;
+        }
+    }
+    return scan;
+}
+
+// ─── Drawing ──────────────────────────────────────────────────────────
+const PANEL_TOP = 100;     // banner height
+const PANEL_H = 820;       // panel height
+const PANEL_BOT = PANEL_TOP + PANEL_H;
+const STATS_TOP = PANEL_BOT + 10;
+
+// Side view: x ∈ [-7, 7], z ∈ [0, 2.7]
+const SIDE_VIEW = {
+    x: 40, y: PANEL_TOP, w: 920, h: PANEL_H,
+    xMin: -7, xMax: 7, zMin: 0, zMax: 2.7,
+};
+// Top view: x ∈ [-7, 7], y ∈ [-5, 5]
+const TOP_VIEW = {
+    x: 980, y: PANEL_TOP, w: 900, h: PANEL_H,
+    xMin: -7, xMax: 7, yMin: -5, yMax: 5,
+};
+
+function sideX(wx) {
+    return SIDE_VIEW.x + (wx - SIDE_VIEW.xMin) / (SIDE_VIEW.xMax - SIDE_VIEW.xMin) * SIDE_VIEW.w;
+}
+function sideZ(wz) {
+    return SIDE_VIEW.y + SIDE_VIEW.h - (wz - SIDE_VIEW.zMin) / (SIDE_VIEW.zMax - SIDE_VIEW.zMin) * SIDE_VIEW.h;
+}
+function topX(wx) {
+    return TOP_VIEW.x + (wx - TOP_VIEW.xMin) / (TOP_VIEW.xMax - TOP_VIEW.xMin) * TOP_VIEW.w;
+}
+function topY(wy) {
+    return TOP_VIEW.y + TOP_VIEW.h - (wy - TOP_VIEW.yMin) / (TOP_VIEW.yMax - TOP_VIEW.yMin) * TOP_VIEW.h;
+}
+
+function drawBanner() {
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = '600 28px Inter, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('2D SLAM Projection — how pointcloud_to_laserscan flattens the Mid-360', 40, 50);
+
+    // ROS pipeline
+    ctx.font = '13px "JetBrains Mono", monospace';
+    ctx.fillStyle = '#64748b';
+    const py = 80;
+    let px = 40;
+    function box(text, color) {
+        ctx.fillStyle = '#1e293b';
+        const w = ctx.measureText(text).width + 16;
+        ctx.fillRect(px, py - 14, w, 22);
+        ctx.strokeStyle = color;
+        ctx.strokeRect(px, py - 14, w, 22);
+        ctx.fillStyle = color;
+        ctx.textAlign = 'left';
+        ctx.fillText(text, px + 8, py);
+        px += w;
+        return px;
+    }
+    function arrow() {
+        ctx.strokeStyle = '#475569';
+        ctx.beginPath();
+        ctx.moveTo(px, py - 3);
+        ctx.lineTo(px + 24, py - 3);
+        ctx.lineTo(px + 18, py - 7);
+        ctx.moveTo(px + 24, py - 3);
+        ctx.lineTo(px + 18, py + 1);
+        ctx.stroke();
+        px += 30;
+    }
+    px = box(' /livox/lidar (PointCloud2 3D) ', '#a78bfa');
+    px += 8; arrow();
+    px = box(' pointcloud_to_laserscan_node ', '#67e8f9');
+    px += 8; arrow();
+    px = box(' /scan (LaserScan 2D) ', '#22c55e');
+    px += 8; arrow();
+    px = box(' slam_toolbox + Nav2 ', '#f59e0b');
+}
+
+function drawSideView() {
+    const v = SIDE_VIEW;
+
+    // Panel background
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(v.x, v.y, v.w, v.h);
+    ctx.strokeStyle = '#334155';
+    ctx.strokeRect(v.x, v.y, v.w, v.h);
+
+    // Title
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '600 14px Inter, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('Side view (XZ slice)  —  what the Mid-360 sees in 3D, by height', v.x + 14, v.y - 8);
+
+    // Grid (1 m squares)
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 1;
+    for (let z = 0; z <= v.zMax; z += 0.5) {
+        ctx.beginPath();
+        ctx.moveTo(v.x, sideZ(z));
+        ctx.lineTo(v.x + v.w, sideZ(z));
+        ctx.stroke();
+    }
+    for (let x = Math.ceil(v.xMin); x <= v.xMax; x += 1) {
+        ctx.beginPath();
+        ctx.moveTo(sideX(x), v.y);
+        ctx.lineTo(sideX(x), v.y + v.h);
+        ctx.stroke();
+    }
+
+    // Floor + ceiling lines
+    ctx.strokeStyle = '#64748b';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(v.x, sideZ(0));
+    ctx.lineTo(v.x + v.w, sideZ(0));
+    ctx.stroke();
+    ctx.fillStyle = '#64748b';
+    ctx.font = '11px "JetBrains Mono", monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('floor (z=0)', v.x + 8, sideZ(0) - 4);
+
+    // Z-band stripe
+    const bandTop = sideZ(PARAMS.max_height);
+    const bandBot = sideZ(PARAMS.min_height);
+    ctx.fillStyle = 'rgba(34, 197, 94, 0.13)';
+    ctx.fillRect(v.x, bandTop, v.w, bandBot - bandTop);
+    ctx.strokeStyle = '#22c55e';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(v.x, bandTop); ctx.lineTo(v.x + v.w, bandTop);
+    ctx.moveTo(v.x, bandBot); ctx.lineTo(v.x + v.w, bandBot);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Band labels
+    ctx.fillStyle = '#4ade80';
+    ctx.font = '11px "JetBrains Mono", monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText('max_height ' + PARAMS.max_height.toFixed(2) + ' m', v.x + v.w - 8, bandTop - 4);
+    ctx.fillText('min_height ' + PARAMS.min_height.toFixed(2) + ' m', v.x + v.w - 8, bandBot + 14);
+
+    // Objects (all primitives, projected to XZ)
+    const prims = getPrims();
+    for (const p of prims) {
+        const x1 = sideX(p.x - p.w / 2);
+        const x2 = sideX(p.x + p.w / 2);
+        const z1 = sideZ(p.z_max);
+        const z2 = sideZ(p.z_min);
+        const visible = inBand(p);
+        const isWall = p.name.startsWith('wall');
+
+        if (isWall) {
+            // Draw walls as thin gray pillars at room edge
+            ctx.fillStyle = '#475569';
+            ctx.fillRect(x1, z1, x2 - x1, z2 - z1);
+        } else {
+            // Object body — base color
+            ctx.fillStyle = visible ? 'rgba(34, 197, 94, 0.35)' : 'rgba(71, 85, 105, 0.5)';
+            ctx.fillRect(x1, z1, Math.max(2, x2 - x1), z2 - z1);
+
+            // Show the in-band slice with stronger emphasis
+            if (visible) {
+                const sliceTop = sideZ(Math.min(p.z_max, PARAMS.max_height));
+                const sliceBot = sideZ(Math.max(p.z_min, PARAMS.min_height));
+                ctx.fillStyle = 'rgba(34, 197, 94, 0.85)';
+                ctx.fillRect(x1, sliceTop, Math.max(2, x2 - x1), sliceBot - sliceTop);
+            }
+
+            ctx.strokeStyle = visible ? '#22c55e' : '#64748b';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(x1, z1, Math.max(2, x2 - x1), z2 - z1);
+
+            // Label
+            ctx.fillStyle = visible ? '#86efac' : '#94a3b8';
+            ctx.font = '10px "JetBrains Mono", monospace';
+            ctx.textAlign = 'center';
+            const cx = (x1 + x2) / 2;
+            const cy = (z1 + z2) / 2;
+            if (z2 - z1 > 18) {
+                ctx.fillText(p.name, cx, cy + 4);
+            } else {
+                ctx.fillText(p.name, cx, z1 - 4);
+            }
+        }
+    }
+
+    // Robot at origin (on floor, base_link)
+    const rx = sideX(0);
+    const rz = sideZ(0.06);
+    ctx.fillStyle = '#facc15';
+    ctx.fillRect(rx - 15, rz, 30, sideZ(0) - rz);
+    ctx.strokeStyle = '#ca8a04';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(rx - 15, rz, 30, sideZ(0) - rz);
+    // Mid-360 dome
+    ctx.fillStyle = '#a78bfa';
+    ctx.beginPath();
+    ctx.arc(rx, sideZ(0.20), 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('rover', rx, sideZ(0) + 16);
+
+    // Y-axis tick labels (Z values)
+    ctx.fillStyle = '#475569';
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.textAlign = 'right';
+    for (let z = 0; z <= 2.5; z += 0.5) {
+        ctx.fillText(z.toFixed(1) + 'm', v.x - 6, sideZ(z) + 4);
+    }
+}
+
+function drawTopView() {
+    const v = TOP_VIEW;
+
+    // Panel background
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(v.x, v.y, v.w, v.h);
+    ctx.strokeStyle = '#334155';
+    ctx.strokeRect(v.x, v.y, v.w, v.h);
+
+    // Title
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '600 14px Inter, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('Top-down view (XY plan)  —  what /scan looks like to slam_toolbox', v.x + 14, v.y - 8);
+
+    // Grid
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 1;
+    for (let x = Math.ceil(v.xMin); x <= v.xMax; x += 1) {
+        ctx.beginPath();
+        ctx.moveTo(topX(x), v.y);
+        ctx.lineTo(topX(x), v.y + v.h);
+        ctx.stroke();
+    }
+    for (let y = Math.ceil(v.yMin); y <= v.yMax; y += 1) {
+        ctx.beginPath();
+        ctx.moveTo(v.x, topY(y));
+        ctx.lineTo(v.x + v.w, topY(y));
+        ctx.stroke();
+    }
+
+    // Range circles (range_min, range_max)
+    const rx = topX(0);
+    const ry = topY(0);
+    const pxPerM = (topX(1) - topX(0));
+    ctx.strokeStyle = 'rgba(248, 113, 113, 0.5)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.arc(rx, ry, PARAMS.range_min * pxPerM, 0, Math.PI * 2);
+    ctx.stroke();
+    if (PARAMS.range_max * pxPerM < Math.max(v.w, v.h)) {
+        ctx.beginPath();
+        ctx.arc(rx, ry, PARAMS.range_max * pxPerM, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#f87171';
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('range_min', rx + PARAMS.range_min * pxPerM + 4, ry - 4);
+
+    // Objects (plan view)
+    const prims = getPrims();
+    for (const p of prims) {
+        const x1 = topX(p.x - p.w / 2);
+        const x2 = topX(p.x + p.w / 2);
+        const y1 = topY(p.y + p.d / 2);
+        const y2 = topY(p.y - p.d / 2);
+        const visible = inBand(p);
+        const isWall = p.name.startsWith('wall');
+
+        if (isWall) {
+            ctx.fillStyle = '#475569';
+            ctx.fillRect(x1, y1, x2 - x1, y2 - y1);
+        } else {
+            ctx.fillStyle = visible ? 'rgba(34, 197, 94, 0.30)' : 'rgba(71, 85, 105, 0.30)';
+            ctx.fillRect(x1, y1, Math.max(2, x2 - x1), Math.max(2, y2 - y1));
+            ctx.strokeStyle = visible ? '#22c55e' : '#64748b';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(x1, y1, Math.max(2, x2 - x1), Math.max(2, y2 - y1));
+
+            // Label only if box is big enough
+            if ((x2 - x1) > 30 || (y2 - y1) > 18) {
+                ctx.fillStyle = visible ? '#86efac' : '#94a3b8';
+                ctx.font = '10px "JetBrains Mono", monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(p.name, (x1 + x2) / 2, (y1 + y2) / 2 + 3);
+            }
+        }
+    }
+
+    // /scan ring overlay
+    const scan = computeScan();
+    ctx.fillStyle = '#67e8f9';
+    const N = scan.length;
+    let hits = 0;
+    let minR = Infinity, maxR = 0;
+    for (let i = 0; i < N; i++) {
+        if (!isFinite(scan[i])) continue;
+        hits++;
+        if (scan[i] < minR) minR = scan[i];
+        if (scan[i] > maxR) maxR = scan[i];
+        const ang = -Math.PI + (i + 0.5) * (2 * Math.PI / N);
+        const wx = scan[i] * Math.cos(ang);
+        const wy = scan[i] * Math.sin(ang);
+        const px = topX(wx);
+        const py = topY(wy);
+        ctx.beginPath();
+        ctx.arc(px, py, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // Robot (Mid-360) at origin
+    ctx.fillStyle = '#facc15';
+    ctx.beginPath();
+    ctx.arc(rx, ry, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#ca8a04';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // Forward indicator (+X)
+    ctx.strokeStyle = '#fbbf24';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(rx, ry);
+    ctx.lineTo(rx + 18, ry);
+    ctx.stroke();
+
+    // Axis labels
+    ctx.fillStyle = '#475569';
+    ctx.font = '11px "JetBrains Mono", monospace';
+    ctx.textAlign = 'right';
+    for (let x = Math.ceil(v.xMin); x <= v.xMax; x += 2) {
+        if (x === 0) continue;
+        ctx.fillText(x + 'm', topX(x) - 2, v.y + v.h - 4);
+    }
+    ctx.textAlign = 'left';
+    for (let y = Math.ceil(v.yMin); y <= v.yMax; y += 2) {
+        if (y === 0) continue;
+        ctx.fillText(y + 'm', v.x + 4, topY(y) - 2);
+    }
+
+    return { hits, minR, maxR };
+}
+
+function drawStats(stats) {
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(40, STATS_TOP, 1840, 60);
+    ctx.strokeStyle = '#334155';
+    ctx.strokeRect(40, STATS_TOP, 1840, 60);
+
+    ctx.font = '13px "JetBrains Mono", monospace';
+    ctx.textAlign = 'left';
+    const baseY = STATS_TOP + 25;
+
+    const inBandCount = getPrims().filter(p => inBand(p) && !p.name.startsWith('wall')).length;
+    const totalObjs = getPrims().filter(p => !p.name.startsWith('wall')).length;
+
+    let x = 60;
+    function chip(label, value, color) {
+        ctx.fillStyle = '#64748b';
+        ctx.fillText(label, x, baseY);
+        x += ctx.measureText(label).width + 6;
+        ctx.fillStyle = color;
+        ctx.fillText(value, x, baseY);
+        x += ctx.measureText(value).width + 28;
+    }
+
+    chip('Bins with hits:',  stats.hits + ' / ' + PARAMS.num_bins +
+         '  (' + (100 * stats.hits / PARAMS.num_bins).toFixed(1) + '%)',  '#67e8f9');
+    chip('Objects in band:', inBandCount + ' / ' + totalObjs,             '#22c55e');
+    chip('Closest hit:',     isFinite(stats.minR) ? stats.minR.toFixed(2) + ' m' : '—',  '#fbbf24');
+    chip('Farthest hit:',    stats.maxR > 0 ? stats.maxR.toFixed(2) + ' m' : '—',         '#fbbf24');
+    chip('Angular resolution:', (360 / PARAMS.num_bins).toFixed(2) + '°/bin',             '#a78bfa');
+    chip('Band thickness:',  (PARAMS.max_height - PARAMS.min_height).toFixed(2) + ' m',   '#86efac');
+
+    // Second line: explanatory hint
+    ctx.fillStyle = '#64748b';
+    ctx.font = '11px Inter, sans-serif';
+    ctx.textAlign = 'left';
+    let hint = '';
+    if (PARAMS.max_height - PARAMS.min_height < 0.05) {
+        hint = '⚠ Z-band is razor-thin — many real obstacles will sit just above or below it and be invisible to /scan.';
+    } else if (PARAMS.min_height < 0.02) {
+        hint = '⚠ min_height near zero — floor returns (rugs, thresholds, the rover\'s own base) will appear as obstacles right at the robot.';
+    } else if (PARAMS.max_height > 2.0) {
+        hint = '⚠ max_height very high — ceiling fans / lights become "walls" in the costmap.';
+    } else if (PARAMS.range_max < 5.0) {
+        hint = 'Range max is short — far walls beyond ' + PARAMS.range_max.toFixed(1) + ' m are dropped, even if seen by the lidar.';
+    } else if (PARAMS.num_bins < 180) {
+        hint = '⚠ Low angular resolution (' + (360 / PARAMS.num_bins).toFixed(1) + '°/bin) — narrow objects (chair legs, table legs) get lost in coarse bins.';
+    } else {
+        hint = 'Try: shrink the Z-band, drop range_max, or change the scene to see how /scan changes in real time.';
+    }
+    ctx.fillText(hint, 60, baseY + 22);
+}
+
+function draw() {
+    ctx.fillStyle = '#0a0a1a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    drawBanner();
+    drawSideView();
+    const stats = drawTopView();
+    drawStats(stats);
+}
+
+// ─── Download ─────────────────────────────────────────────────────────
+function downloadPNG() {
+    const link = document.createElement('a');
+    link.download = 'lidar_2d_projection_' + currentScene + '.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+}
+
+// Initial render
+onParam();
+</script>
+</body>
+</html>
