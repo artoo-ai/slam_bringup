@@ -115,7 +115,9 @@ canvas { display: block; }
     <div><span class="swatch" style="background:#22c55e;"></span>Object inside Z-band (visible to /scan)</div>
     <div><span class="swatch" style="background:#475569;"></span>Object outside Z-band (invisible)</div>
     <div><span class="swatch" style="background:rgba(74,222,128,0.18);border:1px solid #22c55e;"></span>Z-band slice</div>
-    <div><span class="swatch" style="background:#67e8f9;"></span>/scan output (per-bin hit)</div>
+    <div><span class="swatch" style="background:#22c55e;border-radius:50%;"></span>Beam hit IN band (kept)</div>
+    <div><span class="swatch" style="background:#ef4444;border-radius:50%;"></span>Beam hit OUT of band (discarded)</div>
+    <div><span class="swatch" style="background:#67e8f9;"></span>/scan output (binned ring)</div>
     <div><span class="swatch" style="background:#facc15;"></span>Robot (Mid-360 origin)</div>
 </div>
 
@@ -158,6 +160,14 @@ canvas { display: block; }
         <span class="pval" id="nBinsv">720</span>
     </div>
 
+    <span class="title">animation</span>
+    <div class="group">
+        <span class="pname">beam_rate</span>
+        <input type="range" id="bRate" min="1" max="80" step="1" value="20" oninput="onAnimParam()">
+        <span class="pval" id="bRatev">20/frame</span>
+    </div>
+    <button id="pauseBtn" onclick="togglePause()">Pause</button>
+    <button onclick="clearParticles()">Clear hits</button>
     <button onclick="resetParams()">Reset params</button>
     <button onclick="downloadPNG()">Download PNG</button>
 </div>
@@ -205,7 +215,10 @@ function onParam() {
     document.getElementById('rMinv').textContent = PARAMS.range_min.toFixed(2) + ' m';
     document.getElementById('rMaxv').textContent = PARAMS.range_max.toFixed(1) + ' m';
     document.getElementById('nBinsv').textContent = PARAMS.num_bins;
-    draw();
+    // Don't call draw() — the RAF loop handles redraws. Clear particles
+    // so the visual reflects the new params/scene right away (old kept
+    // dots from before the band changed would otherwise linger ~4 s).
+    clearParticles();
 }
 function resetParams() {
     Object.assign(PARAMS, PARAM_DEFAULTS);
@@ -292,7 +305,7 @@ const SCENES = {
 };
 
 let currentScene = 'living_room';
-function setScene(name) { currentScene = name; draw(); }
+function setScene(name) { currentScene = name; clearParticles(); }
 function getPrims() { return SCENES[currentScene]; }
 
 // ─── Geometry helpers ─────────────────────────────────────────────────
@@ -324,6 +337,45 @@ function rayRectHit(prim, dx, dy) {
     return tmin > 0 ? tmin : (tmax > 0 ? tmax : Infinity);
 }
 
+// 3D ray–AABB intersection. Ray starts at (0, 0, sensorZ), direction (dx, dy, dz).
+// Returns nearest positive t, or Infinity.
+function ray3DBoxHit(p, dx, dy, dz, sensorZ) {
+    const xmin = p.x - p.w / 2, xmax = p.x + p.w / 2;
+    const ymin = p.y - p.d / 2, ymax = p.y + p.d / 2;
+    // Rebase Z to sensor origin
+    const zmin = p.z_min - sensorZ, zmax = p.z_max - sensorZ;
+
+    function slab(t1raw, t2raw) {
+        return [Math.min(t1raw, t2raw), Math.max(t1raw, t2raw)];
+    }
+    const BIG = 1e9;
+    const [t1x, t2x] = dx === 0 ? [-BIG, BIG] : slab(xmin / dx, xmax / dx);
+    const [t1y, t2y] = dy === 0 ? [-BIG, BIG] : slab(ymin / dy, ymax / dy);
+    const [t1z, t2z] = dz === 0 ? [-BIG, BIG] : slab(zmin / dz, zmax / dz);
+    const tmin = Math.max(t1x, t1y, t1z);
+    const tmax = Math.min(t2x, t2y, t2z);
+    if (tmax < 0 || tmin > tmax) return Infinity;
+    return tmin > 0 ? tmin : (tmax > 0 ? tmax : Infinity);
+}
+
+// Find the nearest 3D hit across all primitives. Returns { p, t, hx, hy, hz } or null.
+function ray3DHit(dx, dy, dz, sensorZ) {
+    let nearestT = Infinity;
+    let nearestP = null;
+    for (const p of getPrims()) {
+        const t = ray3DBoxHit(p, dx, dy, dz, sensorZ);
+        if (t < nearestT) { nearestT = t; nearestP = p; }
+    }
+    if (!nearestP) return null;
+    return {
+        p: nearestP,
+        t: nearestT,
+        hx: nearestT * dx,
+        hy: nearestT * dy,
+        hz: sensorZ + nearestT * dz,
+    };
+}
+
 // Compute /scan: array of length num_bins, ranges (or Infinity for empty bins)
 function computeScan() {
     const N = PARAMS.num_bins;
@@ -343,6 +395,64 @@ function computeScan() {
         }
     }
     return scan;
+}
+
+// ─── Animation state ──────────────────────────────────────────────────
+// Mid-360 emits non-repetitive points across its FOV: az 360°, el -7° to +52°.
+// We simulate that with random samples each frame. The animation shows
+// individual 3D beam hits classified as kept (in band + in range) or
+// discarded (out of band, out of range, or hit ceiling/floor outside band).
+const SENSOR_Z = 0.20;        // Mid-360 mount height above base_link
+const EL_MIN_DEG = -7;        // lower elevation limit
+const EL_MAX_DEG = 52;        // upper elevation limit
+const PARTICLE_LIFE_KEPT = 240;       // frames (~4 s @ 60 fps)
+const PARTICLE_LIFE_DISCARD = 24;     // discarded fade fast
+const BEAM_LIFE = 8;                  // animated ray traces fade in ~0.13 s
+const MAX_PARTICLES = 4000;
+
+let paused = false;
+let beamsPerFrame = 20;
+let particles = [];  // { hx, hy, hz, kept, age }
+let activeBeams = []; // { bx, by, bz, kept, age }
+
+function onAnimParam() {
+    beamsPerFrame = parseInt(document.getElementById('bRate').value);
+    document.getElementById('bRatev').textContent = beamsPerFrame + '/frame';
+}
+function togglePause() {
+    paused = !paused;
+    document.getElementById('pauseBtn').textContent = paused ? 'Play' : 'Pause';
+}
+function clearParticles() {
+    particles = [];
+    activeBeams = [];
+}
+
+function emitBeams() {
+    const M = beamsPerFrame;
+    for (let i = 0; i < M; i++) {
+        const az = Math.random() * 2 * Math.PI - Math.PI;
+        const el = ((Math.random() * (EL_MAX_DEG - EL_MIN_DEG)) + EL_MIN_DEG) * Math.PI / 180;
+        const cosEl = Math.cos(el);
+        const dx = cosEl * Math.cos(az);
+        const dy = cosEl * Math.sin(az);
+        const dz = Math.sin(el);
+        const hit = ray3DHit(dx, dy, dz, SENSOR_Z);
+        if (!hit || !isFinite(hit.t) || hit.t > 30) continue;
+        const inBand = hit.hz >= PARAMS.min_height && hit.hz <= PARAMS.max_height;
+        const inRange = hit.t >= PARAMS.range_min && hit.t <= PARAMS.range_max;
+        const kept = inBand && inRange;
+        activeBeams.push({ bx: hit.hx, by: hit.hy, bz: hit.hz, kept, age: 0 });
+        particles.push({ hx: hit.hx, hy: hit.hy, hz: hit.hz, kept, age: 0 });
+    }
+    activeBeams = activeBeams.filter(b => { b.age += 1; return b.age < BEAM_LIFE; });
+    particles = particles.filter(p => {
+        p.age += 1;
+        return p.kept ? p.age < PARTICLE_LIFE_KEPT : p.age < PARTICLE_LIFE_DISCARD;
+    });
+    if (particles.length > MAX_PARTICLES) {
+        particles = particles.slice(-MAX_PARTICLES);
+    }
 }
 
 // ─── Drawing ──────────────────────────────────────────────────────────
@@ -526,7 +636,56 @@ function drawSideView() {
         }
     }
 
-    // Robot at origin (on floor, base_link)
+    // Particles — show where each 3D beam hit, plotted by X and Z (the Y
+    // dimension is collapsed). Green dots = hits inside the band. Red ×
+    // marks = hits outside the band, fading fast. This visualization is
+    // the heart of "what gets gated by the Z-band."
+    ctx.save();
+    for (const p of particles) {
+        // Plot at (p.hx, p.hz) — the side view is XZ, so we use real X
+        // and Z regardless of where in Y the beam actually hit.
+        const px = sideX(p.hx);
+        const pz = sideZ(p.hz);
+        if (px < SIDE_VIEW.x || px > SIDE_VIEW.x + SIDE_VIEW.w) continue;
+        if (pz < SIDE_VIEW.y || pz > SIDE_VIEW.y + SIDE_VIEW.h) continue;
+        if (p.kept) {
+            const a = 1 - p.age / PARTICLE_LIFE_KEPT;
+            ctx.fillStyle = 'rgba(34, 197, 94, ' + (0.55 * a + 0.2) + ')';
+            ctx.beginPath();
+            ctx.arc(px, pz, 1.8, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            const a = 1 - p.age / PARTICLE_LIFE_DISCARD;
+            ctx.strokeStyle = 'rgba(239, 68, 68, ' + (0.7 * a) + ')';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(px - 3, pz - 3); ctx.lineTo(px + 3, pz + 3);
+            ctx.moveTo(px + 3, pz - 3); ctx.lineTo(px - 3, pz + 3);
+            ctx.stroke();
+        }
+    }
+    ctx.restore();
+
+    // Active beams — short fading rays from the sensor origin upward/outward,
+    // drawn in side view as straight lines from (0, sensor_z) to the hit's
+    // projected (hx, hz).
+    ctx.save();
+    const sx0 = sideX(0);
+    const sz0 = sideZ(SENSOR_Z);
+    for (const b of activeBeams) {
+        const a = 1 - b.age / BEAM_LIFE;
+        ctx.strokeStyle = b.kept
+            ? 'rgba(74, 222, 128, ' + (0.7 * a) + ')'
+            : 'rgba(248, 113, 113, ' + (0.45 * a) + ')';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(sx0, sz0);
+        ctx.lineTo(sideX(b.bx), sideZ(b.bz));
+        ctx.stroke();
+    }
+    ctx.restore();
+
+    // Robot at origin (on floor, base_link). Drawn LAST so beams pass under it.
     const rx = sideX(0);
     const rz = sideZ(0.06);
     ctx.fillStyle = '#facc15';
@@ -635,6 +794,42 @@ function drawTopView() {
         }
     }
 
+    // Animated beam traces — fading rays from origin to the (x,y) where
+    // the beam hit. Green = kept (in band + in range), red = discarded
+    // (out of band or out of range). This is the live "scan in progress."
+    ctx.save();
+    for (const b of activeBeams) {
+        const a = 1 - b.age / BEAM_LIFE;
+        ctx.strokeStyle = b.kept
+            ? 'rgba(74, 222, 128, ' + (0.7 * a) + ')'
+            : 'rgba(248, 113, 113, ' + (0.30 * a) + ')';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(rx, ry);
+        ctx.lineTo(topX(b.bx), topY(b.by));
+        ctx.stroke();
+    }
+    // Particles — green dots at (x, y) for kept hits, faint × for discarded.
+    for (const p of particles) {
+        if (p.kept) {
+            const a = 1 - p.age / PARTICLE_LIFE_KEPT;
+            ctx.fillStyle = 'rgba(34, 197, 94, ' + (0.45 * a + 0.15) + ')';
+            ctx.beginPath();
+            ctx.arc(topX(p.hx), topY(p.hy), 1.8, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            const a = 1 - p.age / PARTICLE_LIFE_DISCARD;
+            ctx.strokeStyle = 'rgba(239, 68, 68, ' + (0.4 * a) + ')';
+            ctx.lineWidth = 1;
+            const px = topX(p.hx), py = topY(p.hy);
+            ctx.beginPath();
+            ctx.moveTo(px - 2.5, py - 2.5); ctx.lineTo(px + 2.5, py + 2.5);
+            ctx.moveTo(px + 2.5, py - 2.5); ctx.lineTo(px - 2.5, py + 2.5);
+            ctx.stroke();
+        }
+    }
+    ctx.restore();
+
     // /scan ring overlay
     const scan = computeScan();
     ctx.fillStyle = '#67e8f9';
@@ -719,6 +914,9 @@ function drawStats(stats) {
     chip('Farthest hit:',    stats.maxR > 0 ? stats.maxR.toFixed(2) + ' m' : '—',         '#fbbf24');
     chip('Angular resolution:', (360 / PARAMS.num_bins).toFixed(2) + '°/bin',             '#a78bfa');
     chip('Band thickness:',  (PARAMS.max_height - PARAMS.min_height).toFixed(2) + ' m',   '#86efac');
+    let keptN = 0, discN = 0;
+    for (const p of particles) (p.kept ? keptN++ : discN++);
+    chip('Beam particles:',  keptN + ' kept / ' + discN + ' discarded (live)',            '#67e8f9');
 
     // Second line: explanatory hint
     ctx.fillStyle = '#64748b';
@@ -750,6 +948,14 @@ function draw() {
     drawStats(stats);
 }
 
+// Animation loop — emits new beams + decays old particles every frame,
+// then draws the full scene. Runs at the browser's RAF rate (~60 fps).
+function loop() {
+    if (!paused) emitBeams();
+    draw();
+    requestAnimationFrame(loop);
+}
+
 // ─── Download ─────────────────────────────────────────────────────────
 function downloadPNG() {
     const link = document.createElement('a');
@@ -758,8 +964,9 @@ function downloadPNG() {
     link.click();
 }
 
-// Initial render
+// Initial render + start animation loop
 onParam();
+loop();
 </script>
 </body>
 </html>
