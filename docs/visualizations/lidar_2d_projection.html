@@ -163,8 +163,8 @@ canvas { display: block; }
     <span class="title">animation</span>
     <div class="group">
         <span class="pname">beam_rate</span>
-        <input type="range" id="bRate" min="1" max="80" step="1" value="20" oninput="onAnimParam()">
-        <span class="pval" id="bRatev">20/frame</span>
+        <input type="range" id="bRate" min="30" max="4800" step="30" value="1200" oninput="onAnimParam()">
+        <span class="pval" id="bRatev">1200/s</span>
     </div>
     <button id="pauseBtn" onclick="togglePause()">Pause</button>
     <button onclick="clearParticles()">Clear hits</button>
@@ -411,13 +411,23 @@ const BEAM_LIFE = 8;                  // animated ray traces fade in ~0.13 s
 const MAX_PARTICLES = 4000;
 
 let paused = false;
-let beamsPerFrame = 20;
-let particles = [];  // { hx, hy, hz, kept, age }
-let activeBeams = []; // { bx, by, bz, kept, age }
+// Target emission rate in beams/sec — independent of the browser's frame
+// rate. Internally we accumulate fractional beams (pendingBeams) and emit
+// floor(accumulator) each frame, carrying the remainder forward. This means
+// a 60 fps browser and a 30 fps browser both produce the same beams/sec.
+let beamsPerSecond = 1200;
+let pendingBeams = 0;
+let particles = [];      // { hx, hy, hz, kept, age }
+let activeBeams = [];    // { bx, by, bz, kept, age }
+
+// FPS measurement — rolling avg of the last 30 frame intervals.
+let lastFrameMs = 0;
+const fpsHistory = [];
+const FPS_WINDOW = 30;
 
 function onAnimParam() {
-    beamsPerFrame = parseInt(document.getElementById('bRate').value);
-    document.getElementById('bRatev').textContent = beamsPerFrame + '/frame';
+    beamsPerSecond = parseInt(document.getElementById('bRate').value);
+    document.getElementById('bRatev').textContent = beamsPerSecond + '/s';
 }
 function togglePause() {
     paused = !paused;
@@ -426,10 +436,16 @@ function togglePause() {
 function clearParticles() {
     particles = [];
     activeBeams = [];
+    pendingBeams = 0;
 }
 
-function emitBeams() {
-    const M = beamsPerFrame;
+function getFps() {
+    if (fpsHistory.length === 0) return 0;
+    const avg = fpsHistory.reduce((a, b) => a + b, 0) / fpsHistory.length;
+    return avg > 0 ? 1 / avg : 0;
+}
+
+function emitBeams(M) {
     for (let i = 0; i < M; i++) {
         const az = Math.random() * 2 * Math.PI - Math.PI;
         const el = ((Math.random() * (EL_MAX_DEG - EL_MIN_DEG)) + EL_MIN_DEG) * Math.PI / 180;
@@ -445,14 +461,19 @@ function emitBeams() {
         activeBeams.push({ bx: hit.hx, by: hit.hy, bz: hit.hz, kept, age: 0 });
         particles.push({ hx: hit.hx, hy: hit.hy, hz: hit.hz, kept, age: 0 });
     }
+    if (particles.length > MAX_PARTICLES) {
+        particles = particles.slice(-MAX_PARTICLES);
+    }
+}
+
+// Per-frame aging. Runs every frame (even when beam_rate=0 or paused-after-emit)
+// so particle/beam decay tracks wall clock instead of "frames where we emitted."
+function ageParticles() {
     activeBeams = activeBeams.filter(b => { b.age += 1; return b.age < BEAM_LIFE; });
     particles = particles.filter(p => {
         p.age += 1;
         return p.kept ? p.age < PARTICLE_LIFE_KEPT : p.age < PARTICLE_LIFE_DISCARD;
     });
-    if (particles.length > MAX_PARTICLES) {
-        particles = particles.slice(-MAX_PARTICLES);
-    }
 }
 
 // ─── Drawing ──────────────────────────────────────────────────────────
@@ -917,6 +938,10 @@ function drawStats(stats) {
     let keptN = 0, discN = 0;
     for (const p of particles) (p.kept ? keptN++ : discN++);
     chip('Beam particles:',  keptN + ' kept / ' + discN + ' discarded (live)',            '#67e8f9');
+    const fps = getFps();
+    chip('Render FPS:',      fps > 0 ? fps.toFixed(0) : '—',                              '#22c55e');
+    chip('Beams/sec (target):', beamsPerSecond + ' (' + (beamsPerSecond / Math.max(1, fps)).toFixed(1) + '/frame)',
+                                                                                          '#22c55e');
 
     // Second line: explanatory hint
     ctx.fillStyle = '#64748b';
@@ -933,8 +958,11 @@ function drawStats(stats) {
         hint = 'Range max is short — far walls beyond ' + PARAMS.range_max.toFixed(1) + ' m are dropped, even if seen by the lidar.';
     } else if (PARAMS.num_bins < 180) {
         hint = '⚠ Low angular resolution (' + (360 / PARAMS.num_bins).toFixed(1) + '°/bin) — narrow objects (chair legs, table legs) get lost in coarse bins.';
+    } else if (beamsPerSecond < 100) {
+        hint = 'Beam rate ' + beamsPerSecond + '/s lets you watch individual rays — try this slow speed to see one beam at a time.';
     } else {
-        hint = 'Try: shrink the Z-band, drop range_max, or change the scene to see how /scan changes in real time.';
+        hint = 'Real Mid-360 emits ~200,000 pts/s. This sim runs ' + beamsPerSecond + '/s — visually clear at the cost of being ~' +
+               Math.round(200000 / beamsPerSecond) + '× sparser than the real sensor.';
     }
     ctx.fillText(hint, 60, baseY + 22);
 }
@@ -948,10 +976,27 @@ function draw() {
     drawStats(stats);
 }
 
-// Animation loop — emits new beams + decays old particles every frame,
-// then draws the full scene. Runs at the browser's RAF rate (~60 fps).
-function loop() {
-    if (!paused) emitBeams();
+// Animation loop. Tracks real elapsed time so beam emission rate is in
+// beams/SEC (constant), not beams/FRAME (which would scale with the
+// browser's frame rate — confusing). Also samples dt into fpsHistory so
+// the stats line can report the actual frame rate.
+function loop(nowMs) {
+    if (!nowMs) nowMs = performance.now();
+    // Clamp dt to 100 ms — if the tab was backgrounded, RAF can deliver
+    // huge dt values that would emit a giant burst of beams the moment
+    // the tab regains focus. Cap it so the visual stays sensible.
+    const dt = lastFrameMs === 0 ? 1 / 60 : Math.min((nowMs - lastFrameMs) / 1000, 0.1);
+    lastFrameMs = nowMs;
+    fpsHistory.push(dt);
+    if (fpsHistory.length > FPS_WINDOW) fpsHistory.shift();
+
+    if (!paused) {
+        pendingBeams += beamsPerSecond * dt;
+        const N = Math.floor(pendingBeams);
+        pendingBeams -= N;
+        if (N > 0) emitBeams(N);
+        ageParticles();
+    }
     draw();
     requestAnimationFrame(loop);
 }
