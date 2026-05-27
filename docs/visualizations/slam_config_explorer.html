@@ -1985,6 +1985,234 @@ h1 .sub { color: #67e8f9; }
 
 </div><!-- /cards -->
 
+<!-- ============================================================ -->
+<h2 class="section-title">Sensor drivers
+    <span class="tag t2d">launch/mid360, d435, witmotion</span>
+</h2>
+<div class="cards">
+
+<!-- Mid-360 Card -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">Mid-360: publish_freq · xfer_format · user_config_path</span>
+    <span class="paramFile">launch/mid360.launch.py · config/mid360.json</span>
+    <span class="paramDesc">Livox driver settings. <code>publish_freq</code> = scan publication rate (Hz). <code>xfer_format</code> = wire format: 0 = standard PointCloud2, 1 = Livox CustomMsg (only consumed by FAST-LIO via the LivoxROS package).</span>
+    <div class="modes"><span class="mode-chip mode-always">sensor driver</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>publish_Hz</label><input type="range" id="mpub-v" min="2" max="20" step="1" value="10" data-unit=" Hz" data-precision="0"><span class="val" id="mpub-vVal">10 Hz</span></div>
+    <div class="slider-row"><label>xfer_format</label><input type="range" id="mxf-v" min="0" max="1" step="1" value="0" data-unit="" data-precision="0"><span class="val" id="mxf-vVal">0</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> rate of <code>/livox/lidar</code> output and its wire format. 10 Hz matches the Mid-360's optimal sweep cycle.</div>
+    <div class="ex-up">↑ <b>publish_Hz 15:</b> faster updates but Livox starts dropping points (sensor's hardware sweep is ~10 Hz). <b>xfer_format 1:</b> Required for FAST-LIO's CustomMsg input path (3D stack); 2D stack uses PointCloud2 (format 0).</div>
+    <div class="ex-down">↓ <b>publish_Hz 2:</b> very low update rate; pose accuracy degrades fast.</div>
+    <div class="ex-deps">🔗 <b>2D stack:</b> uses xfer_format=0 (pointcloud_to_laserscan consumes PointCloud2). <b>3D stack with FAST-LIO:</b> uses xfer_format=1 (CustomMsg has timestamp-per-point which FAST-LIO needs).</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-minor">minor</span> Higher Hz = proportionally more bandwidth (Mid-360 at 10 Hz ≈ 20 MB/s).</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic 10 Hz · format 0 (2D) or 1 (3D)</span>
+      <span class="test-step">Watch <code>ros2 topic hz /livox/lidar</code> and <code>ros2 topic bw /livox/lidar</code>. Confirm publish_freq matches and bandwidth is reasonable.</span>
+      <span class="test-step">Switch xfer_format mid-launch: FAST-LIO crashes (wrong message type), pointcloud_to_laserscan also fails.</span>
+    </div>
+    <div class="ex-cross">🔄 <b>Cross-device equivalents:</b>
+      <div style="margin-top:4px">
+        <span class="device-tag">Velodyne <code>rpm</code> (300-1200) → controls scan rate</span>
+        <span class="device-tag">Hesai Pandar40P <code>spin_rate</code> (5-20 Hz)</span>
+        <span class="device-tag">RPLidar C1M1 <code>scan_mode</code></span>
+        <span class="device-tag">Unitree L1 <code>frame_rate</code></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- D435 Card -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">D435: depth_profile · color_profile · align_depth · pointcloud.enable</span>
+    <span class="paramFile">launch/d435.launch.py</span>
+    <span class="paramDesc">Intel Realsense capture settings. <code>depth_profile</code> = WxHxFPS for depth stream. <code>align_depth</code> = warp depth to color camera frame (needed for RTABMap). <code>pointcloud.enable</code> = produce <code>/camera/depth/color/points</code>.</span>
+    <div class="modes"><span class="mode-chip mode-3d">3D stack (RTABMap)</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row" style="grid-template-columns: 80px 1fr 100px"><label>depth res</label><select id="dpr-v" style="background:#1e293b; color:#cbd5e1; border:1px solid #334155; padding:4px"><option>424x240x15</option><option>640x480x15</option><option selected>848x480x30</option><option>1280x720x30</option></select><span class="val" id="dpr-vVal">848x480x30</span></div>
+    <div class="toggle-row"><input type="checkbox" id="dad-v" checked><label for="dad-v">align_depth</label></div>
+    <div class="toggle-row"><input type="checkbox" id="dpc-v" checked><label for="dpc-v">pointcloud.enable</label></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> resolution/framerate of depth stream, whether depth is warped to match color, and whether a colored pointcloud is produced.</div>
+    <div class="ex-up">↑ <b>1280x720x30:</b> sharp depth, ideal for far obstacles. CPU + USB bandwidth spike. <b>align_depth ON:</b> required by RTABMap (depth and color must be in the same frame).</div>
+    <div class="ex-down">↓ <b>424x240x15:</b> very low res, useful for compute-constrained scenarios. <b>align_depth OFF:</b> CPU saving if you only want raw depth (no RTABMap).</div>
+    <div class="ex-deps">🔗 <b>Requires</b> the <code>slam_mode:=true</code> launch arg to enable align_depth in this repo's launch path.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-significant">significant</span> Alignment is GPU-accelerated on Jetson but still measurable. Pointcloud generation is the bigger CPU eater.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic 848x480x30 default · 1280x720 for inspection</span>
+      <span class="test-step">Watch <code>ros2 topic bw /d435_front/camera/depth/image_rect_raw</code>. 848x480x30 ≈ 24 MB/s. 1280x720x30 ≈ 55 MB/s.</span>
+      <span class="test-step">Disable align_depth and start RTABMap — confirm depth/color sync errors in the log.</span>
+    </div>
+    <div class="ex-cross">🔄 <b>Cross-device:</b> identical concepts across all RGBD cameras.
+      <div style="margin-top:4px">
+        <span class="device-tag">D435/D435i/D455</span>
+        <span class="device-tag">ZED / ZED Mini (different driver, same align concept)</span>
+        <span class="device-tag">OAK-D Pro (DepthAI pipeline config)</span>
+        <span class="device-tag">Intel Euclid</span>
+      </div>
+      <span class="test-step" style="margin-top:6px">D455 has wider FOV than D435 (87° vs 86° H) and longer range (10 m vs 8 m typical) — bump <code>depth_profile</code> resolution if using D455 for room-scale mapping.</span>
+    </div>
+  </div>
+</div>
+
+<!-- WitMotion Card -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">WitMotion: baud · output_rate_hz · stats_period_sec</span>
+    <span class="paramFile">config/witmotion.yaml</span>
+    <span class="paramDesc">WT901 IMU over USB-serial. Used as a SECONDARY attitude reference (the 3D stack's primary IMU is the Mid-360's onboard ICM40609 because it has hardware-synced timestamps).</span>
+    <div class="modes"><span class="mode-chip mode-always">optional sensor</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row" style="grid-template-columns: 80px 1fr 100px"><label>baud</label><select id="wb-v" style="background:#1e293b; color:#cbd5e1; border:1px solid #334155; padding:4px"><option>9600</option><option selected>115200</option><option>230400</option><option>460800</option><option>921600</option></select><span class="val" id="wb-vVal">115200</span></div>
+    <div class="slider-row"><label>output_Hz</label><input type="range" id="wor-v" min="0" max="200" step="10" value="0" data-unit=" Hz" data-precision="0"><span class="val" id="wor-vVal">0 Hz</span></div>
+    <div class="slider-row"><label>stats_period</label><input type="range" id="wsp-v" min="1" max="60" step="1" value="5" data-unit=" s" data-precision="0"><span class="val" id="wsp-vVal">5 s</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> serial speed, IMU publication rate, and how often the driver logs throughput.</div>
+    <div class="ex-up">↑ <b>baud 460800+:</b> required for 200 Hz output rate. <b>output_Hz 100-200:</b> high-rate attitude updates.</div>
+    <div class="ex-down">↓ <b>output_Hz 0:</b> uses device's EEPROM-configured rate (set via WitMotion's PC tool). <b>baud 9600:</b> slow and reliable, can't carry high-rate data.</div>
+    <div class="ex-deps">⚠ <b>FAST-LIO DOES NOT consume WitMotion</b> — it uses <code>/livox/imu_ms2</code> instead. WitMotion is for downstream consumers (a fall detection node, an attitude indicator, etc.).</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-none">none</span> Driver overhead is trivial.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic baud 115200 · output_Hz 50-100</span>
+      <span class="test-step">Watch <code>ros2 topic hz /witmotion/imu</code>. Confirm the rate matches output_rate_hz. If output_Hz=0, check the device's EEPROM rate via the WitMotion PC tool.</span>
+      <span class="test-step">Move the IMU by hand — Foxglove's IMU visualizer should show attitude responding within 50 ms at 50+ Hz.</span>
+    </div>
+    <div class="ex-cross">🔄 <b>Cross-device:</b>
+      <div style="margin-top:4px">
+        <span class="device-tag">BNO086 (I²C, no baud)</span>
+        <span class="device-tag">BNO055 (I²C/UART, similar baud knob)</span>
+        <span class="device-tag">Mid-360 onboard ICM40609 (UDP, no serial)</span>
+      </div>
+      <span class="test-step" style="margin-top:6px">BNO086/BNO055 are I²C — different driver, but the <code>output_rate_hz</code> and stats-logging concepts map directly. BNO chips often have built-in sensor fusion (orientation quaternion), so the "raw vs fused" choice replaces the baud question.</span>
+    </div>
+  </div>
+</div>
+
+<!-- viz_clip card -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">viz_clip: viz_z_min · viz_z_max · viz_input/output_topic</span>
+    <span class="paramFile">launch/viz_clip.launch.py</span>
+    <span class="paramDesc">Floor-plan visualization: republishes <code>/cloud_registered</code> as <code>/cloud_viz_clipped</code> with a Z slice applied. Lets Foxglove show a top-down room view without ceiling clutter. Does NOT affect SLAM — slam_toolbox and RTABMap still see the full cloud.</span>
+    <div class="modes"><span class="mode-chip mode-3d">3D stack only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>z_min</label><input type="range" id="vzn-v" min="-3" max="3" step="0.1" value="-3.0" data-unit=" m" data-precision="1"><span class="val" id="vzn-vVal">-3.0 m</span></div>
+    <div class="slider-row"><label>z_max</label><input type="range" id="vzx-v" min="-3" max="3" step="0.1" value="3.0" data-unit=" m" data-precision="1"><span class="val" id="vzx-vVal">3.0 m</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> Z slice for the visualization-only republished cloud. Setting <code>viz_z_max</code> just above the rover's antenna height removes the ceiling for top-down floor-plan views in Foxglove.</div>
+    <div class="ex-up">↑ <b>viz_z_max 1.5:</b> keeps walls + tables but cuts ceilings/fans. <b>viz_z_max 3.0</b> (default): no clip.</div>
+    <div class="ex-down">↓ <b>viz_z_max 0.5:</b> only chair-leg-height returns; pure floor plan.</div>
+    <div class="ex-deps">⚠ <b>This is VISUALIZATION ONLY</b> — has no effect on SLAM. The FAST-LIO map and RTABMap occupancy grid still use the full cloud regardless of this setting.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-minor">minor</span> One filter pass per cloud.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic z_max 0.5 to ceiling-height</span>
+      <span class="test-step">In Foxglove add <code>/cloud_viz_clipped</code> as PointCloud2 with <code>display frame: camera_init</code>. Position camera above. Slide viz_z_max from 3 m down to 0.5 m — the ceiling and fan disappear, you see a clean floor plan.</span>
+    </div>
+  </div>
+</div>
+
+</div><!-- /cards -->
+
+<!-- ============================================================ -->
+<h2 class="section-title">Drive bridge
+    <span class="tag tnav">launch/yahboom.launch.py</span>
+</h2>
+<div class="cards">
+
+<!-- Yahboom Card 1: speeds -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">Yahboom: max_vx · max_vy · max_wz</span>
+    <span class="paramFile">launch/yahboom.launch.py</span>
+    <span class="paramDesc">Hardware-side velocity saturation on the Yahboom controller. Caps the actual motor command regardless of what Nav2 publishes on <code>/cmd_vel</code>.</span>
+    <div class="modes"><span class="mode-chip mode-always">drive bridge</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>max_vx</label><input type="range" id="ymx-v" min="0.1" max="2.0" step="0.05" value="0.5" data-unit=" m/s" data-precision="2"><span class="val" id="ymx-vVal">0.50 m/s</span></div>
+    <div class="slider-row"><label>max_vy</label><input type="range" id="ymy-v" min="0" max="2.0" step="0.05" value="0.3" data-unit=" m/s" data-precision="2"><span class="val" id="ymy-vVal">0.30 m/s</span></div>
+    <div class="slider-row"><label>max_wz</label><input type="range" id="ymw-v" min="0.1" max="5.0" step="0.1" value="1.0" data-unit=" rad/s" data-precision="1"><span class="val" id="ymw-vVal">1.0 rad/s</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> hard cap at the bridge. Nav2 can request 2 m/s, the bridge clips to <code>max_vx</code> before sending to motors. <b>Second line of defense</b> against runaway speeds even if Nav2 config is wrong.</div>
+    <div class="ex-up">↑ <b>max_vx 1.5:</b> needed for fast outdoor mapping; rover stability becomes the constraint (not Nav2).</div>
+    <div class="ex-down">↓ <b>max_vx 0.2:</b> kid-safe / demo mode; rover crawls.</div>
+    <div class="ex-deps">🔗 <b>Belt-and-suspenders with</b> Nav2's <code>max_vel_x</code> (and <code>velocity_smoother.max_velocity</code>). Bridge cap should be ≥ Nav2 cap (so Nav2 is the limiter, not bridge).</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-none">none</span> Trivial scalar clip.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic max_vx 0.5–1.5 m/s · max_wz 1.0–2.5 rad/s</span>
+      <span class="test-step">Manually publish a too-fast cmd_vel: <code>ros2 topic pub /cmd_vel geometry_msgs/Twist '{linear: {x: 5.0}}'</code>. Measure actual rover speed — should clip to max_vx, not 5 m/s.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Yahboom Card 2: cmd_timeout + car_type -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">Yahboom: cmd_timeout · car_type</span>
+    <span class="paramFile">launch/yahboom.launch.py</span>
+    <span class="paramDesc">Watchdog + platform model. <code>cmd_timeout</code> = how long to keep the last cmd_vel alive after no new message (safety stop). <code>car_type</code> = vehicle model: 1=X3 mecanum, 2=X3 PLUS, 4=X1, 5=R2.</span>
+    <div class="modes"><span class="mode-chip mode-always">drive bridge</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>cmd_timeout</label><input type="range" id="yct-v" min="0.05" max="3.0" step="0.05" value="0.5" data-unit=" s" data-precision="2"><span class="val" id="yct-vVal">0.50 s</span></div>
+    <div class="slider-row" style="grid-template-columns: 80px 1fr 100px"><label>car_type</label><select id="yctype-v" style="background:#1e293b; color:#cbd5e1; border:1px solid #334155; padding:4px"><option value="1" selected>1 - X3 mecanum</option><option value="2">2 - X3 PLUS</option><option value="4">4 - X1</option><option value="5">5 - R2</option></select><span class="val" id="yctype-vVal">X3 mecanum</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> safety stop timing and kinematic model. <code>cmd_timeout 0.5 s</code> means if /cmd_vel stops arriving, rover halts within 500 ms.</div>
+    <div class="ex-up">↑ <b>cmd_timeout 2 s:</b> useful for unreliable wifi; rover keeps coasting instead of stopping at every dropout. <b>Risk: collision while disconnected.</b></div>
+    <div class="ex-down">↓ <b>cmd_timeout 0.1 s:</b> very aggressive safety stop; jerky during normal Nav2 operation if the controller has small hiccups.</div>
+    <div class="ex-deps">⚠ <b>car_type MUST match the actual hardware.</b> Wrong car_type sends the wrong wheel mixing math — robot drives in unexpected directions or refuses to strafe. Mecanum (1) and PLUS (2) have different wheelbase constants.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-none">none</span></div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic cmd_timeout 0.3–1.0 s</span>
+      <span class="test-step">Send a sustained <code>cmd_vel</code>, then stop publishing. Stopwatch the time to motor cutoff. At cmd_timeout 0.5 s, rover halts ~0.5 s after last command.</span>
+      <span class="test-step">Set car_type:2 on an X3 mecanum and observe: strafe commands produce unexpected rotation (wrong wheel mix).</span>
+    </div>
+  </div>
+</div>
+
+<!-- Yahboom Card 3: invert axes + serial -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">Yahboom: invert_vx · invert_vy · serial_port</span>
+    <span class="paramFile">launch/yahboom.launch.py</span>
+    <span class="paramDesc">Hardware-frame correction. The Yahboom controller's <b>+X</b> doesn't always match the URDF's <b>+X</b>; this config inverts the commanded axes so Nav2's "forward" matches the rover's actual forward.</span>
+    <div class="modes"><span class="mode-chip mode-always">drive bridge</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="toggle-row"><input type="checkbox" id="yivx-v" checked><label for="yivx-v">invert_vx</label></div>
+    <div class="toggle-row"><input type="checkbox" id="yivy-v" checked><label for="yivy-v">invert_vy</label></div>
+    <div class="slider-row" style="grid-template-columns: 80px 1fr 100px"><label>port</label><span style="color:#cbd5e1; font-family:'JetBrains Mono', monospace; font-size: 11px; padding: 4px 8px; background: rgba(30,41,59,0.6); border-radius: 4px;">auto (/dev/myserial)</span><span class="val">default</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> axis inversions at the bridge. <code>invert_vx=true</code>: a +x cmd_vel from Nav2 becomes -x at the motor. Required when the controller board is mounted backwards relative to base_link.</div>
+    <div class="ex-up">↑ <b>Toggle invert_vx/vy</b> until "drive forward" command actually drives forward in base_link. <b>Project memory: defaults are true/true</b> for the current Yahboom YB-ERF01 board orientation.</div>
+    <div class="ex-down">↓ <b>Both false:</b> rover drives in the opposite direction Nav2 wants. Diagnostic: send a small +x cmd_vel and watch which way the rover goes.</div>
+    <div class="ex-deps">⚠ <b>CRITICAL:</b> these MUST be set correctly or all SLAM mapping is wrong (rover drives east while map says it's driving west). Per <code>project_mecanum_chassis_yaw.md</code>, fix is here, NOT by rotating base_link in URDF.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-none">none</span> Just sign flips.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic: set once per platform</span>
+      <span class="test-step">Lay a tape arrow on the floor pointing "+X" (forward in URDF). Send <code>ros2 topic pub /cmd_vel geometry_msgs/Twist '{linear: {x: 0.2}}' --once</code>. Rover should drive along the arrow. If reverse, toggle invert_vx.</span>
+      <span class="test-step">Repeat for +Y (mecanum strafe) — should match URDF Y axis.</span>
+      <span class="test-step">Once correct, lock these values. Changing them later silently breaks every saved map.</span>
+    </div>
+    <div class="ex-cross">🔄 <b>Cross-device:</b> every drive controller has this issue.
+      <div style="margin-top:4px">
+        <span class="device-tag">Sabertooth (DIP-switch reversal)</span>
+        <span class="device-tag">VESC (motor direction in firmware)</span>
+        <span class="device-tag">ODrive (encoder direction)</span>
+        <span class="device-tag">Roboteq (config flag)</span>
+      </div>
+      <span class="test-step" style="margin-top:6px">If you swap to a different motor controller, replicate the "tape arrow test" before trusting any SLAM output.</span>
+    </div>
+  </div>
+</div>
+
+</div><!-- /cards -->
+
 </div><!-- /wrap -->
 
 <script>
