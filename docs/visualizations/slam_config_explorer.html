@@ -602,6 +602,34 @@ h1 .sub { color: #67e8f9; }
   </div>
 </div>
 
+<!-- Card 8b: obstacle persistence (dynamic obstacles / people clearing) -->
+<div class="card">
+  <div class="card-head">
+    <span class="paramName">obstacle_max_range · raytrace_max_range · observation_persistence</span>
+    <span class="paramFile">config/nav2_params_2d.yaml:222–235</span>
+    <span class="paramDesc">How the costmap forgets obstacles that have moved. Every scan <b>marks</b> hit cells as occupied AND <b>raytraces</b> along the ray to clear cells the laser passed through. People, pets, doors swinging — anything dynamic relies on this loop.</span>
+    <div class="modes">
+      <span class="mode-chip mode-nav">Nav2 only</span>
+      <span class="mode-chip mode-loc">localization + nav2:=true</span>
+    </div>
+  </div>
+  <canvas data-card="persist" height="220"></canvas>
+  <div class="stat" id="stat-persist">—</div>
+  <div class="card-controls">
+    <div class="slider-row"><label>time</label><input type="range" id="pers-t" min="0" max="9.5" step="0.1" value="4.0"><span class="val" id="pers-tVal">4.0 s</span></div>
+    <div class="slider-row"><label>persist</label><input type="range" id="pers-p" min="0" max="5" step="0.1" value="0.0"><span class="val" id="pers-pVal">0.0 s</span></div>
+    <div class="slider-row"><label>obs_max</label><input type="range" id="pers-om" min="1" max="20" step="0.5" value="10"><span class="val" id="pers-omVal">10.0 m</span></div>
+    <div class="slider-row"><label>raytrace</label><input type="range" id="pers-rt" min="1" max="20" step="0.5" value="15"><span class="val" id="pers-rtVal">15.0 m</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> scrub <b>time</b> to walk a person across the room. Red blocks = obstacle cells currently in the costmap. Faded red = lingering cells (kept alive by <code>observation_persistence</code>). Green raytrace lines = the ray clearing path on the current scan.</div>
+    <div class="ex-up">↑ <b>Raise observation_persistence:</b> stale cells stick around longer. Useful for slow-moving objects (a paused person you don't want to drive into), bad for actually-gone obstacles (a closed door now open).</div>
+    <div class="ex-down">↓ <b>Default 0.0 s</b> = instant clearing the moment a ray passes through the cell. The rover reacts the fastest, but a brief sensor dropout can flicker obstacles in and out.</div>
+    <div class="ex-deps">🔗 <b>Convention:</b> <code>raytrace_max_range</code> ≥ <code>obstacle_max_range</code> so the clearing buffer reaches past the marking buffer (15 ≥ 10 here ✓). If you flip them, you can add obstacles you can never clear. <b>Only set on local_costmap</b> — global_costmap intentionally omits the obstacle_layer (line 266 comment) so the saved slam_toolbox map stays the source of truth for static structure.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-minor">minor</span> Marking + raytracing run every scan but are O(scan_rays) — same work whether the rays go 5 m or 20 m (the ray is followed cell-by-cell until it hits its hit point or max range). Persistence buffer is per-cell metadata, O(1) lookup. Maxing all three has negligible CPU cost; the real risk is making the costmap visually wrong (phantoms or missed obstacles).</div>
+  </div>
+</div>
+
 <!-- Card 9: goal tolerances -->
 <div class="card">
   <div class="card-head">
@@ -1667,6 +1695,155 @@ function drawScanRays(ctx, P, ranges, color) {
         stat.innerHTML = `cost = exp(-${K.toFixed(1)} · (d - 0.18)) · open corridor at y=1.5 m: <b>${openW.toFixed(2)} m</b>`;
     }
     [eR,eK].forEach(e=>e.addEventListener('input', draw));
+    window.addEventListener('resize', draw); draw();
+})();
+
+// ============================================================
+// Card 8b: obstacle persistence
+// ============================================================
+(function() {
+    const cv = document.querySelector('[data-card=persist]');
+    if (!cv) return;
+    const stat = document.getElementById('stat-persist');
+    const eT  = document.getElementById('pers-t');
+    const eP  = document.getElementById('pers-p');
+    const eOM = document.getElementById('pers-om');
+    const eRT = document.getElementById('pers-rt');
+    const vT  = document.getElementById('pers-tVal');
+    const vP  = document.getElementById('pers-pVal');
+    const vOM = document.getElementById('pers-omVal');
+    const vRT = document.getElementById('pers-rtVal');
+
+    // Person walks across the room at ~0.35 m/s from x=-2 to x=2 at y=0.3,
+    // then exits the room (off-canvas) after t≈9.
+    function personPos(t) {
+        if (t > 9) return null;       // gone
+        return { x: -2.0 + t * 0.42, y: 0.3 };
+    }
+    // We pretend lidar scans every 0.1s and the costmap snapshots each one.
+
+    function draw() {
+        const { ctx, w, h } = fitDPR(cv);
+        const t   = +eT.value;
+        const per = +eP.value;
+        const om  = +eOM.value;
+        const rt  = +eRT.value;
+        vT.textContent  = t.toFixed(1) + ' s';
+        vP.textContent  = per.toFixed(1) + ' s';
+        vOM.textContent = om.toFixed(1) + ' m';
+        vRT.textContent = rt.toFixed(1) + ' m';
+
+        ctx.clearRect(0,0,w,h); ctx.fillStyle='#050510'; ctx.fillRect(0,0,w,h);
+        const { s, P } = mkTopProjection(w, h);
+        drawRoomOutline(ctx, P);
+
+        const o = P(0, 0);
+
+        // Find all person positions in [t - per, t] sampled at 0.1s, plus the
+        // current one. Each represents a past scan that marked obstacle cells.
+        // Older cells stay alive only if (t - tau) ≤ observation_persistence.
+        const lingering = [];
+        for (let tau = Math.max(0, t - per - 0.01); tau <= t - 0.01; tau += 0.1) {
+            const p = personPos(tau);
+            if (!p) continue;
+            const range = Math.hypot(p.x, p.y);
+            if (range > om) continue;            // outside obstacle_max_range — never marked
+            lingering.push({ pos: p, age: t - tau });
+        }
+        const current = personPos(t);
+        const currentRange = current ? Math.hypot(current.x, current.y) : Infinity;
+        const currentInRange = current && currentRange <= om;
+
+        // Draw lingering obstacle cells with age-faded red
+        for (const item of lingering) {
+            const c = P(item.pos.x, item.pos.y);
+            const alpha = 0.65 * (1 - item.age / Math.max(per, 0.0001));
+            ctx.fillStyle = `rgba(248, 113, 113, ${alpha})`;
+            ctx.fillRect(c.x - 6, c.y - 6, 12, 12);
+        }
+
+        // Current scan's ray to wherever the person is
+        if (current) {
+            const cp = P(current.x, current.y);
+            const reach = Math.min(rt, currentRange);
+            const tipX = reach * Math.cos(Math.atan2(current.y, current.x));
+            const tipY = reach * Math.sin(Math.atan2(current.y, current.x));
+            const tip = P(tipX, tipY);
+            // Clearing ray (green) — what the lidar can raytrace through
+            ctx.strokeStyle = currentInRange ? 'rgba(134, 239, 172, 0.6)'
+                                             : 'rgba(134, 239, 172, 0.25)';
+            ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]);
+            ctx.beginPath(); ctx.moveTo(o.x, o.y); ctx.lineTo(tip.x, tip.y); ctx.stroke();
+            ctx.setLineDash([]);
+
+            // The clearing ray passes through every lingering cell along it.
+            // If observation_persistence == 0, those cells get cleared NOW.
+            // Otherwise, they survive until they're older than `per`.
+            // We've already filtered lingering[] by age, so what remains is
+            // what would still be in the costmap.
+
+            // Person dot — current position
+            if (currentInRange) {
+                ctx.fillStyle = '#f87171';
+                ctx.beginPath(); ctx.arc(cp.x, cp.y, 7, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#0f172a';
+                ctx.font = 'bold 9px JetBrains Mono';
+                ctx.textAlign = 'center';
+                ctx.fillText('P', cp.x, cp.y + 3);
+                ctx.textAlign = 'left';
+            } else {
+                // Out of range — sensor doesn't see them, no new mark
+                ctx.strokeStyle = '#f87171'; ctx.lineWidth = 1.5;
+                ctx.setLineDash([2, 3]);
+                ctx.beginPath(); ctx.arc(cp.x, cp.y, 7, 0, Math.PI*2); ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = '#64748b';
+                ctx.font = '9px JetBrains Mono';
+                ctx.fillText('beyond obs_max', cp.x + 10, cp.y + 4);
+            }
+        } else {
+            ctx.fillStyle = '#64748b';
+            ctx.font = '10px JetBrains Mono';
+            ctx.fillText('person has left the room', w/2 - 80, 20);
+        }
+
+        // Obs_max ring (yellow) + raytrace_max ring (faint green)
+        ctx.strokeStyle = '#facc15'; ctx.setLineDash([3, 3]);
+        ctx.beginPath(); ctx.arc(o.x, o.y, om * s, 0, Math.PI*2); ctx.stroke();
+        ctx.strokeStyle = 'rgba(134, 239, 172, 0.5)'; ctx.setLineDash([5, 4]);
+        ctx.beginPath(); ctx.arc(o.x, o.y, rt * s, 0, Math.PI*2); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#facc15';
+        ctx.font = '9px JetBrains Mono';
+        ctx.fillText('obs_max ' + om.toFixed(0) + ' m', o.x + om*s - 12, o.y - 4);
+        ctx.fillStyle = 'rgba(134, 239, 172, 0.8)';
+        ctx.fillText('raytrace ' + rt.toFixed(0) + ' m', o.x + rt*s - 14, o.y + 14);
+
+        drawRobot(ctx, P);
+
+        // Stats line — explain the state in plain English
+        const cellCount = lingering.length + (currentInRange ? 1 : 0);
+        const oldestAge = lingering.length ? Math.max(...lingering.map(l => l.age)) : 0;
+        const orderOK = rt >= om;
+        let summary;
+        if (!current) {
+            summary = lingering.length === 0
+              ? '<span class="ok">person gone, costmap clear</span>'
+              : `<span class="warn">person gone but ${lingering.length} stale cells linger ${oldestAge.toFixed(1)} s</span>`;
+        } else if (!currentInRange) {
+            summary = '<span class="warn">person outside obs_max — not being marked</span>';
+        } else if (per === 0) {
+            summary = '<span class="ok">instant clearing — only current position marked</span>';
+        } else {
+            summary = `<span class="warn">trail of ${lingering.length} stale cells (oldest ${oldestAge.toFixed(1)} s)</span>`;
+        }
+        stat.innerHTML =
+            summary + ' · ' +
+            `<b>${cellCount}</b> obstacle cells · ` +
+            (orderOK ? '<span class="ok">raytrace ≥ obs_max ✓</span>'
+                     : '<span class="bad">raytrace &lt; obs_max — uncleared phantoms</span>');
+    }
+    [eT, eP, eOM, eRT].forEach(e => e.addEventListener('input', draw));
     window.addEventListener('resize', draw); draw();
 })();
 
