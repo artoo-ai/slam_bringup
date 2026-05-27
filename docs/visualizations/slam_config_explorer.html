@@ -2,25 +2,51 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>SLAM Config Explorer — see what each parameter does to the data</title>
+<title>SLAM Config Explorer — Make or Code</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Audiowide&family=JetBrains+Mono:wght@400;500;600;700&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
 <style>
+/* ─────────────────────────────────────────────────────────────
+   Make or Code brand atoms
+   ───────────────────────────────────────────────────────────── */
+:root {
+    --brand-pink:   #ff3d7f;
+    --brand-blue:   #00b8ff;
+    --brand-purple: #7a2dff;
+    --brand-bg:     #0a0a14;
+    --brand-bg-2:   #140820;
+    --font-display:     'Audiowide', 'Orbitron', sans-serif;
+    --font-display-alt: 'Orbitron', 'Audiowide', sans-serif;
+    --font-ui:          'JetBrains Mono', 'Fira Mono', monospace;
+}
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
-    background: #0a0a1a;
+    background:
+        radial-gradient(ellipse at top, var(--brand-bg-2) 0%, var(--brand-bg) 60%),
+        var(--brand-bg);
+    background-attachment: fixed;
     color: #e2e8f0;
-    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-family: var(--font-ui);
     min-height: 100vh;
     padding: 32px 16px 80px;
 }
 .wrap { max-width: 1480px; margin: 0 auto; }
 
 h1 {
-    font-size: 28px;
-    font-weight: 600;
-    color: #f1f5f9;
+    font-family: var(--font-display);
+    font-size: 42px;
+    font-weight: 400;
+    color: var(--brand-pink);
+    letter-spacing: 0.04em;
     margin-bottom: 8px;
+    text-transform: uppercase;
+    text-shadow: 0 0 24px rgba(255, 61, 127, 0.35);
 }
-h1 .sub { color: #67e8f9; }
+h1 .sub {
+    color: var(--brand-blue);
+    text-shadow: 0 0 24px rgba(0, 184, 255, 0.45);
+}
 .lede {
     color: #94a3b8;
     font-size: 14px;
@@ -29,12 +55,15 @@ h1 .sub { color: #67e8f9; }
     max-width: 1000px;
 }
 .section-title {
-    font-size: 20px;
-    font-weight: 600;
+    font-family: var(--font-display-alt);
+    font-size: 22px;
+    font-weight: 700;
     color: #f1f5f9;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
     margin: 36px 0 14px;
-    border-bottom: 1px solid #334155;
-    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(122, 45, 255, 0.4);
+    padding-bottom: 10px;
     display: flex;
     align-items: center;
     gap: 12px;
@@ -47,9 +76,9 @@ h1 .sub { color: #67e8f9; }
     letter-spacing: 0.5px;
     text-transform: uppercase;
 }
-.tag.t2d { background: #14532d; color: #bbf7d0; }
-.tag.t3d { background: #7f1d1d; color: #fecaca; }
-.tag.tnav { background: #1e3a8a; color: #bfdbfe; }
+.tag.t2d  { background: rgba(0, 184, 255, 0.18);  color: #7fdbff;  border: 1px solid rgba(0, 184, 255, 0.4); }
+.tag.t3d  { background: rgba(255, 61, 127, 0.18); color: #ffb3cd;  border: 1px solid rgba(255, 61, 127, 0.4); }
+.tag.tnav { background: rgba(122, 45, 255, 0.18); color: #c4a8ff;  border: 1px solid rgba(122, 45, 255, 0.45); }
 
 .cards {
     display: grid;
@@ -58,13 +87,14 @@ h1 .sub { color: #67e8f9; }
 }
 
 .card {
-    background: rgba(15, 23, 42, 0.7);
-    border: 1px solid #334155;
+    background: rgba(15, 16, 28, 0.85);
+    border: 1px solid rgba(122, 45, 255, 0.25);
     border-radius: 10px;
     padding: 14px;
     display: flex;
     flex-direction: column;
     gap: 10px;
+    box-shadow: 0 0 0 1px rgba(0, 184, 255, 0.04), 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 .card-head {
     display: flex;
@@ -73,7 +103,7 @@ h1 .sub { color: #67e8f9; }
 }
 .card-head .paramName {
     font-family: 'JetBrains Mono', 'Fira Mono', monospace;
-    color: #67e8f9;
+    color: #00b8ff;
     font-size: 13px;
     font-weight: 600;
 }
@@ -143,19 +173,19 @@ h1 .sub { color: #67e8f9; }
     color: #cbd5e1;
     padding: 6px 10px;
     margin-top: 4px;
-    border-left: 2px solid #14b8a6;
-    background: rgba(20, 184, 166, 0.06);
+    border-left: 2px solid var(--brand-purple);
+    background: rgba(122, 45, 255, 0.07);
     border-radius: 4px;
 }
-.ex-cross b { color: #5eead4; }
+.ex-cross b { color: #c4a8ff; }
 .ex-cross code { font-size: 10px; }
 .device-tag {
     display: inline-block;
     font-family: 'JetBrains Mono', monospace;
     font-size: 9px;
-    background: rgba(20, 184, 166, 0.18);
-    border: 1px solid #14b8a6;
-    color: #99f6e4;
+    background: rgba(122, 45, 255, 0.18);
+    border: 1px solid rgba(122, 45, 255, 0.55);
+    color: #d4c0ff;
     padding: 1px 5px;
     border-radius: 3px;
     margin: 1px 2px;
@@ -165,17 +195,16 @@ h1 .sub { color: #67e8f9; }
 .ex-test {
     color: #cbd5e1;
     padding-top: 4px;
-    border-top: 1px dashed #1e293b;
     margin-top: 4px;
-    background: rgba(67, 56, 202, 0.06);
+    background: rgba(255, 61, 127, 0.06);
     padding: 8px 10px;
     border-radius: 4px;
-    border-left: 2px solid #818cf8;
+    border-left: 2px solid var(--brand-pink);
 }
-.ex-test b { color: #c4b5fd; }
+.ex-test b { color: #ffb3cd; }
 .ex-test code { font-size: 10px; }
 .ex-test .test-range {
-    color: #93c5fd;
+    color: var(--brand-blue);
     font-weight: 600;
 }
 .ex-test .test-step {
@@ -187,7 +216,7 @@ h1 .sub { color: #67e8f9; }
 }
 .ex-test .test-step::before {
     content: "▸ ";
-    color: #818cf8;
+    color: var(--brand-pink);
 }
 
 /* Slim cards: parameters without a custom canvas (internal tuning) */
@@ -227,11 +256,11 @@ h1 .sub { color: #67e8f9; }
 }
 .slider-row label { color: #94a3b8; }
 .slider-row .val {
-    color: #67e8f9;
+    color: #00b8ff;
     text-align: right;
 }
 .slider-row input[type=range] {
-    accent-color: #67e8f9;
+    accent-color: #00b8ff;
     width: 100%;
 }
 .slider-row .default-hint,
@@ -322,7 +351,7 @@ h1 .sub { color: #67e8f9; }
 }
 .compare-table td code {
     background: rgba(30, 41, 59, 0.6);
-    color: #67e8f9;
+    color: #00b8ff;
     padding: 1px 4px;
     border-radius: 3px;
     font-family: 'JetBrains Mono', monospace;
@@ -353,7 +382,7 @@ h1 .sub { color: #67e8f9; }
 .card-explain b { color: #f1f5f9; }
 .card-explain code {
     background: rgba(30, 41, 59, 0.6);
-    color: #67e8f9;
+    color: #00b8ff;
     padding: 1px 4px;
     border-radius: 3px;
     font-family: 'JetBrains Mono', monospace;
@@ -880,7 +909,7 @@ h1 .sub { color: #67e8f9; }
       <td><b>"Is this point even a real obstacle, or is it the rover hitting itself?"</b> Filters out sensor returns from the rover's own bumper, fixture, antennas. Has nothing to do with planning.</td>
     </tr>
     <tr>
-      <td><span class="ring-dot" style="background:#67e8f933; border-color:#67e8f9"></span><code>robot_radius</code></td>
+      <td><span class="ring-dot" style="background:#00b8ff33; border-color:#00b8ff"></span><code>robot_radius</code></td>
       <td>Nav2 costmap<br><span style="color:#64748b">(LETHAL inflation)</span></td>
       <td><span style="color:#fca5a5">HARD forbid</span><br>(cells inside this distance of any obstacle = LETHAL → planner refuses)</td>
       <td><b>"How big am I, physically?"</b> Any cell whose center is within <code>robot_radius</code> of an obstacle is treated as if the robot is crashing into it. The planner won't put the robot's center there. <b>Match the actual bumper.</b></td>
@@ -2681,7 +2710,7 @@ function drawScanRays(ctx, P, ranges, color) {
         }
         for (const k of keys) {
             const pt = P(k.x, k.y);
-            ctx.fillStyle = '#67e8f9';
+            ctx.fillStyle = '#00b8ff';
             ctx.beginPath(); ctx.arc(pt.x, pt.y, 3, 0, Math.PI*2); ctx.fill();
         }
         stat.innerHTML = `traj ${totalL.toFixed(2)} m · <b>${keys.length}</b> keyframes · ${(totalL/keys.length).toFixed(2)} m avg spacing`;
@@ -2731,7 +2760,7 @@ function drawScanRays(ctx, P, ranges, color) {
         // keyframes
         for (const k of keys) {
             const pt = P(k.x, k.y);
-            ctx.fillStyle = '#67e8f9';
+            ctx.fillStyle = '#00b8ff';
             ctx.beginPath(); ctx.arc(pt.x, pt.y, 2.5, 0, Math.PI*2); ctx.fill();
         }
         // loop closures: pairs of keyframes whose Euclidean distance < d
@@ -2911,7 +2940,7 @@ function drawScanRays(ctx, P, ranges, color) {
                     // lethal cells: solid cyan-ish (robot_radius zone)
                     // inflated cells: red gradient
                     if (best >= 0.99) {
-                        ctx.fillStyle = 'rgba(103, 232, 249, 0.55)';
+                        ctx.fillStyle = 'rgba(0, 184, 255, 0.55)';
                     } else {
                         ctx.fillStyle = `rgba(248, 113, 113, ${best * 0.5})`;
                     }
@@ -2955,7 +2984,7 @@ function drawScanRays(ctx, P, ranges, color) {
         }
 
         // --- Ring 2: robot_radius (hard forbidden) — drawn as outline ---
-        ctx.strokeStyle = '#67e8f9'; ctx.lineWidth = 2;
+        ctx.strokeStyle = '#00b8ff'; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(o.x, o.y, rr * s, 0, Math.PI*2); ctx.stroke();
 
         // Rover dot
@@ -2975,7 +3004,7 @@ function drawScanRays(ctx, P, ranges, color) {
         }
         leader(0, -rMin, o.x - rMin*s - 60, o.y + rMin*s + 24, '#facc15',
                `range_min ${rMin.toFixed(2)} m`);
-        leader(rr*0.71, -rr*0.71, o.x + rr*s + 22, o.y - rr*s - 8, '#67e8f9',
+        leader(rr*0.71, -rr*0.71, o.x + rr*s + 22, o.y - rr*s - 8, '#00b8ff',
                `robot_radius ${rr.toFixed(2)} m`);
         // inflation arrow originates near the wall
         const infX = wallX - rr - inf*0.5;
@@ -3031,7 +3060,7 @@ function drawScanRays(ctx, P, ranges, color) {
         const o = P(ox, oy);
         ctx.fillStyle = '#f87171';
         ctx.beginPath(); ctx.arc(o.x, o.y, 4, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = '#67e8f9'; ctx.lineWidth = 1.5;
+        ctx.strokeStyle = '#00b8ff'; ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.arc(o.x, o.y, r*s, 0, Math.PI*2); ctx.stroke();
         // path through doorway
         const px0=P(0,1.5), px1=P(0, door.y), px2=P(0,-2);
@@ -3366,13 +3395,13 @@ function drawScanRays(ctx, P, ranges, color) {
         // velocity arrow at origin
         const o = P(0,0);
         const armLen = vx * s;
-        ctx.strokeStyle = '#67e8f9'; ctx.lineWidth = 2;
+        ctx.strokeStyle = '#00b8ff'; ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(o.x, o.y);
         ctx.lineTo(o.x + armLen, o.y);
         ctx.stroke();
         // arrowhead
-        ctx.fillStyle = '#67e8f9';
+        ctx.fillStyle = '#00b8ff';
         ctx.beginPath();
         ctx.moveTo(o.x + armLen, o.y);
         ctx.lineTo(o.x + armLen - 5, o.y - 4);
@@ -3419,7 +3448,7 @@ function drawScanRays(ctx, P, ranges, color) {
             if (p.self && inBlind) color = 'rgba(134, 239, 172, 0.7)'; // self filtered (good)
             else if (p.self) color = 'rgba(248, 113, 113, 0.7)';        // self surviving (bad)
             else if (inBlind) color = 'rgba(252, 211, 77, 0.5)';        // real obstacle lost (warn)
-            else color = 'rgba(103, 232, 249, 0.85)';                   // real obstacle kept
+            else color = 'rgba(0, 184, 255, 0.85)';                   // real obstacle kept
             ctx.fillStyle = color;
             ctx.beginPath(); ctx.arc(pt.x, pt.y, p.self?2:1.1, 0, Math.PI*2); ctx.fill();
         }
@@ -3558,7 +3587,7 @@ function drawScanRays(ctx, P, ranges, color) {
         }
         ctx.stroke();
         // ICP-corrected (smoothed by ac — higher ac means ICP corrects fast motion)
-        ctx.strokeStyle = '#67e8f9'; ctx.lineWidth = 2;
+        ctx.strokeStyle = '#00b8ff'; ctx.lineWidth = 2;
         ctx.beginPath();
         seed = 1234;
         const rng2 = () => { seed = (seed*1103515245+12345) & 0x7fffffff; return (seed/0x7fffffff)*2-1; };
@@ -3577,7 +3606,7 @@ function drawScanRays(ctx, P, ranges, color) {
         ctx.fillText('— truth', t0+4, b1+10);
         ctx.fillStyle = '#60a5fa';
         ctx.fillText('— IMU only', t0+4, b1+22);
-        ctx.fillStyle = '#67e8f9';
+        ctx.fillStyle = '#00b8ff';
         ctx.fillText('— ICP+IMU fused', t0+4, b1+34);
         ctx.fillStyle = '#64748b';
         ctx.fillText('0s', t0, b0+12);
