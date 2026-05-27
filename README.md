@@ -7,6 +7,7 @@ Portable sensor-rig SLAM stack for ROS2 Humble. One NVIDIA Jetson Orin Nano Supe
 - **[docs/scripts/](docs/scripts/README.md)** — per-script reference. Every `start_*.sh` has a dedicated page with parameters, defaults, dependency chain, and "when to override" guidance. Look here when you want to know what a specific script does or which arg to flip.
 - **[docs/troubleshooting.md](docs/troubleshooting.md)** — issue-by-issue guide indexed by symptom. Every problem we've actually hit on this stack has an entry with diagnosis commands and the exact fix. Search here before fresh debugging.
 - **[docs/map_export.md](docs/map_export.md)** — exporting `~/.ros/rtabmap.db` to PLY/PCD/etc. and viewing in CloudCompare, MeshLab, Open3D, Foxglove, RViz, or Potree.
+- **[docs/visualizations/](docs/visualizations/README.md)** — interactive HTML pages that explain how the stack actually behaves. `slam_config_explorer.html` is an interactive tuning playground for every config parameter (with mode applicability, dependencies, and compute-cost chips); `slam_2d_vs_3d.html` explains why the 2D path works where the 3D one stalled.
 - **[PLAN.md](PLAN.md)** — phase-by-phase architecture plan and task checklist.
 - **[TEST_PLAN.md](TEST_PLAN.md)** — Phase 1.6 / Phase 2 hardware validation tests.
 - **[docs/](docs/)** — long-form notes (`first_rtabmap_run.md`, `test_fixture.md`).

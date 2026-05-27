@@ -1,0 +1,2089 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SLAM Config Explorer — see what each parameter does to the data</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    background: #0a0a1a;
+    color: #e2e8f0;
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    padding: 32px 16px 80px;
+}
+.wrap { max-width: 1480px; margin: 0 auto; }
+
+h1 {
+    font-size: 28px;
+    font-weight: 600;
+    color: #f1f5f9;
+    margin-bottom: 8px;
+}
+h1 .sub { color: #67e8f9; }
+.lede {
+    color: #94a3b8;
+    font-size: 14px;
+    line-height: 1.6;
+    margin-bottom: 28px;
+    max-width: 1000px;
+}
+.section-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: #f1f5f9;
+    margin: 36px 0 14px;
+    border-bottom: 1px solid #334155;
+    padding-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.section-title .tag {
+    font-size: 10px;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+.tag.t2d { background: #14532d; color: #bbf7d0; }
+.tag.t3d { background: #7f1d1d; color: #fecaca; }
+.tag.tnav { background: #1e3a8a; color: #bfdbfe; }
+
+.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 16px;
+}
+
+.card {
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.card-head {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.card-head .paramName {
+    font-family: 'JetBrains Mono', 'Fira Mono', monospace;
+    color: #67e8f9;
+    font-size: 13px;
+    font-weight: 600;
+}
+.card-head .paramFile {
+    font-family: 'JetBrains Mono', monospace;
+    color: #64748b;
+    font-size: 10px;
+}
+.card-head .paramDesc {
+    color: #cbd5e1;
+    font-size: 12px;
+    margin-top: 4px;
+    line-height: 1.5;
+}
+.modes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+.mode-chip {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 3px;
+    border: 1px solid;
+}
+.mode-mapping { background: rgba(20, 83, 45, 0.25);  color: #86efac; border-color: #166534; }
+.mode-loc     { background: rgba(30, 58, 138, 0.25); color: #93c5fd; border-color: #1e40af; }
+.mode-nav     { background: rgba(67, 56, 202, 0.25); color: #c4b5fd; border-color: #4338ca; }
+.mode-3d      { background: rgba(127, 29, 29, 0.25); color: #fca5a5; border-color: #991b1b; }
+.mode-always  { background: rgba(30, 41, 59, 0.6);   color: #cbd5e1; border-color: #475569; }
+.ex-deps {
+    color: #cbd5e1;
+    padding-top: 4px;
+    border-top: 1px dashed #1e293b;
+    margin-top: 4px;
+}
+.ex-deps code { font-size: 10px; }
+.ex-cost {
+    color: #cbd5e1;
+    padding-top: 2px;
+}
+.ex-cost code { font-size: 10px; }
+.cost-chip {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 3px;
+    margin: 0 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    border: 1px solid;
+    vertical-align: 1px;
+}
+.cost-none        { background: rgba(30, 41, 59, 0.6);   color: #94a3b8; border-color: #475569; }
+.cost-minor       { background: rgba(20, 83, 45, 0.3);   color: #86efac; border-color: #166534; }
+.cost-moderate    { background: rgba(120, 53, 15, 0.3);  color: #fcd34d; border-color: #b45309; }
+.cost-significant { background: rgba(127, 29, 29, 0.3);  color: #fca5a5; border-color: #991b1b; }
+.card canvas {
+    display: block;
+    width: 100%;
+    background: #050510;
+    border-radius: 6px;
+    border: 1px solid #1e293b;
+}
+.card-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.slider-row {
+    display: grid;
+    grid-template-columns: 78px 1fr 72px 60px;
+    gap: 6px;
+    align-items: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+}
+.slider-row label { color: #94a3b8; }
+.slider-row .val {
+    color: #67e8f9;
+    text-align: right;
+}
+.slider-row input[type=range] {
+    accent-color: #67e8f9;
+    width: 100%;
+}
+.slider-row .default-hint,
+.toggle-row .default-hint {
+    font-size: 10px;
+    color: #64748b;
+    text-align: right;
+    white-space: nowrap;
+}
+.slider-row .default-hint.match,
+.toggle-row .default-hint.match {
+    color: #86efac;
+}
+.slider-row .default-hint.diff,
+.toggle-row .default-hint.diff {
+    color: #fcd34d;
+}
+.toggle-row {
+    display: grid;
+    grid-template-columns: 18px 1fr 60px;
+    gap: 8px;
+    align-items: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #cbd5e1;
+}
+.reset-btn {
+    background: rgba(30, 41, 59, 0.6);
+    color: #94a3b8;
+    border: 1px solid #334155;
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    cursor: pointer;
+    align-self: flex-start;
+    margin-top: 2px;
+}
+.reset-btn:hover { background: #334155; color: #cbd5e1; }
+.reset-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+.global-reset {
+    margin-left: auto;
+    background: rgba(15, 23, 42, 0.7);
+    color: #cbd5e1;
+    border: 1px solid #475569;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+}
+.global-reset:hover { background: #1e293b; color: #f1f5f9; }
+
+/* Wide explainer card spans two grid columns when there's room. */
+.card.span-2 { grid-column: span 2; }
+/* Without an explicit width attribute, a canvas + CSS width:100% auto-scales
+ * its height proportional to the HTML height attr, which blows up on wider
+ * containers. Pin an explicit display height for the span-2 card so the
+ * canvas stays a reasonable aspect ratio. */
+.card.span-2 canvas {
+    max-width: 100%;
+    height: 280px;
+    object-fit: contain;
+}
+.compare-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    margin-top: 4px;
+}
+.compare-table th, .compare-table td {
+    padding: 6px 8px;
+    text-align: left;
+    border-bottom: 1px solid #1e293b;
+    vertical-align: top;
+    line-height: 1.45;
+}
+.compare-table th {
+    color: #64748b;
+    font-weight: 500;
+    text-transform: uppercase;
+    font-size: 9px;
+    letter-spacing: 0.4px;
+    background: rgba(30, 41, 59, 0.4);
+}
+.compare-table td code {
+    background: rgba(30, 41, 59, 0.6);
+    color: #67e8f9;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+}
+.compare-table .ring-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+    border: 1px solid;
+}
+.card-explain {
+    font-size: 11px;
+    line-height: 1.5;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 4px;
+    padding-top: 8px;
+    border-top: 1px dashed #1e293b;
+}
+.card-explain .ex-what  { color: #cbd5e1; }
+.card-explain .ex-up    { color: #fcd34d; }
+.card-explain .ex-down  { color: #93c5fd; }
+.card-explain b { color: #f1f5f9; }
+.card-explain code {
+    background: rgba(30, 41, 59, 0.6);
+    color: #67e8f9;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+}
+.stat {
+    font-family: 'JetBrains Mono', monospace;
+    color: #94a3b8;
+    font-size: 11px;
+    text-align: center;
+}
+.stat b { color: #cbd5e1; }
+.stat .ok  { color: #86efac; }
+.stat .warn { color: #fcd34d; }
+.stat .bad { color: #fca5a5; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<div style="display:flex; align-items:flex-start; gap:16px;">
+  <div style="flex:1">
+    <h1>SLAM Config <span class="sub">Explorer</span></h1>
+    <p class="lede">
+    Every interactive card below maps to a real parameter in this repo's
+    config files. Slide it, watch the data change, then decide whether you
+    want to push that knob up or down. The "tune up if / down if" lines at
+    the bottom of each card describe the trade-off in terms of what you'd
+    actually see on the robot — drift, missed obstacles, planner indecision,
+    CPU load. Companion to
+    <code>docs/visualizations/slam_2d_vs_3d.html</code>.
+    Each card shows the <b>project default</b> (from the YAML / launch file)
+    next to every slider — green when current = default, yellow when you've
+    moved away. Use <b>↺ Reset</b> per card, or the button on the right to
+    revert everything.
+    </p>
+  </div>
+  <button class="global-reset" id="globalReset">↺ Reset all to project defaults</button>
+</div>
+
+<!-- ============================================================ -->
+<h2 class="section-title">2D stack — sensor processing
+    <span class="tag t2d">pointcloud_to_laserscan + scan</span>
+</h2>
+<div class="cards">
+
+<!-- Card 1: Z band -->
+<div class="card">
+  <div class="card-head">
+    <span class="paramName">scan_z_min · scan_z_max</span>
+    <span class="paramFile">launch/slam_2d.launch.py:268–275</span>
+    <span class="paramDesc">Vertical slice of the 3D cloud that survives the 3D→2D projection. Everything outside is discarded.</span>
+    <div class="modes">
+      <span class="mode-chip mode-always">2D · always</span>
+      <span class="mode-chip mode-mapping">mapping</span>
+      <span class="mode-chip mode-loc">localization</span>
+    </div>
+  </div>
+  <canvas data-card="zband" height="180"></canvas>
+  <div class="stat" id="stat-zband">—</div>
+  <div class="card-controls">
+    <div class="slider-row"><label>z_min</label><input type="range" id="zband-min" min="0" max="2" step="0.01" value="0.15"><span class="val" id="zband-minVal">0.15 m</span></div>
+    <div class="slider-row"><label>z_max</label><input type="range" id="zband-max" min="0" max="2" step="0.01" value="0.45"><span class="val" id="zband-maxVal">0.45 m</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> which heights in the cloud become obstacles in <code>/scan</code>. Default 0.15–0.45 is "chair-leg height" on the rover.</div>
+    <div class="ex-up">↑ <b>Raise z_min:</b> ignore floor speckle, low cables, the rover's own wheels.</div>
+    <div class="ex-down">↓ <b>Raise z_max:</b> catch tabletops, low countertops, hanging cables. Too high and the ceiling fan joins your map.</div>
+    <div class="ex-deps">🔗 <b>Depends on:</b> sensor mount Z in <code>urdf/</code> (band is in <code>base_link</code>). Saved maps assume the band that was used during mapping — if you change it later in localization, walls may stop matching.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-minor">minor</span> <code>O(N_points_in_band)</code> in pointcloud_to_laserscan. Widening 3× costs ~1–2 ms/scan on a Jetson Orin Nano. <b>No downstream effect</b> — slam_toolbox always sees a fixed-size LaserScan (720 rays).</div>
+  </div>
+</div>
+
+<!-- Card 2: range_min / range_max -->
+<div class="card">
+  <div class="card-head">
+    <span class="paramName">scan_range_min · scan_range_max</span>
+    <span class="paramFile">launch/slam_2d.launch.py:276–283</span>
+    <span class="paramDesc">Inner + outer radial cutoff for the projected scan. Inside <code>range_min</code> = self-hits; beyond <code>range_max</code> = ignored.</span>
+    <div class="modes">
+      <span class="mode-chip mode-always">2D · always</span>
+      <span class="mode-chip mode-mapping">mapping</span>
+      <span class="mode-chip mode-loc">localization</span>
+    </div>
+  </div>
+  <canvas data-card="range" height="220"></canvas>
+  <div class="stat" id="stat-range">—</div>
+  <div class="card-controls">
+    <div class="slider-row"><label>range_min</label><input type="range" id="range-min" min="0" max="2" step="0.01" value="0.20"><span class="val" id="range-minVal">0.20 m</span></div>
+    <div class="slider-row"><label>range_max</label><input type="range" id="range-max" min="2" max="20" step="0.1" value="20.0"><span class="val" id="range-maxVal">20.0 m</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> outer ring shrinks → walls past the limit disappear from <code>/scan</code>; inner ring grows → blind disc around the rover.</div>
+    <div class="ex-up">↑ <b>Raise range_min:</b> hide the rover's own bumper, antennas, or D435 housing returns.</div>
+    <div class="ex-down">↓ <b>Lower range_max:</b> ignore noisy far hits in big rooms; can speed up scan-match at the cost of losing distant landmarks.</div>
+    <div class="ex-deps">🔗 <b>Depends on:</b> rover bumper radius (<code>range_min</code> must exceed it) and slam_toolbox's <code>max_laser_range</code> (20 m) — set <code>range_max</code> ≤ that or points get clamped. Nav2's <code>obstacle_max_range</code> (10 m) caps how far obstacles enter the costmap.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-none">none</span> Both are O(1) filters per point — the comparisons cost nothing measurable. <b>Maxing out range_max to 20 m has zero penalty</b> because the Mid-360 itself only returns ~40 m max indoors; beyond that there's no data to filter.</div>
+  </div>
+</div>
+
+<!-- Card 3: angle_increment -->
+<div class="card">
+  <div class="card-head">
+    <span class="paramName">angle_increment</span>
+    <span class="paramFile">launch/slam_2d.launch.py:334</span>
+    <span class="paramDesc">Width (rad) of one angular bin. Default 0.0087 rad ≈ 0.5° → 720 rays per scan. Coarser = aliasing.</span>
+    <div class="modes">
+      <span class="mode-chip mode-always">2D · always</span>
+      <span class="mode-chip mode-mapping">mapping</span>
+      <span class="mode-chip mode-loc">localization</span>
+    </div>
+  </div>
+  <canvas data-card="angres" height="240"></canvas>
+  <div class="stat" id="stat-angres">—</div>
+  <div class="card-controls">
+    <div class="slider-row"><label>°/bin</label><input type="range" id="angres-d" min="0.5" max="30" step="0.5" value="0.5"><span class="val" id="angres-dVal">0.5°</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> how finely the 360° around the robot is sliced. Each bin reports one min-range value.</div>
+    <div class="ex-up">↑ <b>Larger °/bin:</b> fewer rays, less CPU, but a chair leg can hide behind the wall behind it ("angular aliasing").</div>
+    <div class="ex-down">↓ <b>Smaller °/bin:</b> crisp scans (you can resolve thin obstacles), more memory + scan-match work per frame.</div>
+    <div class="ex-deps">🔗 <b>Depends on:</b> slam_toolbox's <code>correlation_search_space_resolution</code> (0.01 m) and Nav2 costmap <code>resolution</code> (0.05 m) — going finer than these is wasted detail. Mid-360's native angular resolution caps useful values around 0.3°/bin.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-significant">significant</span> <b>One of the biggest CPU knobs.</b> slam_toolbox's scan-matching cost scales <code>O(N_rays × correlation_search_steps)</code>. 0.5°/bin = 720 rays; 0.1°/bin = 3600 rays → roughly <b>5× the scan-match work per frame</b>. On the Jetson Orin Nano, going below 0.3°/bin can make the optimizer fall behind the 10 Hz scan rate. Going coarser is essentially free.</div>
+  </div>
+</div>
+
+</div><!-- /cards -->
+
+<!-- ============================================================ -->
+<h2 class="section-title">2D stack — slam_toolbox graph SLAM
+    <span class="tag t2d">config/slam_toolbox_2d.yaml</span>
+</h2>
+<div class="cards">
+
+<!-- Card 4: resolution -->
+<div class="card">
+  <div class="card-head">
+    <span class="paramName">resolution</span>
+    <span class="paramFile">config/slam_toolbox_2d.yaml:45</span>
+    <span class="paramDesc">Occupancy grid cell size (m). Smaller = sharper map but bigger files + slower raycasts.</span>
+    <div class="modes">
+      <span class="mode-chip mode-mapping">mapping</span>
+      <span class="mode-chip mode-loc">localization</span>
+    </div>
+  </div>
+  <canvas data-card="mapres" height="220"></canvas>
+  <div class="stat" id="stat-mapres">—</div>
+  <div class="card-controls">
+    <div class="slider-row"><label>cell size</label><input type="range" id="mapres-v" min="0.01" max="0.25" step="0.005" value="0.05"><span class="val" id="mapres-vVal">0.050 m</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> each pixel in the saved <code>map.pgm</code> covers this much real-world space. Same cell size must be used by Nav2.</div>
+    <div class="ex-up">↑ <b>Larger cell:</b> small map file, fast Nav2 raycasts. Doorway edges look chunky; thin obstacles vanish.</div>
+    <div class="ex-down">↓ <b>Smaller cell:</b> crisp walls, narrow doorways resolvable. Map file balloons (quadratic), planner gets slower.</div>
+    <div class="ex-deps">🔗 <b>Must match:</b> Nav2 <code>local_costmap.resolution</code> + <code>global_costmap.resolution</code> (both 0.05 m in <code>nav2_params_2d.yaml:210,264</code>). If you remap at higher res, ALSO bump those — otherwise saved maps load at the wrong scale and inflation looks wrong.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-significant">significant</span> <b>Quadratic in 1/cell</b>. Cells = (room area) ÷ cell². Halving cell size = 4× cells = 4× raycasts AND 4× inflation work AND 4× saved file size. 0.01 m on a 10×10 m room = 1M cells (vs 40k at 0.05 m). On Jetson Orin Nano, going below 0.03 m makes Nav2 raycasts noticeably laggy. <b>0.05 m is the sweet spot.</b></div>
+  </div>
+</div>
+
+<!-- Card 5: minimum_travel_distance -->
+<div class="card">
+  <div class="card-head">
+    <span class="paramName">minimum_travel_distance</span>
+    <span class="paramFile">config/slam_toolbox_2d.yaml:48</span>
+    <span class="paramDesc">Minimum motion (m) before slam_toolbox adds a new keyframe. Sparser graph = faster, but missed details.</span>
+    <div class="modes">
+      <span class="mode-chip mode-mapping">mapping only</span>
+    </div>
+  </div>
+  <canvas data-card="keyspace" height="200"></canvas>
+  <div class="stat" id="stat-keyspace">—</div>
+  <div class="card-controls">
+    <div class="slider-row"><label>distance</label><input type="range" id="keyspace-v" min="0.05" max="2.0" step="0.05" value="0.1"><span class="val" id="keyspace-vVal">0.10 m</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> spacing of red keyframe dots along the trajectory. Each keyframe is a scan that gets stored in the pose graph.</div>
+    <div class="ex-up">↑ <b>Larger distance:</b> sparse graph, fast optimizer. Loop closures may miss because the robot moved past a feature without recording it.</div>
+    <div class="ex-down">↓ <b>Smaller distance:</b> dense graph, optimizer slower, but more chances for loop closure and smoother trajectory.</div>
+    <div class="ex-deps">🔗 <b>Pairs with:</b> <code>minimum_travel_heading</code> (0.1 rad) and <code>minimum_time_interval</code> (0.2 s) — any one triggers a new keyframe. <b>No effect in localization</b> — that mode re-uses the existing graph and doesn't insert keyframes.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-moderate">moderate</span> Pose-graph optimizer cost grows with keyframe count (roughly <code>O(N · loop_candidates)</code> per optimize). Going 0.1 → 0.05 m doubles keyframe rate AND doubles loop-closure candidate work. In a long session this compounds — the slam_toolbox YAML comment recommends bumping <code>minimum_time_interval</code> to 0.5 s if the optimizer falls behind on Jetson.</div>
+  </div>
+</div>
+
+<!-- Card 6: loop closure -->
+<div class="card">
+  <div class="card-head">
+    <span class="paramName">do_loop_closing · loop_search_maximum_distance</span>
+    <span class="paramFile">config/slam_toolbox_2d.yaml:59, 64</span>
+    <span class="paramDesc">Whether to look for loop closures, and how far apart in graph distance two keyframes can be to qualify.</span>
+    <div class="modes">
+      <span class="mode-chip mode-mapping">mapping only</span>
+    </div>
+  </div>
+  <canvas data-card="loop" height="240"></canvas>
+  <div class="stat" id="stat-loop">—</div>
+  <div class="card-controls">
+    <div class="toggle-row"><input type="checkbox" id="loop-en" checked><label for="loop-en">do_loop_closing</label></div>
+    <div class="slider-row"><label>max dist</label><input type="range" id="loop-d" min="0.5" max="10" step="0.1" value="3.0"><span class="val" id="loop-dVal">3.0 m</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> green links between far-apart keyframes that close drift loops. Bigger radius catches more, but risks false matches.</div>
+    <div class="ex-up">↑ <b>Larger distance:</b> catches drifted loops in big rooms — but a self-similar corridor can produce a wrong closure that warps the map.</div>
+    <div class="ex-down">↓ <b>Disable / shrink:</b> map won't "snap" back together on re-visit; drift accumulates. Useful for debugging when wrong closures are warping the map.</div>
+    <div class="ex-deps">🔗 <b>Mapping-only.</b> The pose graph is built and optimized live in mapping. <b>Localization mode IGNORES this</b> — it does scan-to-existing-map matching, not loop closure. <b>Pairs with:</b> <code>loop_match_minimum_response_coarse</code> (0.35), <code>loop_match_minimum_response_fine</code> (0.45), <code>loop_match_minimum_chain_size</code> (10). Lower thresholds = more (and riskier) closures.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-moderate">moderate</span> Per keyframe, slam_toolbox runs a candidate search over a circle of radius <code>loop_search_maximum_distance</code> on the <code>loop_search_space</code> grid (8×8 m at 0.05 m = 25k cells). <b>Cost scales O(radius²)</b>. Going 3 → 6 m = 4× the candidate work. Turning loop closure OFF saves the whole pipeline — useful for benchmarking, harmful for actual mapping.</div>
+  </div>
+</div>
+
+</div><!-- /cards -->
+
+<!-- ============================================================ -->
+<h2 class="section-title">Nav2 — costmaps + controller
+    <span class="tag tnav">config/nav2_params_2d.yaml</span>
+</h2>
+<div class="cards">
+
+<!-- Comparison card: the three "rings" around the rover -->
+<div class="card span-2">
+  <div class="card-head">
+    <span class="paramName">The three "rings" around the rover — sensor vs planner vs cost</span>
+    <span class="paramFile">how range_min · robot_radius · inflation_radius differ</span>
+    <span class="paramDesc">
+      All three look like circles around the robot, but they live in different
+      stages of the pipeline and answer different questions. This card draws
+      them all on one scene so you can see who blocks what.
+    </span>
+  </div>
+  <canvas data-card="threerings" height="320"></canvas>
+  <div class="stat" id="stat-threerings">—</div>
+  <div class="card-controls">
+    <div class="slider-row"><label>range_min</label><input type="range" id="tr-rmin" min="0.05" max="0.6" step="0.01" value="0.20"><span class="val" id="tr-rminVal">0.20 m</span></div>
+    <div class="slider-row"><label>robot_radius</label><input type="range" id="tr-rr" min="0.05" max="0.5" step="0.005" value="0.18"><span class="val" id="tr-rrVal">0.18 m</span></div>
+    <div class="slider-row"><label>inflation_r</label><input type="range" id="tr-infr" min="0.05" max="1.0" step="0.01" value="0.15"><span class="val" id="tr-infrVal">0.15 m</span></div>
+  </div>
+  <table class="compare-table">
+    <tr>
+      <th>Ring</th>
+      <th>Lives in</th>
+      <th>Hard or soft?</th>
+      <th>The question it answers</th>
+    </tr>
+    <tr>
+      <td><span class="ring-dot" style="background:#facc1533; border-color:#facc15"></span><code>scan_range_min</code> / <code>blind</code></td>
+      <td>sensor driver / pre-SLAM<br><span style="color:#64748b">(launch + fast_lio)</span></td>
+      <td><span style="color:#86efac">HARD exclude</span><br>(returns dropped before SLAM sees them)</td>
+      <td><b>"Is this point even a real obstacle, or is it the rover hitting itself?"</b> Filters out sensor returns from the rover's own bumper, fixture, antennas. Has nothing to do with planning.</td>
+    </tr>
+    <tr>
+      <td><span class="ring-dot" style="background:#67e8f933; border-color:#67e8f9"></span><code>robot_radius</code></td>
+      <td>Nav2 costmap<br><span style="color:#64748b">(LETHAL inflation)</span></td>
+      <td><span style="color:#fca5a5">HARD forbid</span><br>(cells inside this distance of any obstacle = LETHAL → planner refuses)</td>
+      <td><b>"How big am I, physically?"</b> Any cell whose center is within <code>robot_radius</code> of an obstacle is treated as if the robot is crashing into it. The planner won't put the robot's center there. <b>Match the actual bumper.</b></td>
+    </tr>
+    <tr>
+      <td><span class="ring-dot" style="background:#f8717133; border-color:#f87171"></span><code>inflation_radius</code></td>
+      <td>Nav2 costmap<br><span style="color:#64748b">(inflation layer)</span></td>
+      <td><span style="color:#fcd34d">SOFT cost</span><br>(decaying gradient outside robot_radius)</td>
+      <td><b>"How much should I prefer to stay away?"</b> Outside the lethal zone, costs decay smoothly via <code>exp(-K·(d − robot_radius))</code>. The planner will still cross inflated cells if there's no alternative, but prefers the cheaper middle of a corridor. Tunes <em>style</em>, not <em>legality</em>.</td>
+    </tr>
+  </table>
+  <div class="card-explain">
+    <div class="ex-what"><b>Watch as you slide:</b> the yellow dashed ring (range_min) discards returns near the rover before they enter the map; the cyan solid ring (robot_radius) is a hard wall the path can't cross; the red gradient (inflation) bends the path toward open space without forbidding closer cells.</div>
+    <div class="ex-deps">🔗 <b>They stack, they don't replace each other:</b> a sensor return survives <code>range_min</code> → it becomes an obstacle cell in the costmap → that cell gets a lethal ring of width <code>robot_radius</code> → which then gets an inflation gradient of width <code>inflation_radius</code> on top. So the total "no-go" distance from a true obstacle is <code>robot_radius + inflation_radius</code> (with the inner part hard-forbidden and the outer part soft-penalized).</div>
+  </div>
+</div>
+
+<!-- Card 7: robot_radius -->
+<div class="card">
+  <div class="card-head">
+    <span class="paramName">robot_radius</span>
+    <span class="paramFile">config/nav2_params_2d.yaml:217, 263</span>
+    <span class="paramDesc">Circular bounding radius (m). Sets the minimum cell distance from any obstacle.</span>
+    <div class="modes">
+      <span class="mode-chip mode-nav">Nav2 only</span>
+      <span class="mode-chip mode-loc">localization + nav2:=true</span>
+    </div>
+  </div>
+  <canvas data-card="robotr" height="220"></canvas>
+  <div class="stat" id="stat-robotr">—</div>
+  <div class="card-controls">
+    <div class="slider-row"><label>radius</label><input type="range" id="robotr-v" min="0.05" max="0.5" step="0.005" value="0.18"><span class="val" id="robotr-vVal">0.18 m</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> cyan circle around the rover. Any cell whose center is inside this radius of an obstacle is FORBIDDEN.</div>
+    <div class="ex-up">↑ <b>Too large:</b> planner refuses narrow doorways even when you'd fit. Yahboom mecanum is 0.32 m diameter → 0.18 m bounding circle is honest.</div>
+    <div class="ex-down">↓ <b>Too small:</b> Nav2 plans you into walls. Don't shrink below the real bumper.</div>
+    <div class="ex-deps">🔗 <b>Must match in two places:</b> <code>local_costmap.robot_radius</code> AND <code>global_costmap.robot_radius</code> (lines 217, 263). <b>Inflation_radius must be ≥ robot_radius</b> — otherwise the inflation gradient is meaningless. Should match the URDF's <code>collision</code> geometry, not the URDF's visual mesh.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-minor">minor</span> Inflation only runs on cells changed since last update, and only out to <code>robot_radius + inflation_radius</code>. Doubling robot_radius = ~4× the affected cells per obstacle update, but on a static map this fires rarely. <b>Maxing it has no real penalty</b>; the planner refusing to find paths is the failure mode, not CPU.</div>
+  </div>
+</div>
+
+<!-- Card 8: inflation_radius + cost_scaling_factor -->
+<div class="card">
+  <div class="card-head">
+    <span class="paramName">inflation_radius · cost_scaling_factor</span>
+    <span class="paramFile">config/nav2_params_2d.yaml:236–246, 282–286</span>
+    <span class="paramDesc">Soft "stay away" gradient around obstacles. The planner prefers low-cost cells, so a wider/steeper gradient pushes paths into the middle of corridors.</span>
+    <div class="modes">
+      <span class="mode-chip mode-nav">Nav2 only</span>
+      <span class="mode-chip mode-loc">localization + nav2:=true</span>
+    </div>
+  </div>
+  <canvas data-card="infl" height="220"></canvas>
+  <div class="stat" id="stat-infl">—</div>
+  <div class="card-controls">
+    <div class="slider-row"><label>radius</label><input type="range" id="infl-r" min="0.05" max="1.0" step="0.01" value="0.15"><span class="val" id="infl-rVal">0.15 m</span></div>
+    <div class="slider-row"><label>scaling</label><input type="range" id="infl-k" min="0.5" max="10" step="0.1" value="3.0"><span class="val" id="infl-kVal">3.0</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> cost gradient color around the obstacle. Bright = expensive (planner avoids); dark = cheap.</div>
+    <div class="ex-up">↑ <b>Larger radius:</b> paths hug the middle of free space — safer, but doorways narrower than 2× radius become impassable.</div>
+    <div class="ex-down">↓ <b>Higher scaling:</b> gradient falls off fast, so distant cells stay cheap and the planner only avoids close obstacles. Good for tight indoor maps; bad for dynamic obstacles.</div>
+    <div class="ex-deps">🔗 <b>Set in two costmaps:</b> <code>local_costmap.inflation_layer</code> (236–246) AND <code>global_costmap.inflation_layer</code> (282–286). <b>Constraint:</b> inflation_radius ≥ robot_radius (0.18 default). Cost formula: <code>cost = exp(-K·(d − r_robot))</code>. <b>Tighter than 0.30 m here</b> on purpose — let planner thread narrow doorways (project note).</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-moderate">moderate</span> <code>inflation_radius</code> scales <b>O(r²)</b> in cells touched per obstacle update. Doubling from 0.15 → 0.30 m = 4× the gradient work; 0.5 m = 11×. <code>cost_scaling_factor</code> is <b>free</b> (just changes the exponential's constant). Big inflation on dynamic obstacles (people walking around) is the worst case — every frame redoes the gradient.</div>
+  </div>
+</div>
+
+<!-- Card 9: goal tolerances -->
+<div class="card">
+  <div class="card-head">
+    <span class="paramName">xy_goal_tolerance · yaw_goal_tolerance</span>
+    <span class="paramFile">config/nav2_params_2d.yaml:120, 129</span>
+    <span class="paramDesc">When the controller declares "we got there." On mecanum, yaw_goal_tolerance ≥ 0.40 rad is required — physical limit of yaw-at-goal.</span>
+    <div class="modes">
+      <span class="mode-chip mode-nav">Nav2 only</span>
+      <span class="mode-chip mode-loc">localization + nav2:=true</span>
+    </div>
+  </div>
+  <canvas data-card="goal" height="200"></canvas>
+  <div class="stat" id="stat-goal">—</div>
+  <div class="card-controls">
+    <div class="slider-row"><label>xy_tol</label><input type="range" id="goal-xy" min="0.05" max="1.0" step="0.01" value="0.25"><span class="val" id="goal-xyVal">0.25 m</span></div>
+    <div class="slider-row"><label>yaw_tol</label><input type="range" id="goal-yaw" min="0.05" max="1.5" step="0.01" value="0.40"><span class="val" id="goal-yawVal">0.40 rad</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> yellow disc = xy acceptance; yellow arc = yaw acceptance. Goal succeeds when the rover pose is inside both.</div>
+    <div class="ex-up">↑ <b>Looser xy:</b> rover stops earlier — fine for "go-near" tasks. Too loose and it doesn't reach the docking pose.</div>
+    <div class="ex-down">↓ <b>Tighter yaw on mecanum:</b> pure-rotation yaw is physically hard at goal; below ~0.30 rad the rover oscillates forever (see memory: <code>project_mecanum_yaw_stall</code>).</div>
+    <div class="ex-deps">🔗 <b>Set in two places:</b> <code>controller_server.general_goal_checker</code> (line 120) AND <code>controller_server.FollowPath</code> (174). Both must match. <b>Pairs with:</b> <code>PoseProgressChecker.required_movement_radius</code> (0.3) + <code>required_movement_angle</code> (0.05 rad) — the rover must keep making progress at this scale or Nav2 aborts.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-none">none</span> Pure scalar comparisons every controller cycle. The values don't change any sampling, raycasting, or grid work. <b>Max them or min them — same CPU.</b> The real cost of tight tolerances is the rover failing to terminate (which then triggers Nav2 recovery behaviors, which DO cost CPU and time).</div>
+  </div>
+</div>
+
+<!-- Card 10: max velocity -->
+<div class="card">
+  <div class="card-head">
+    <span class="paramName">max_vel_x · max_vel_theta</span>
+    <span class="paramFile">config/nav2_params_2d.yaml:143, 153</span>
+    <span class="paramDesc">DWB FollowPath ceilings (m/s and rad/s). Caps actual robot speed regardless of plan.</span>
+    <div class="modes">
+      <span class="mode-chip mode-nav">Nav2 only</span>
+      <span class="mode-chip mode-loc">localization + nav2:=true</span>
+    </div>
+  </div>
+  <canvas data-card="vel" height="200"></canvas>
+  <div class="stat" id="stat-vel">—</div>
+  <div class="card-controls">
+    <div class="slider-row"><label>vx</label><input type="range" id="vel-x" min="0.0" max="1.5" step="0.05" value="0.5"><span class="val" id="vel-xVal">0.50 m/s</span></div>
+    <div class="slider-row"><label>vθ</label><input type="range" id="vel-th" min="0.0" max="3.0" step="0.05" value="1.5"><span class="val" id="vel-thVal">1.50 rad/s</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> length of the green velocity arrow and the curvature it can drive in one control cycle.</div>
+    <div class="ex-up">↑ <b>Higher vx:</b> rover covers ground faster, but odom drift per second grows. Mecanum slip scales with speed.</div>
+    <div class="ex-down">↓ <b>Lower vθ:</b> smoother yaw, less impulse. Too low and the rover can't yaw quickly enough to track curving paths.</div>
+    <div class="ex-deps">🔗 <b>Pairs with:</b> <code>acc_lim_x/y/theta</code> (2.5 / 2.0 / 5.0) — accel must be high enough to hit max_vel inside <code>sim_time</code> (1.7 s). <b>Mecanum-specific:</b> also set <code>max_vel_y</code> (0.3) — non-mecanum platforms MUST override y to 0.0. <b>Mirror in:</b> <code>velocity_smoother.max_velocity</code> (line 364) — values must match or smoother clips the DWB output.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-none">none</span> DWB samples a fixed grid of <code>vx_samples × vy_samples × vtheta_samples</code> = 20×10×8 = 1600 candidate trajectories every cycle regardless of max_vel. Higher max just spreads samples over a wider velocity range. <b>The mechanical cost is real (faster = more wheel slip on mecanum)</b>, but the CPU cost is constant.</div>
+  </div>
+</div>
+
+</div><!-- /cards -->
+
+<!-- ============================================================ -->
+<h2 class="section-title">3D stack — FAST-LIO2
+    <span class="tag t3d">config/fast_lio_mid360.yaml</span>
+</h2>
+<div class="cards">
+
+<!-- Card 11: blind -->
+<div class="card">
+  <div class="card-head">
+    <span class="paramName">preprocess.blind</span>
+    <span class="paramFile">config/fast_lio_mid360.yaml:42</span>
+    <span class="paramDesc">Minimum range (m) for FAST-LIO to accept a lidar return. Anything closer is treated as a self-hit.</span>
+    <div class="modes">
+      <span class="mode-chip mode-3d">3D stack only</span>
+    </div>
+  </div>
+  <canvas data-card="blind" height="220"></canvas>
+  <div class="stat" id="stat-blind">—</div>
+  <div class="card-controls">
+    <div class="slider-row"><label>blind</label><input type="range" id="blind-v" min="0.05" max="2.0" step="0.01" value="0.5"><span class="val" id="blind-vVal">0.50 m</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> dashed circle around the sensor. Returns inside the circle are dropped before ICP sees them.</div>
+    <div class="ex-up">↑ <b>Larger blind:</b> filters more fixture self-hits (the 2040 frame, battery, buck converter at 0.2–0.5 m). Too large and you lose nearby obstacle info.</div>
+    <div class="ex-down">↓ <b>Smaller blind:</b> sees obstacles closer to the rover, but self-hits become "phantom" obstacles glued to the rover that drag the map.</div>
+    <div class="ex-deps">🔗 <b>Active only when FAST-LIO is running</b> (<code>start_fast_lio.sh</code> / <code>start_slam.sh</code>). <b>Hardware-dependent:</b> tuned for the 2040 test fixture (self-hits at 0.2–0.5 m, project memory). Different mount = different value. <b>Independent of 2D stack</b> — the 2D path uses <code>scan_range_min</code> instead (different filter, same purpose).</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-none">none</span> One distance comparison per raw point in the preprocess step. Raising blind actually <b>SAVES</b> downstream cost — fewer points enter the voxel filter and ICP. Free win up to the point where you'd start losing real obstacles.</div>
+  </div>
+</div>
+
+<!-- Card 12: filter_size_surf -->
+<div class="card">
+  <div class="card-head">
+    <span class="paramName">mapping.filter_size_surf</span>
+    <span class="paramFile">config/fast_lio_mid360.yaml:64</span>
+    <span class="paramDesc">Voxel-grid downsample size (m). One point survives per voxel. Larger voxel = faster ICP but coarser features.</span>
+    <div class="modes">
+      <span class="mode-chip mode-3d">3D stack only</span>
+    </div>
+  </div>
+  <canvas data-card="voxel" height="220"></canvas>
+  <div class="stat" id="stat-voxel">—</div>
+  <div class="card-controls">
+    <div class="slider-row"><label>voxel</label><input type="range" id="voxel-v" min="0.05" max="1.0" step="0.01" value="0.3"><span class="val" id="voxel-vVal">0.30 m</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> grid overlay. The white dot in each cell is the one point that survives downsampling.</div>
+    <div class="ex-up">↑ <b>Larger voxel:</b> few points → fast ICP. Past ~0.6 m the Mid-360's already-sparse cloud loses correspondences ("No Effective Points!" then drift).</div>
+    <div class="ex-down">↓ <b>Smaller voxel:</b> more points, ICP can lock to fine features, but map memory grows fast and the Jetson Orin Nano slows.</div>
+    <div class="ex-deps">🔗 <b>Pairs with</b> <code>filter_size_map</code> (also 0.3 m in <code>fast_lio_mid360.yaml:65</code>) — surf is per-scan, map is the accumulated map. Convention: set them equal. <b>Hardware-dependent:</b> Mid-360 is point-sparse per sweep, so unlike Velodyne/Ouster you can't go past ~0.5 m without ICP failing. RTABMap's voxel downsample is separate.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-significant">significant</span> <b>Biggest FAST-LIO CPU knob.</b> ICP cost is roughly <b>O(N · log N)</b> for KD-tree correspondence search; points scale <code>O(1/voxel³)</code>. Going 0.3 → 0.1 m = ~27× more points = ICP can slow by an order of magnitude. The flip side: too coarse and ICP fails with "No Effective Points!" then the pose just drifts. <b>0.3 m is the Jetson Orin Nano sweet spot for Mid-360.</b></div>
+  </div>
+</div>
+
+<!-- Card 13: IMU covariances -->
+<div class="card">
+  <div class="card-head">
+    <span class="paramName">mapping.acc_cov · mapping.gyr_cov</span>
+    <span class="paramFile">config/fast_lio_mid360.yaml:53–54</span>
+    <span class="paramDesc">IMU process-noise covariances. Higher = trust the IMU LESS; the lidar ICP gets more authority.</span>
+    <div class="modes">
+      <span class="mode-chip mode-3d">3D stack only</span>
+    </div>
+  </div>
+  <canvas data-card="imu" height="200"></canvas>
+  <div class="stat" id="stat-imu">—</div>
+  <div class="card-controls">
+    <div class="slider-row"><label>acc_cov</label><input type="range" id="imu-a" min="0.01" max="2.0" step="0.01" value="0.5"><span class="val" id="imu-aVal">0.50</span></div>
+    <div class="slider-row"><label>gyr_cov</label><input type="range" id="imu-g" min="0.01" max="2.0" step="0.01" value="0.1"><span class="val" id="imu-gVal">0.10</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> blue dashed line = IMU prediction; cyan solid = ICP-corrected pose. Lower covariance → trust IMU more → predictions dominate.</div>
+    <div class="ex-up">↑ <b>Higher acc_cov:</b> ICP corrects fast motion without the IMU dragging stale samples. Default 0.5 tuned 2026-05-02 against unit-corrected <code>/livox/imu_ms2</code>.</div>
+    <div class="ex-down">↓ <b>Lower gyr_cov:</b> smoother attitude through brief lidar dropouts. Too low and gyro bias drift bends the map.</div>
+    <div class="ex-deps">⚠ <b>CRITICAL DEPENDENCY:</b> <code>common.imu_topic</code> MUST be <code>/livox/imu_ms2</code> (unit-corrected, m/s²), NOT <code>/livox/imu</code> (which is in g). Default tuned against the corrected stream — pointing at raw <code>/livox/imu</code> over-trusts the IMU by ~96× and silently degrades pose smoothing. The <code>imu_units_g_to_ms2</code> republisher is launched alongside FAST-LIO. Also pairs with <code>b_acc_cov</code> / <code>b_gyr_cov</code> (bias drift, both 0.0001).</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-none">none</span> Just scalar constants in the EKF's noise matrix. The Kalman update runs the same math regardless of value. <b>Maxing them or minning them costs the same CPU</b> — the failure mode is pose quality (jitter, lag, drift), never compute.</div>
+  </div>
+</div>
+
+<!-- Card 14: det_range -->
+<div class="card">
+  <div class="card-head">
+    <span class="paramName">mapping.det_range</span>
+    <span class="paramFile">config/fast_lio_mid360.yaml:58</span>
+    <span class="paramDesc">Maximum range (m) for points to enter the map. Trims distant noise + caps memory growth.</span>
+    <div class="modes">
+      <span class="mode-chip mode-3d">3D stack only</span>
+    </div>
+  </div>
+  <canvas data-card="detrange" height="220"></canvas>
+  <div class="stat" id="stat-detrange">—</div>
+  <div class="card-controls">
+    <div class="slider-row"><label>det_range</label><input type="range" id="detrange-v" min="2" max="100" step="0.5" value="100"><span class="val" id="detrange-vVal">100.0 m</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> outer ring. Mid-360 returns past this distance are dropped before mapping.</div>
+    <div class="ex-up">↑ <b>Larger range:</b> long corridors, outdoor scenes get full landmark context. Map size grows.</div>
+    <div class="ex-down">↓ <b>Smaller range:</b> caps memory in long sessions, kills noisy far returns. Too small in a big room and ICP loses lock as you move.</div>
+    <div class="ex-deps">🔗 <b>Pairs with</b> <code>fov_degree</code> (360 — full Mid-360 sweep) and the sensor's hardware spec (Mid-360 advertised 70 m @ 80% reflectivity). Setting det_range past sensor capability just wastes the FOV test. <b>Independent of</b> <code>filter_size_surf</code> — det_range trims by distance, filter_size by voxel density. Both run.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-minor">minor</span> Indoor: <b>essentially zero penalty</b> at the 100 m default — the room caps the actual point distances at ~10 m anyway. Outdoors or long corridors: each surviving point becomes work for ICP and the KD-tree map. Memory grows linearly with kept points. The voxel filter (<code>filter_size_surf</code>) actually does the heavy lifting; det_range is a coarse pre-trim.</div>
+  </div>
+</div>
+
+</div><!-- /cards -->
+
+</div><!-- /wrap -->
+
+<script>
+// ============================================================
+// Shared scene + helpers
+// ============================================================
+const ROOM = { xMin:-4, xMax:4, yMin:-3, yMax:3, ceiling:2.6 };
+const furniture = {
+    table: { cx:-2.5, cy:-1.5, hx:0.45, hy:0.35, legZ:0.72, topZ:[0.72,0.78] },
+    chair: { cx: 2.5, cy: 1.5, hx:0.22, hy:0.22, legZ:0.45 },
+    lamp:  { cx: 3.0, cy:-1.8, poleZ:1.4, shadeR:0.22, shadeZ:[1.4,1.9] },
+    fan:   { cx: 0.0, cy: 2.3, r:0.65, z:[2.45,2.55] },
+};
+
+// Build a representative point cloud once.
+const cloud = [];
+function buildCloud() {
+    cloud.length = 0;
+    const W = ROOM;
+    // walls
+    const wallSegs = [
+        [[W.xMin,W.yMin],[W.xMax,W.yMin]],
+        [[W.xMax,W.yMin],[W.xMax,W.yMax]],
+        [[W.xMax,W.yMax],[W.xMin,W.yMax]],
+        [[W.xMin,W.yMax],[W.xMin,W.yMin]],
+    ];
+    for (const [a,b] of wallSegs) {
+        const dx=b[0]-a[0], dy=b[1]-a[1];
+        const L=Math.hypot(dx,dy);
+        const N=Math.max(20, Math.floor(L*10));
+        for (let i=0;i<=N;i++) {
+            const t=i/N;
+            const x=a[0]+dx*t, y=a[1]+dy*t;
+            for (let z=0; z<=W.ceiling; z+=0.12) cloud.push({x,y,z});
+        }
+    }
+    // table legs + top
+    const T=furniture.table;
+    for (const [lx,ly] of [
+        [T.cx-T.hx,T.cy-T.hy],[T.cx+T.hx,T.cy-T.hy],
+        [T.cx-T.hx,T.cy+T.hy],[T.cx+T.hx,T.cy+T.hy],
+    ]) {
+        for (let z=0; z<=T.legZ; z+=0.05) {
+            for (let k=0;k<2;k++) {
+                const a=Math.random()*Math.PI*2, r=0.025*Math.random();
+                cloud.push({x:lx+r*Math.cos(a), y:ly+r*Math.sin(a), z});
+            }
+        }
+    }
+    for (let z=T.topZ[0]; z<=T.topZ[1]; z+=0.025) {
+        for (let i=0;i<60;i++) {
+            const u=(Math.random()*2-1)*T.hx, v=(Math.random()*2-1)*T.hy;
+            cloud.push({x:T.cx+u, y:T.cy+v, z});
+        }
+    }
+    // chair legs
+    const C=furniture.chair;
+    for (const [lx,ly] of [
+        [C.cx-C.hx,C.cy-C.hy],[C.cx+C.hx,C.cy-C.hy],
+        [C.cx-C.hx,C.cy+C.hy],[C.cx+C.hx,C.cy+C.hy],
+    ]) {
+        for (let z=0; z<=C.legZ; z+=0.05) {
+            const a=Math.random()*Math.PI*2, r=0.025*Math.random();
+            cloud.push({x:lx+r*Math.cos(a), y:ly+r*Math.sin(a), z});
+        }
+    }
+    // lamp pole + shade
+    const Lf=furniture.lamp;
+    for (let z=0; z<=Lf.poleZ; z+=0.06) {
+        cloud.push({x:Lf.cx, y:Lf.cy, z});
+    }
+    for (let z=Lf.shadeZ[0]; z<=Lf.shadeZ[1]; z+=0.06) {
+        for (let i=0;i<24;i++) {
+            const a=(i/24)*Math.PI*2;
+            cloud.push({x:Lf.cx+Lf.shadeR*Math.cos(a), y:Lf.cy+Lf.shadeR*Math.sin(a), z});
+        }
+    }
+    // fan
+    const F=furniture.fan;
+    for (let z=F.z[0]; z<=F.z[1]; z+=0.04) {
+        for (let i=0;i<48;i++) {
+            const a=(i/48)*Math.PI*2;
+            cloud.push({x:F.cx+F.r*Math.cos(a), y:F.cy+F.r*Math.sin(a), z});
+        }
+    }
+    // floor speckle
+    for (let i=0;i<400;i++) {
+        cloud.push({
+            x:(Math.random()-0.5)*(W.xMax-W.xMin)*0.96,
+            y:(Math.random()-0.5)*(W.yMax-W.yMin)*0.96,
+            z:0.005+Math.random()*0.02
+        });
+    }
+    // some "self-hit" returns very close to the rover (0.1–0.45 m) to make
+    // the FAST-LIO `blind` card and 2D range_min card meaningful.
+    for (let i=0;i<60;i++) {
+        const a=Math.random()*Math.PI*2;
+        const r=0.10 + Math.random()*0.40;
+        cloud.push({
+            x: r*Math.cos(a), y: r*Math.sin(a),
+            z: 0.05 + Math.random()*0.20,
+            self: true,
+        });
+    }
+}
+buildCloud();
+
+function fitDPR(canvas) {
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width  = Math.round(rect.width  * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx, w: rect.width, h: rect.height };
+}
+function mkTopProjection(w, h) {
+    const pad = 14;
+    const xRange = ROOM.xMax - ROOM.xMin + 1;
+    const yRange = ROOM.yMax - ROOM.yMin + 1;
+    const sx = (w - 2*pad) / xRange;
+    const sy = (h - 2*pad) / yRange;
+    const s = Math.min(sx, sy);
+    const cx = w/2, cy = h/2;
+    return { s, P:(xw,yw)=>({x:cx+xw*s, y:cy-yw*s}) };
+}
+function drawRoomOutline(ctx, P) {
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 1;
+    const a=P(ROOM.xMin, ROOM.yMin), b=P(ROOM.xMax, ROOM.yMax);
+    ctx.strokeRect(Math.min(a.x,b.x), Math.min(a.y,b.y),
+                   Math.abs(b.x-a.x), Math.abs(b.y-a.y));
+}
+function drawFurnitureFootprint(ctx, P, s) {
+    const T=furniture.table, C=furniture.chair, Lf=furniture.lamp, F=furniture.fan;
+    function rect(cxW,cyW,hw,hh,color) {
+        const a=P(cxW-hw, cyW+hh), b=P(cxW+hw, cyW-hh);
+        ctx.fillStyle=color+'18'; ctx.strokeStyle=color+'80';
+        ctx.lineWidth=1;
+        ctx.fillRect(a.x,a.y,b.x-a.x,b.y-a.y);
+        ctx.strokeRect(a.x,a.y,b.x-a.x,b.y-a.y);
+    }
+    function circ(cxW,cyW,r,color) {
+        const c=P(cxW,cyW);
+        ctx.fillStyle=color+'18'; ctx.strokeStyle=color+'80';
+        ctx.lineWidth=1;
+        ctx.beginPath(); ctx.arc(c.x,c.y,r*s,0,Math.PI*2);
+        ctx.fill(); ctx.stroke();
+    }
+    rect(T.cx,T.cy, T.hx+0.05, T.hy+0.05, '#60a5fa');
+    rect(C.cx,C.cy, C.hx+0.05, C.hy+0.05, '#f472b6');
+    circ(Lf.cx,Lf.cy, Lf.shadeR, '#facc15');
+    circ(F.cx, F.cy,  F.r,       '#a78bfa');
+}
+function drawRobot(ctx, P, label='rover') {
+    const o = P(0,0);
+    ctx.fillStyle = '#f87171';
+    ctx.beginPath(); ctx.arc(o.x,o.y,4,0,Math.PI*2); ctx.fill();
+    if (label) {
+        ctx.fillStyle = '#fecaca';
+        ctx.font = '10px JetBrains Mono';
+        ctx.fillText(label, o.x+6, o.y+12);
+    }
+}
+
+// Standard /scan computation: in-band points, min range per angular bin.
+function compute2DScan(zMin, zMax, rMin, rMax, NB) {
+    const ranges = new Array(NB).fill(Infinity);
+    for (const p of cloud) {
+        if (p.z < zMin || p.z > zMax) continue;
+        const r = Math.hypot(p.x, p.y);
+        if (r < rMin || r > rMax) continue;
+        let a = Math.atan2(p.y, p.x);
+        if (a < 0) a += Math.PI*2;
+        const bin = Math.floor(a / (Math.PI*2) * NB) % NB;
+        if (r < ranges[bin]) ranges[bin] = r;
+    }
+    return ranges;
+}
+function drawScanRays(ctx, P, ranges, color) {
+    const o = P(0,0);
+    ctx.strokeStyle = color + '44';
+    ctx.lineWidth = 1;
+    const NB = ranges.length;
+    let hits = 0;
+    for (let i=0;i<NB;i++) {
+        const r = ranges[i];
+        if (!isFinite(r)) continue;
+        hits++;
+        const a = (i+0.5)/NB * Math.PI*2;
+        const pt = P(r*Math.cos(a), r*Math.sin(a));
+        ctx.beginPath();
+        ctx.moveTo(o.x, o.y); ctx.lineTo(pt.x, pt.y);
+        ctx.stroke();
+    }
+    ctx.fillStyle = color;
+    for (let i=0;i<NB;i++) {
+        const r = ranges[i];
+        if (!isFinite(r)) continue;
+        const a = (i+0.5)/NB * Math.PI*2;
+        const pt = P(r*Math.cos(a), r*Math.sin(a));
+        ctx.beginPath(); ctx.arc(pt.x, pt.y, 1.4, 0, Math.PI*2); ctx.fill();
+    }
+    return hits;
+}
+
+// ============================================================
+// Card 1: Z band
+// ============================================================
+(function() {
+    const cv = document.querySelector('[data-card=zband]');
+    const stat = document.getElementById('stat-zband');
+    const eMin = document.getElementById('zband-min');
+    const eMax = document.getElementById('zband-max');
+    const vMin = document.getElementById('zband-minVal');
+    const vMax = document.getElementById('zband-maxVal');
+    function draw() {
+        const { ctx, w, h } = fitDPR(cv);
+        const zMin = +eMin.value, zMax = +eMax.value;
+        vMin.textContent = zMin.toFixed(2) + ' m';
+        vMax.textContent = zMax.toFixed(2) + ' m';
+        ctx.clearRect(0,0,w,h); ctx.fillStyle='#050510'; ctx.fillRect(0,0,w,h);
+        // Side-view projection: x axis = world x, y axis = z.
+        const pad = 24;
+        const sx = (w-2*pad)/9, sy = (h-2*pad)/2.8;
+        const s = Math.min(sx, sy);
+        const cx = w/2, baseY = h-pad;
+        const P = (xw,zw) => ({x:cx+xw*s, y:baseY-zw*s});
+        // Z grid
+        ctx.strokeStyle='#1e293b';
+        for (let z=0; z<=2.6; z+=0.5) {
+            const y = baseY - z*s;
+            ctx.beginPath(); ctx.moveTo(pad,y); ctx.lineTo(w-pad,y); ctx.stroke();
+        }
+        // Band highlight
+        const yHi = baseY - zMax*s, yLo = baseY - zMin*s;
+        ctx.fillStyle='rgba(103,232,249,0.10)';
+        ctx.fillRect(pad, yHi, w-2*pad, yLo-yHi);
+        ctx.strokeStyle='#fcd34d'; ctx.setLineDash([3,3]);
+        ctx.beginPath(); ctx.moveTo(pad,yHi); ctx.lineTo(w-pad,yHi); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(pad,yLo); ctx.lineTo(w-pad,yLo); ctx.stroke();
+        ctx.setLineDash([]);
+        // points by (x, z)
+        let kept = 0;
+        for (const p of cloud) {
+            if (p.self) continue;
+            const inBand = p.z>=zMin && p.z<=zMax;
+            if (inBand) kept++;
+            const pt = P(p.x, p.z);
+            if (pt.x<pad || pt.x>w-pad) continue;
+            ctx.fillStyle = inBand ? 'rgba(103,232,249,0.95)' : 'rgba(71,85,105,0.35)';
+            ctx.beginPath(); ctx.arc(pt.x, pt.y, inBand?1.4:0.8, 0, Math.PI*2); ctx.fill();
+        }
+        // rover
+        const r0=P(0,0), r1=P(0,0.18);
+        ctx.fillStyle='#f87171';
+        ctx.fillRect(r0.x-8, r1.y, 16, r0.y-r1.y);
+        // ranges in /scan
+        const NB = 720;
+        const ranges = compute2DScan(zMin, zMax, 0.20, 20, NB);
+        const hits = ranges.filter(r=>isFinite(r)).length;
+        stat.innerHTML = `<b>${kept.toLocaleString()}</b> points in band · <b>${hits}</b> / ${NB} /scan rays have a hit`;
+    }
+    [eMin,eMax].forEach(e=>e.addEventListener('input', draw));
+    window.addEventListener('resize', draw); draw();
+})();
+
+// ============================================================
+// Card 2: range_min / range_max
+// ============================================================
+(function() {
+    const cv = document.querySelector('[data-card=range]');
+    const stat = document.getElementById('stat-range');
+    const eMin = document.getElementById('range-min');
+    const eMax = document.getElementById('range-max');
+    const vMin = document.getElementById('range-minVal');
+    const vMax = document.getElementById('range-maxVal');
+    function draw() {
+        const { ctx, w, h } = fitDPR(cv);
+        const rMin = +eMin.value, rMax = +eMax.value;
+        vMin.textContent = rMin.toFixed(2) + ' m';
+        vMax.textContent = rMax.toFixed(2) + ' m';
+        ctx.clearRect(0,0,w,h); ctx.fillStyle='#050510'; ctx.fillRect(0,0,w,h);
+        const { s, P } = mkTopProjection(w, h);
+        drawRoomOutline(ctx, P);
+        drawFurnitureFootprint(ctx, P, s);
+        // points
+        const zMin=0.15, zMax=0.45;
+        let kept=0, rejected=0;
+        for (const p of cloud) {
+            if (p.z<zMin || p.z>zMax) continue;
+            const r = Math.hypot(p.x,p.y);
+            const ok = r>=rMin && r<=rMax;
+            ok ? kept++ : rejected++;
+            const pt = P(p.x, p.y);
+            ctx.fillStyle = ok ? 'rgba(103,232,249,0.95)' : 'rgba(248,113,113,0.35)';
+            ctx.beginPath(); ctx.arc(pt.x, pt.y, ok?1.4:0.9, 0, Math.PI*2); ctx.fill();
+        }
+        // rings
+        const o = P(0,0);
+        ctx.strokeStyle='#fcd34d'; ctx.setLineDash([3,3]);
+        ctx.beginPath(); ctx.arc(o.x, o.y, rMin*s, 0, Math.PI*2); ctx.stroke();
+        const rMaxPx = Math.min(rMax*s, Math.hypot(w,h));
+        ctx.beginPath(); ctx.arc(o.x, o.y, rMaxPx, 0, Math.PI*2); ctx.stroke();
+        ctx.setLineDash([]);
+        drawRobot(ctx, P);
+        const ranges = compute2DScan(zMin, zMax, rMin, rMax, 720);
+        const hits = ranges.filter(r=>isFinite(r)).length;
+        stat.innerHTML = `<span class="ok">${kept}</span> kept · <span class="bad">${rejected}</span> rejected · <b>${hits}</b> / 720 rays`;
+    }
+    [eMin,eMax].forEach(e=>e.addEventListener('input', draw));
+    window.addEventListener('resize', draw); draw();
+})();
+
+// ============================================================
+// Card 3: angular resolution
+// ============================================================
+(function() {
+    const cv = document.querySelector('[data-card=angres]');
+    const stat = document.getElementById('stat-angres');
+    const eD = document.getElementById('angres-d');
+    const vD = document.getElementById('angres-dVal');
+    function draw() {
+        const { ctx, w, h } = fitDPR(cv);
+        const deg = +eD.value;
+        vD.textContent = deg.toFixed(2) + '°';
+        const NB = Math.max(12, Math.round(360 / deg));
+        ctx.clearRect(0,0,w,h); ctx.fillStyle='#050510'; ctx.fillRect(0,0,w,h);
+        const { s, P } = mkTopProjection(w, h);
+        drawRoomOutline(ctx, P);
+        drawFurnitureFootprint(ctx, P, s);
+        // points (in-band, dim)
+        const zMin=0.15, zMax=0.45;
+        for (const p of cloud) {
+            if (p.z<zMin || p.z>zMax) continue;
+            const pt = P(p.x, p.y);
+            ctx.fillStyle = 'rgba(71,85,105,0.6)';
+            ctx.beginPath(); ctx.arc(pt.x, pt.y, 0.9, 0, Math.PI*2); ctx.fill();
+        }
+        const ranges = compute2DScan(zMin, zMax, 0.20, 20, NB);
+        const hits = drawScanRays(ctx, P, ranges, '#f87171');
+        drawRobot(ctx, P);
+        // detect aliasing: bins where in-band points span > 0.5 m
+        let aliasedBins=0;
+        const buckets = Array.from({length:NB}, ()=>[]);
+        for (const p of cloud) {
+            if (p.z<zMin || p.z>zMax) continue;
+            const r = Math.hypot(p.x,p.y);
+            if (r<0.20 || r>20) continue;
+            let a = Math.atan2(p.y,p.x); if (a<0) a += Math.PI*2;
+            const b = Math.floor(a/(Math.PI*2)*NB)%NB;
+            buckets[b].push(r);
+        }
+        for (const arr of buckets) {
+            if (arr.length<2) continue;
+            const mn=Math.min(...arr), mx=Math.max(...arr);
+            if (mx-mn > 0.5) aliasedBins++;
+        }
+        const aliasClass = aliasedBins>NB*0.1 ? 'bad' : aliasedBins>0 ? 'warn' : 'ok';
+        stat.innerHTML = `<b>${NB}</b> rays · <b>${hits}</b> hits · <span class="${aliasClass}">${aliasedBins}</span> bins aliased (span > 0.5 m)`;
+    }
+    eD.addEventListener('input', draw);
+    window.addEventListener('resize', draw); draw();
+})();
+
+// ============================================================
+// Card 4: map resolution (cell size)
+// ============================================================
+(function() {
+    const cv = document.querySelector('[data-card=mapres]');
+    const stat = document.getElementById('stat-mapres');
+    const eV = document.getElementById('mapres-v');
+    const vV = document.getElementById('mapres-vVal');
+    // Pre-compute /scan once at the standard band.
+    function rasterize(cell) {
+        const xR = ROOM.xMax - ROOM.xMin;
+        const yR = ROOM.yMax - ROOM.yMin;
+        const nx = Math.ceil(xR/cell), ny = Math.ceil(yR/cell);
+        const grid = new Uint8Array(nx*ny);
+        const zMin=0.15, zMax=0.45;
+        for (const p of cloud) {
+            if (p.z<zMin || p.z>zMax) continue;
+            const r = Math.hypot(p.x,p.y);
+            if (r<0.20 || r>20) continue;
+            const ix = Math.floor((p.x-ROOM.xMin)/cell);
+            const iy = Math.floor((p.y-ROOM.yMin)/cell);
+            if (ix<0||ix>=nx||iy<0||iy>=ny) continue;
+            grid[iy*nx+ix] = 1;
+        }
+        return { nx, ny, grid };
+    }
+    function draw() {
+        const { ctx, w, h } = fitDPR(cv);
+        const cell = +eV.value;
+        vV.textContent = cell.toFixed(3) + ' m';
+        ctx.clearRect(0,0,w,h); ctx.fillStyle='#050510'; ctx.fillRect(0,0,w,h);
+        const { s, P } = mkTopProjection(w, h);
+        drawFurnitureFootprint(ctx, P, s);
+        const { nx, ny, grid } = rasterize(cell);
+        const cellPx = cell * s;
+        for (let iy=0; iy<ny; iy++) for (let ix=0; ix<nx; ix++) {
+            if (!grid[iy*nx+ix]) continue;
+            const xw = ROOM.xMin + ix*cell;
+            const yw = ROOM.yMin + iy*cell;
+            const tl = P(xw, yw+cell);
+            ctx.fillStyle = '#cbd5e1';
+            ctx.fillRect(tl.x, tl.y, cellPx+0.5, cellPx+0.5);
+        }
+        drawRoomOutline(ctx, P);
+        drawRobot(ctx, P);
+        // map size estimate
+        const cells = nx*ny;
+        const kb = (cells/1024).toFixed(1);
+        const cellClass = cell<=0.05 ? 'ok' : cell<=0.12 ? 'warn' : 'bad';
+        stat.innerHTML = `<b>${nx}×${ny}</b> = ${cells.toLocaleString()} cells · <span class="${cellClass}">${kb} KB</span> map · cell area ${(cell*cell*10000).toFixed(1)} cm²`;
+    }
+    eV.addEventListener('input', draw);
+    window.addEventListener('resize', draw); draw();
+})();
+
+// ============================================================
+// Card 5: minimum_travel_distance (keyframe spacing)
+// ============================================================
+(function() {
+    const cv = document.querySelector('[data-card=keyspace]');
+    const stat = document.getElementById('stat-keyspace');
+    const eV = document.getElementById('keyspace-v');
+    const vV = document.getElementById('keyspace-vVal');
+    // Define a fixed S-shaped trajectory through the room.
+    const traj = [];
+    for (let t=0; t<=1; t+=0.002) {
+        const x = -3 + t*6;
+        const y = Math.sin(t*Math.PI*2)*1.5;
+        traj.push({x,y,t});
+    }
+    // cumulative arclength
+    const cum = [0];
+    for (let i=1;i<traj.length;i++) {
+        cum.push(cum[i-1] + Math.hypot(traj[i].x-traj[i-1].x, traj[i].y-traj[i-1].y));
+    }
+    const totalL = cum[cum.length-1];
+    function draw() {
+        const { ctx, w, h } = fitDPR(cv);
+        const d = +eV.value;
+        vV.textContent = d.toFixed(2) + ' m';
+        ctx.clearRect(0,0,w,h); ctx.fillStyle='#050510'; ctx.fillRect(0,0,w,h);
+        const { s, P } = mkTopProjection(w, h);
+        drawRoomOutline(ctx, P);
+        drawFurnitureFootprint(ctx, P, s);
+        // trajectory line
+        ctx.strokeStyle = '#475569'; ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        for (let i=0;i<traj.length;i++) {
+            const pt = P(traj[i].x, traj[i].y);
+            if (i===0) ctx.moveTo(pt.x,pt.y); else ctx.lineTo(pt.x,pt.y);
+        }
+        ctx.stroke();
+        // keyframes spaced by d
+        const keys = [];
+        let last = -Infinity;
+        for (let i=0;i<traj.length;i++) {
+            if (cum[i] - last >= d || i===0) {
+                keys.push(traj[i]);
+                last = cum[i];
+            }
+        }
+        for (const k of keys) {
+            const pt = P(k.x, k.y);
+            ctx.fillStyle = '#67e8f9';
+            ctx.beginPath(); ctx.arc(pt.x, pt.y, 3, 0, Math.PI*2); ctx.fill();
+        }
+        stat.innerHTML = `traj ${totalL.toFixed(2)} m · <b>${keys.length}</b> keyframes · ${(totalL/keys.length).toFixed(2)} m avg spacing`;
+    }
+    eV.addEventListener('input', draw);
+    window.addEventListener('resize', draw); draw();
+})();
+
+// ============================================================
+// Card 6: loop closure
+// ============================================================
+(function() {
+    const cv = document.querySelector('[data-card=loop]');
+    const stat = document.getElementById('stat-loop');
+    const eEn = document.getElementById('loop-en');
+    const eD  = document.getElementById('loop-d');
+    const vD  = document.getElementById('loop-dVal');
+    // Generate a loop trajectory with drift (start ≈ end in TRUE space,
+    // but drift causes them to look offset).
+    const traj = [];
+    const N = 200;
+    for (let i=0;i<=N;i++) {
+        const t = i/N * Math.PI*2;
+        const x = 2*Math.cos(t) + (i/N)*0.6;   // drift in +x
+        const y = 1.5*Math.sin(t) + (i/N)*0.3; // drift in +y
+        traj.push({x,y,i});
+    }
+    // pick ~25 keyframes
+    const keys = [];
+    for (let i=0;i<traj.length; i+=8) keys.push(traj[i]);
+    function draw() {
+        const { ctx, w, h } = fitDPR(cv);
+        const en = eEn.checked;
+        const d = +eD.value;
+        vD.textContent = d.toFixed(1) + ' m';
+        ctx.clearRect(0,0,w,h); ctx.fillStyle='#050510'; ctx.fillRect(0,0,w,h);
+        const { s, P } = mkTopProjection(w, h);
+        drawRoomOutline(ctx, P);
+        // trajectory
+        ctx.strokeStyle = '#475569'; ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let i=0;i<traj.length;i++) {
+            const pt = P(traj[i].x, traj[i].y);
+            if (i===0) ctx.moveTo(pt.x,pt.y); else ctx.lineTo(pt.x,pt.y);
+        }
+        ctx.stroke();
+        // keyframes
+        for (const k of keys) {
+            const pt = P(k.x, k.y);
+            ctx.fillStyle = '#67e8f9';
+            ctx.beginPath(); ctx.arc(pt.x, pt.y, 2.5, 0, Math.PI*2); ctx.fill();
+        }
+        // loop closures: pairs of keyframes whose Euclidean distance < d
+        // BUT separated by a large step in graph index (>= half the path)
+        let closures = 0;
+        if (en) {
+            ctx.strokeStyle = '#86efac';
+            ctx.lineWidth = 1.5;
+            for (let i=0;i<keys.length;i++) {
+                for (let j=i+5; j<keys.length; j++) {
+                    if (j-i < keys.length*0.4) continue; // must be far in graph
+                    const dx = keys[i].x-keys[j].x, dy = keys[i].y-keys[j].y;
+                    const dist = Math.hypot(dx, dy);
+                    if (dist < d) {
+                        const a=P(keys[i].x,keys[i].y), b=P(keys[j].x,keys[j].y);
+                        ctx.beginPath();
+                        ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y);
+                        ctx.stroke();
+                        closures++;
+                    }
+                }
+            }
+        }
+        // search radius circle at the last keyframe
+        if (en) {
+            const last = keys[keys.length-1];
+            const lp = P(last.x, last.y);
+            ctx.strokeStyle = '#facc15'; ctx.setLineDash([3,3]);
+            ctx.beginPath(); ctx.arc(lp.x, lp.y, d*s, 0, Math.PI*2); ctx.stroke();
+            ctx.setLineDash([]);
+        }
+        const cls = en ? (closures>0?'ok':'warn') : 'bad';
+        stat.innerHTML = `${keys.length} keyframes · ${en?'<span class="ok">enabled</span>':'<span class="bad">disabled</span>'} · <span class="${cls}">${closures}</span> loop closures found`;
+    }
+    [eEn,eD].forEach(e=>e.addEventListener('input', draw));
+    eEn.addEventListener('change', draw);
+    window.addEventListener('resize', draw); draw();
+})();
+
+// ============================================================
+// Comparison card: three rings
+// ============================================================
+(function() {
+    const cv = document.querySelector('[data-card=threerings]');
+    if (!cv) return;
+    const stat = document.getElementById('stat-threerings');
+    const eRMin = document.getElementById('tr-rmin');
+    const eRR   = document.getElementById('tr-rr');
+    const eInf  = document.getElementById('tr-infr');
+    const vRMin = document.getElementById('tr-rminVal');
+    const vRR   = document.getElementById('tr-rrVal');
+    const vInf  = document.getElementById('tr-infrVal');
+
+    function draw() {
+        const { ctx, w, h } = fitDPR(cv);
+        const rMin = +eRMin.value;
+        const rr   = +eRR.value;
+        const inf  = +eInf.value;
+        vRMin.textContent = rMin.toFixed(2) + ' m';
+        vRR.textContent   = rr.toFixed(3) + ' m';
+        vInf.textContent  = inf.toFixed(2) + ' m';
+
+        ctx.clearRect(0,0,w,h); ctx.fillStyle='#050510'; ctx.fillRect(0,0,w,h);
+
+        // Custom projection: rover on the left, wall on the right.
+        // Use a generous metric span so all three rings + the wall are visible.
+        const pad = 28;
+        const xSpan = 3.0;  // -1 .. 2 in world m
+        const ySpan = 1.4;  // -0.7 .. 0.7
+        const sx = (w - 2*pad) / xSpan;
+        const sy = (h - 2*pad - 30) / ySpan;   // -30 to leave room for header
+        const s  = Math.min(sx, sy);
+        const cx = pad + 0.6 * s;  // rover at x = -0.4 m in this projection
+        const cy = (h + 26) / 2;   // shift the scene down 13px so header fits
+        const P = (xw, yw) => ({ x: cx + xw*s, y: cy - yw*s });
+
+        // --- Region headers + divider ---
+        // Vertical divider at x=0.15m separates "sensor side" (left) from
+        // "planner side" (right). Helps users see that range_min lives with
+        // the ROVER while robot_radius + inflation live with the OBSTACLES.
+        const divX = P(0.15, 0).x;
+        ctx.strokeStyle = '#334155'; ctx.setLineDash([2, 3]);
+        ctx.beginPath(); ctx.moveTo(divX, 14); ctx.lineTo(divX, h-8); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.font = 'bold 10px JetBrains Mono';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#facc15';
+        ctx.fillText('AT THE SENSOR — filters self-hits',
+                     (pad + divX) / 2, 18);
+        ctx.fillStyle = '#f87171';
+        ctx.fillText('AROUND OBSTACLES — constrains the planner',
+                     (divX + w - pad) / 2, 18);
+        ctx.textAlign = 'left';
+
+        // Background grid
+        ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1;
+        for (let xw = -1; xw <= 2; xw += 0.5) {
+            const p1 = P(xw, -0.7), p2 = P(xw, 0.7);
+            ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+        }
+
+        // Wall at x = 1.3 m
+        const wallX = 1.3;
+        const wA = P(wallX, 0.7), wB = P(wallX+0.15, -0.7);
+        ctx.fillStyle = '#475569';
+        ctx.fillRect(wA.x, wA.y, wB.x - wA.x, wB.y - wA.y);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '10px JetBrains Mono';
+        ctx.fillText('WALL', wA.x + 4, wA.y + 14);
+
+        // A small loose chair leg as a representative obstacle near the rover
+        const legX = 0.55, legY = 0.30;
+        const legPt = P(legX, legY);
+        ctx.fillStyle = '#f472b6';
+        ctx.beginPath(); ctx.arc(legPt.x, legPt.y, 4, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#fbcfe8';
+        ctx.font = '9px JetBrains Mono';
+        ctx.fillText('chair leg', legPt.x + 6, legPt.y - 6);
+
+        // Origin (rover)
+        const o = P(0, 0);
+
+        // --- Ring 3: inflation gradient (drawn first so it sits under others) ---
+        // Around EACH obstacle (wall + chair leg), draw the inflation gradient.
+        // Use Nav2 formula cost = exp(-K*(d - r_robot)) with K=3.
+        const K = 3.0;
+        const sampleObstacles = [];
+        for (let yy = -0.7; yy <= 0.7; yy += 0.04) {
+            sampleObstacles.push({x: wallX, y: yy});
+        }
+        sampleObstacles.push({x: legX, y: legY});
+        // Rasterize the cost field over the canvas
+        const cell = 0.02;  // metres
+        for (let yw = -0.7; yw <= 0.7; yw += cell)
+            for (let xw = -0.9; xw <= 2.0; xw += cell) {
+                let best = 0;
+                for (const ob of sampleObstacles) {
+                    const d = Math.hypot(xw - ob.x, yw - ob.y);
+                    let c;
+                    if (d < rr) c = 1.0;
+                    else if (d > rr + inf) c = 0;
+                    else c = Math.min(1.0, Math.exp(-K * (d - rr)));
+                    if (c > best) best = c;
+                }
+                if (best > 0.02) {
+                    const pt = P(xw, yw);
+                    const cellPx = cell * s + 0.6;
+                    // lethal cells: solid cyan-ish (robot_radius zone)
+                    // inflated cells: red gradient
+                    if (best >= 0.99) {
+                        ctx.fillStyle = 'rgba(103, 232, 249, 0.55)';
+                    } else {
+                        ctx.fillStyle = `rgba(248, 113, 113, ${best * 0.5})`;
+                    }
+                    ctx.fillRect(pt.x - cellPx/2, pt.y - cellPx/2, cellPx, cellPx);
+                }
+            }
+
+        // --- Ring 1: range_min (sensor exclusion) around the rover ---
+        ctx.strokeStyle = '#facc15'; ctx.setLineDash([4, 3]);
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(o.x, o.y, rMin * s, 0, Math.PI*2); ctx.stroke();
+        ctx.setLineDash([]);
+        // shade interior faint yellow
+        ctx.fillStyle = 'rgba(252, 211, 77, 0.07)';
+        ctx.beginPath(); ctx.arc(o.x, o.y, rMin * s, 0, Math.PI*2); ctx.fill();
+
+        // Self-hit returns spread across a wider radial range so the
+        // range_min slider has a visible effect at every position.
+        // Each surviving self-hit would become a fake obstacle in /scan.
+        const selfHits = [
+            { r: 0.07, a: 0.4 },  { r: 0.12, a: 1.2 },
+            { r: 0.18, a: 2.1 },  { r: 0.25, a: 3.0 },
+            { r: 0.32, a: 4.0 },  { r: 0.40, a: 5.1 },
+        ];
+        let selfHitsDropped = 0;
+        for (const sh of selfHits) {
+            const px = sh.r * Math.cos(sh.a), py = sh.r * Math.sin(sh.a);
+            const inside = sh.r < rMin;
+            if (inside) selfHitsDropped++;
+            const pt = P(px, py);
+            ctx.fillStyle = inside ? 'rgba(134, 239, 172, 0.85)'   // dropped = good
+                                   : 'rgba(248, 113, 113, 0.85)';   // survived = phantom obstacle
+            ctx.beginPath(); ctx.arc(pt.x, pt.y, 2.5, 0, Math.PI*2); ctx.fill();
+            if (inside) {
+                ctx.strokeStyle = '#86efac'; ctx.lineWidth = 1.2;
+                ctx.beginPath();
+                ctx.moveTo(pt.x - 4, pt.y - 4); ctx.lineTo(pt.x + 4, pt.y + 4);
+                ctx.moveTo(pt.x - 4, pt.y + 4); ctx.lineTo(pt.x + 4, pt.y - 4);
+                ctx.stroke();
+            }
+        }
+
+        // --- Ring 2: robot_radius (hard forbidden) — drawn as outline ---
+        ctx.strokeStyle = '#67e8f9'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(o.x, o.y, rr * s, 0, Math.PI*2); ctx.stroke();
+
+        // Rover dot
+        ctx.fillStyle = '#f87171';
+        ctx.beginPath(); ctx.arc(o.x, o.y, 4, 0, Math.PI*2); ctx.fill();
+
+        // Labels with leader lines
+        function leader(fromXW, fromYW, toX, toY, color, text) {
+            const f = P(fromXW, fromYW);
+            ctx.strokeStyle = color; ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(f.x, f.y); ctx.lineTo(toX, toY);
+            ctx.stroke();
+            ctx.fillStyle = color;
+            ctx.font = 'bold 10px JetBrains Mono';
+            ctx.fillText(text, toX + 4, toY + 4);
+        }
+        leader(0, -rMin, o.x - rMin*s - 60, o.y + rMin*s + 24, '#facc15',
+               `range_min ${rMin.toFixed(2)} m`);
+        leader(rr*0.71, -rr*0.71, o.x + rr*s + 22, o.y - rr*s - 8, '#67e8f9',
+               `robot_radius ${rr.toFixed(2)} m`);
+        // inflation arrow originates near the wall
+        const infX = wallX - rr - inf*0.5;
+        leader(infX, -0.35, P(wallX-0.05, -0.55).x, P(wallX-0.05, -0.55).y - 18, '#f87171',
+               `inflation +${inf.toFixed(2)} m`);
+
+        // Compute outcomes
+        const clearanceToWall = wallX - rr;            // how close rover center can get
+        const totalNoGoFromObstacle = rr + inf;        // hard + soft combined
+        const passableCorridor = (1.3 - (-0.9)) - 2*(rr + inf); // imaginary symmetric corridor
+        const selfHitsSurv = selfHits.length - selfHitsDropped;
+        const survClass = selfHitsSurv === 0 ? 'ok' : selfHitsSurv <= 2 ? 'warn' : 'bad';
+        const legBlocked = Math.hypot(legX, legY) < rr;
+        stat.innerHTML =
+            `<span class="${survClass}">${selfHitsSurv}/${selfHits.length}</span> self-hits survive (become phantom obstacles) · ` +
+            `path must stay <b>${rr.toFixed(2)} m</b> from obstacles ` +
+            `(soft-pref ${(rr+inf).toFixed(2)} m)`;
+    }
+    [eRMin, eRR, eInf].forEach(e => e.addEventListener('input', draw));
+    window.addEventListener('resize', draw); draw();
+})();
+
+// ============================================================
+// Card 7: robot_radius
+// ============================================================
+(function() {
+    const cv = document.querySelector('[data-card=robotr]');
+    const stat = document.getElementById('stat-robotr');
+    const eV = document.getElementById('robotr-v');
+    const vV = document.getElementById('robotr-vVal');
+    // Two walls forming a doorway
+    const door = { y: -0.5, gap: 0.6 };
+    function draw() {
+        const { ctx, w, h } = fitDPR(cv);
+        const r = +eV.value;
+        vV.textContent = r.toFixed(3) + ' m';
+        ctx.clearRect(0,0,w,h); ctx.fillStyle='#050510'; ctx.fillRect(0,0,w,h);
+        const { s, P } = mkTopProjection(w, h);
+        drawRoomOutline(ctx, P);
+        // doorway walls
+        ctx.fillStyle = '#475569';
+        const w1L = P(ROOM.xMin, door.y+0.05);
+        const w1R = P(-door.gap/2,  door.y-0.05);
+        const w2L = P(door.gap/2,   door.y+0.05);
+        const w2R = P(ROOM.xMax,    door.y-0.05);
+        ctx.fillRect(w1L.x, w1L.y, w1R.x-w1L.x, w1R.y-w1L.y);
+        ctx.fillRect(w2L.x, w2L.y, w2R.x-w2L.x, w2R.y-w2L.y);
+        // rover (at top of room) with bounding circle
+        const ox = 0, oy = 1.5;
+        const o = P(ox, oy);
+        ctx.fillStyle = '#f87171';
+        ctx.beginPath(); ctx.arc(o.x, o.y, 4, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = '#67e8f9'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(o.x, o.y, r*s, 0, Math.PI*2); ctx.stroke();
+        // path through doorway
+        const px0=P(0,1.5), px1=P(0, door.y), px2=P(0,-2);
+        ctx.strokeStyle = (r < door.gap/2) ? '#86efac' : '#f87171';
+        ctx.setLineDash([4,4]); ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(px0.x,px0.y); ctx.lineTo(px1.x,px1.y); ctx.lineTo(px2.x,px2.y); ctx.stroke();
+        ctx.setLineDash([]);
+        // label
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '10px JetBrains Mono';
+        const dpx = P(door.gap/2 + 0.05, door.y - 0.1);
+        ctx.fillText(`doorway = ${door.gap.toFixed(2)} m`, dpx.x, dpx.y);
+        const fits = r*2 <= door.gap;
+        stat.innerHTML = `rover Ø ${(r*2).toFixed(2)} m · doorway ${door.gap.toFixed(2)} m · ${fits?'<span class="ok">fits</span>':'<span class="bad">planner refuses</span>'}`;
+    }
+    eV.addEventListener('input', draw);
+    window.addEventListener('resize', draw); draw();
+})();
+
+// ============================================================
+// Card 8: inflation_radius + cost_scaling_factor
+// ============================================================
+(function() {
+    const cv = document.querySelector('[data-card=infl]');
+    const stat = document.getElementById('stat-infl');
+    const eR = document.getElementById('infl-r');
+    const eK = document.getElementById('infl-k');
+    const vR = document.getElementById('infl-rVal');
+    const vK = document.getElementById('infl-kVal');
+    // Obstacle at center.
+    function draw() {
+        const { ctx, w, h } = fitDPR(cv);
+        const R = +eR.value, K = +eK.value;
+        vR.textContent = R.toFixed(2) + ' m';
+        vK.textContent = K.toFixed(2);
+        ctx.clearRect(0,0,w,h); ctx.fillStyle='#050510'; ctx.fillRect(0,0,w,h);
+        const { s, P } = mkTopProjection(w, h);
+        drawRoomOutline(ctx, P);
+        // Rasterize cost field: cell-by-cell
+        const cell = 0.05; // 5cm cells
+        const xR = ROOM.xMax-ROOM.xMin, yR = ROOM.yMax-ROOM.yMin;
+        const nx = Math.ceil(xR/cell), ny = Math.ceil(yR/cell);
+        const obstX = 0, obstY = 0;
+        for (let iy=0; iy<ny; iy++) for (let ix=0; ix<nx; ix++) {
+            const xw = ROOM.xMin + (ix+0.5)*cell;
+            const yw = ROOM.yMin + (iy+0.5)*cell;
+            const d = Math.hypot(xw-obstX, yw-obstY);
+            let cost;
+            if (d < 0.18) cost = 1.0;     // lethal (inside robot footprint)
+            else if (d > R) cost = 0;     // free
+            else {
+                // Nav2 inflation cost formula: exp(-K*(d - r_robot))
+                cost = Math.exp(-K * (d - 0.18));
+                cost = Math.min(1.0, cost);
+            }
+            if (cost > 0.01) {
+                const tl = P(xw-cell/2, yw+cell/2);
+                const alpha = cost;
+                ctx.fillStyle = `rgba(248, 113, 113, ${alpha*0.85})`;
+                ctx.fillRect(tl.x, tl.y, cell*s+0.5, cell*s+0.5);
+            }
+        }
+        // obstacle marker
+        const op = P(obstX, obstY);
+        ctx.fillStyle = '#0f172a';
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.beginPath(); ctx.arc(op.x, op.y, 0.18*s, 0, Math.PI*2);
+        ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '10px JetBrains Mono';
+        ctx.fillText('obstacle', op.x+8, op.y+4);
+        // safe channel width at y=1.5
+        const sample = (xw, yw) => {
+            const d = Math.hypot(xw-obstX, yw-obstY);
+            if (d < 0.18) return 1.0;
+            if (d > R) return 0;
+            return Math.min(1.0, Math.exp(-K*(d-0.18)));
+        };
+        let openCells = 0;
+        for (let ix=0; ix<nx; ix++) {
+            const xw = ROOM.xMin + (ix+0.5)*cell;
+            if (sample(xw, 1.5) < 0.5) openCells++;
+        }
+        const openW = openCells * cell;
+        stat.innerHTML = `cost = exp(-${K.toFixed(1)} · (d - 0.18)) · open corridor at y=1.5 m: <b>${openW.toFixed(2)} m</b>`;
+    }
+    [eR,eK].forEach(e=>e.addEventListener('input', draw));
+    window.addEventListener('resize', draw); draw();
+})();
+
+// ============================================================
+// Card 9: goal tolerances
+// ============================================================
+(function() {
+    const cv = document.querySelector('[data-card=goal]');
+    const stat = document.getElementById('stat-goal');
+    const eXY = document.getElementById('goal-xy');
+    const eYaw = document.getElementById('goal-yaw');
+    const vXY = document.getElementById('goal-xyVal');
+    const vYaw = document.getElementById('goal-yawVal');
+    function draw() {
+        const { ctx, w, h } = fitDPR(cv);
+        const xy = +eXY.value, yaw = +eYaw.value;
+        vXY.textContent = xy.toFixed(2) + ' m';
+        vYaw.textContent = yaw.toFixed(2) + ' rad';
+        ctx.clearRect(0,0,w,h); ctx.fillStyle='#050510'; ctx.fillRect(0,0,w,h);
+        const { s, P } = mkTopProjection(w, h);
+        drawRoomOutline(ctx, P);
+        // Goal pose at (1.5, 0), heading along +x
+        const gx=1.5, gy=0, gth=0;
+        const o = P(gx, gy);
+        // xy tolerance disc
+        ctx.fillStyle = 'rgba(252, 211, 77, 0.18)';
+        ctx.strokeStyle = '#facc15';
+        ctx.beginPath(); ctx.arc(o.x, o.y, xy*s, 0, Math.PI*2);
+        ctx.fill(); ctx.stroke();
+        // yaw cone
+        ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 1.5;
+        const armLen = xy*s + 14;
+        ctx.beginPath();
+        ctx.moveTo(o.x + Math.cos(gth+yaw)*armLen, o.y - Math.sin(gth+yaw)*armLen);
+        ctx.lineTo(o.x, o.y);
+        ctx.lineTo(o.x + Math.cos(gth-yaw)*armLen, o.y - Math.sin(gth-yaw)*armLen);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(o.x, o.y, xy*s+8, -gth-yaw, -gth+yaw);
+        ctx.stroke();
+        // heading arrow
+        ctx.strokeStyle = '#fef3c7';
+        ctx.beginPath();
+        ctx.moveTo(o.x, o.y);
+        ctx.lineTo(o.x + Math.cos(gth)*armLen, o.y - Math.sin(gth)*armLen);
+        ctx.stroke();
+        // goal marker
+        ctx.fillStyle = '#fef3c7';
+        ctx.beginPath(); ctx.arc(o.x, o.y, 3, 0, Math.PI*2); ctx.fill();
+        // rover
+        drawRobot(ctx, P);
+        const yawNote = yaw < 0.3 ? '<span class="bad">↯ mecanum may oscillate</span>'
+                       : yaw < 0.4 ? '<span class="warn">tight for mecanum</span>'
+                       : '<span class="ok">OK for mecanum</span>';
+        stat.innerHTML = `disc Ø ${(xy*2).toFixed(2)} m · yaw ±${(yaw*57.3).toFixed(1)}° · ${yawNote}`;
+    }
+    [eXY,eYaw].forEach(e=>e.addEventListener('input', draw));
+    window.addEventListener('resize', draw); draw();
+})();
+
+// ============================================================
+// Card 10: max velocity
+// ============================================================
+(function() {
+    const cv = document.querySelector('[data-card=vel]');
+    const stat = document.getElementById('stat-vel');
+    const eX = document.getElementById('vel-x');
+    const eTh = document.getElementById('vel-th');
+    const vX = document.getElementById('vel-xVal');
+    const vTh = document.getElementById('vel-thVal');
+    function draw() {
+        const { ctx, w, h } = fitDPR(cv);
+        const vx = +eX.value, vth = +eTh.value;
+        vX.textContent = vx.toFixed(2) + ' m/s';
+        vTh.textContent = vth.toFixed(2) + ' rad/s';
+        ctx.clearRect(0,0,w,h); ctx.fillStyle='#050510'; ctx.fillRect(0,0,w,h);
+        const { s, P } = mkTopProjection(w, h);
+        drawRoomOutline(ctx, P);
+        // simulate 1 second of motion with constant vx, vth
+        const dt = 0.05;
+        let x=0, y=0, th=0;
+        const pts = [{x,y}];
+        for (let t=0; t<3; t+=dt) {
+            x += vx*Math.cos(th)*dt;
+            y += vx*Math.sin(th)*dt;
+            th += vth*dt;
+            pts.push({x,y});
+        }
+        ctx.strokeStyle = '#86efac'; ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        for (let i=0;i<pts.length;i++) {
+            const pt = P(pts[i].x, pts[i].y);
+            if (i===0) ctx.moveTo(pt.x,pt.y); else ctx.lineTo(pt.x,pt.y);
+        }
+        ctx.stroke();
+        // velocity arrow at origin
+        const o = P(0,0);
+        const armLen = vx * s;
+        ctx.strokeStyle = '#67e8f9'; ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(o.x, o.y);
+        ctx.lineTo(o.x + armLen, o.y);
+        ctx.stroke();
+        // arrowhead
+        ctx.fillStyle = '#67e8f9';
+        ctx.beginPath();
+        ctx.moveTo(o.x + armLen, o.y);
+        ctx.lineTo(o.x + armLen - 5, o.y - 4);
+        ctx.lineTo(o.x + armLen - 5, o.y + 4);
+        ctx.fill();
+        drawRobot(ctx, P);
+        // 3-second reach
+        const reachX = pts[pts.length-1].x, reachY = pts[pts.length-1].y;
+        const reachR = Math.hypot(reachX, reachY);
+        stat.innerHTML = `3-sec reach: <b>${reachR.toFixed(2)} m</b> · radius of curvature: ${vth>0.01 ? (vx/vth).toFixed(2) + ' m' : '∞ (straight)'}`;
+    }
+    [eX,eTh].forEach(e=>e.addEventListener('input', draw));
+    window.addEventListener('resize', draw); draw();
+})();
+
+// ============================================================
+// Card 11: FAST-LIO blind
+// ============================================================
+(function() {
+    const cv = document.querySelector('[data-card=blind]');
+    const stat = document.getElementById('stat-blind');
+    const eV = document.getElementById('blind-v');
+    const vV = document.getElementById('blind-vVal');
+    function draw() {
+        const { ctx, w, h } = fitDPR(cv);
+        const b = +eV.value;
+        vV.textContent = b.toFixed(2) + ' m';
+        ctx.clearRect(0,0,w,h); ctx.fillStyle='#050510'; ctx.fillRect(0,0,w,h);
+        const { s, P } = mkTopProjection(w, h);
+        drawRoomOutline(ctx, P);
+        drawFurnitureFootprint(ctx, P, s);
+        // points (all of them, since FAST-LIO sees full cloud)
+        let kept=0, self=0, lost=0;
+        for (const p of cloud) {
+            const r = Math.hypot(p.x,p.y);
+            const inBlind = r < b;
+            if (p.self) {
+                if (inBlind) self++; else { self++; lost++; }
+            } else {
+                if (inBlind) lost++; else kept++;
+            }
+            const pt = P(p.x, p.y);
+            let color;
+            if (p.self && inBlind) color = 'rgba(134, 239, 172, 0.7)'; // self filtered (good)
+            else if (p.self) color = 'rgba(248, 113, 113, 0.7)';        // self surviving (bad)
+            else if (inBlind) color = 'rgba(252, 211, 77, 0.5)';        // real obstacle lost (warn)
+            else color = 'rgba(103, 232, 249, 0.85)';                   // real obstacle kept
+            ctx.fillStyle = color;
+            ctx.beginPath(); ctx.arc(pt.x, pt.y, p.self?2:1.1, 0, Math.PI*2); ctx.fill();
+        }
+        // blind ring
+        const o = P(0,0);
+        ctx.strokeStyle = '#fcd34d'; ctx.setLineDash([3,3]);
+        ctx.beginPath(); ctx.arc(o.x, o.y, b*s, 0, Math.PI*2); ctx.stroke();
+        ctx.setLineDash([]);
+        drawRobot(ctx, P);
+        // count "self-hit survivors" — bad
+        let selfSurv = 0;
+        for (const p of cloud) {
+            if (!p.self) continue;
+            const r = Math.hypot(p.x,p.y);
+            if (r >= b) selfSurv++;
+        }
+        const cls = selfSurv === 0 ? 'ok' : 'bad';
+        stat.innerHTML = `<span class="ok">${kept}</span> real kept · <span class="warn">${lost - selfSurv}</span> real lost · <span class="${cls}">${selfSurv}</span> self-hits survive`;
+    }
+    eV.addEventListener('input', draw);
+    window.addEventListener('resize', draw); draw();
+})();
+
+// ============================================================
+// Card 12: filter_size_surf (voxel downsample)
+// ============================================================
+(function() {
+    const cv = document.querySelector('[data-card=voxel]');
+    const stat = document.getElementById('stat-voxel');
+    const eV = document.getElementById('voxel-v');
+    const vV = document.getElementById('voxel-vVal');
+    function draw() {
+        const { ctx, w, h } = fitDPR(cv);
+        const vs = +eV.value;
+        vV.textContent = vs.toFixed(2) + ' m';
+        ctx.clearRect(0,0,w,h); ctx.fillStyle='#050510'; ctx.fillRect(0,0,w,h);
+        const { s, P } = mkTopProjection(w, h);
+        drawRoomOutline(ctx, P);
+        drawFurnitureFootprint(ctx, P, s);
+        // light voxel grid lines
+        ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1;
+        for (let x = Math.floor(ROOM.xMin/vs)*vs; x <= ROOM.xMax; x += vs) {
+            const p1 = P(x, ROOM.yMin), p2 = P(x, ROOM.yMax);
+            ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
+        }
+        for (let y = Math.floor(ROOM.yMin/vs)*vs; y <= ROOM.yMax; y += vs) {
+            const p1 = P(ROOM.xMin, y), p2 = P(ROOM.xMax, y);
+            ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
+        }
+        // dim original points
+        for (const p of cloud) {
+            if (p.self) continue;
+            if (p.z > 1.4) continue; // ignore fan/shade for clarity
+            const pt = P(p.x, p.y);
+            ctx.fillStyle = 'rgba(71,85,105,0.35)';
+            ctx.beginPath(); ctx.arc(pt.x, pt.y, 0.8, 0, Math.PI*2); ctx.fill();
+        }
+        // one survivor per voxel
+        const cellOccupied = new Map();
+        let kept = 0, total = 0;
+        for (const p of cloud) {
+            if (p.self) continue;
+            if (p.z > 1.4) continue;
+            total++;
+            const ix = Math.floor(p.x/vs), iy = Math.floor(p.y/vs), iz = Math.floor(p.z/vs);
+            const key = ix+','+iy+','+iz;
+            if (!cellOccupied.has(key)) {
+                cellOccupied.set(key, p);
+                kept++;
+            }
+        }
+        for (const p of cellOccupied.values()) {
+            const pt = P(p.x, p.y);
+            ctx.fillStyle = '#cbd5e1';
+            ctx.beginPath(); ctx.arc(pt.x, pt.y, 1.5, 0, Math.PI*2); ctx.fill();
+        }
+        drawRobot(ctx, P);
+        const ratio = (kept/total*100).toFixed(1);
+        const cls = kept < 200 ? 'bad' : kept < 800 ? 'warn' : 'ok';
+        stat.innerHTML = `<b>${total}</b> raw → <span class="${cls}">${kept}</span> after voxel (${ratio}%) · ${vs > 0.6 ? '<span class="bad">⚠ may starve ICP</span>' : 'ICP-feedable'}`;
+    }
+    eV.addEventListener('input', draw);
+    window.addEventListener('resize', draw); draw();
+})();
+
+// ============================================================
+// Card 13: IMU covariances (acc_cov, gyr_cov)
+// ============================================================
+(function() {
+    const cv = document.querySelector('[data-card=imu]');
+    const stat = document.getElementById('stat-imu');
+    const eA = document.getElementById('imu-a');
+    const eG = document.getElementById('imu-g');
+    const vA = document.getElementById('imu-aVal');
+    const vG = document.getElementById('imu-gVal');
+    function draw() {
+        const { ctx, w, h } = fitDPR(cv);
+        const ac = +eA.value, gc = +eG.value;
+        vA.textContent = ac.toFixed(2);
+        vG.textContent = gc.toFixed(2);
+        ctx.clearRect(0,0,w,h); ctx.fillStyle='#050510'; ctx.fillRect(0,0,w,h);
+        const pad = 20;
+        // x-axis: time 0..3s, y-axis: heading drift (rad)
+        const t0 = pad, t1 = w-pad, b0 = h-pad, b1 = pad;
+        ctx.strokeStyle = '#1e293b';
+        for (let i=0;i<=6;i++) {
+            const y = b0 - (b0-b1)*i/6;
+            ctx.beginPath(); ctx.moveTo(t0,y); ctx.lineTo(t1,y); ctx.stroke();
+        }
+        ctx.strokeStyle = '#334155';
+        ctx.beginPath(); ctx.moveTo(t0, (b0+b1)/2); ctx.lineTo(t1, (b0+b1)/2); ctx.stroke();
+        const yScale = (b0-b1)/2 / 0.5;  // ±0.5 rad full scale
+        const toY = (val) => (b0+b1)/2 - val*yScale;
+        const toX = (t) => t0 + (t1-t0)*t/3;
+        // True trajectory: constant yaw rate of 0.2 rad/s
+        ctx.strokeStyle = '#475569'; ctx.setLineDash([4,4]);
+        ctx.beginPath();
+        for (let t=0;t<=3;t+=0.02) {
+            const y = toY(0.2*t - 0.3); // shifted to center
+            const x = toX(t);
+            if (t===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+        }
+        ctx.stroke(); ctx.setLineDash([]);
+        // IMU prediction (drifts more when gc is low — IMU trusted more, but drifts)
+        // High gc = noisy IMU, large oscillations
+        ctx.strokeStyle = '#60a5fa'; ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        let seed = 1234;
+        const rng = () => { seed = (seed*1103515245+12345) & 0x7fffffff; return (seed/0x7fffffff)*2-1; };
+        for (let t=0;t<=3;t+=0.02) {
+            const noise = rng() * gc * 0.3;
+            const bias = (1-Math.min(1,gc*5)) * 0.05 * t;
+            const y = toY(0.2*t - 0.3 + noise + bias);
+            const x = toX(t);
+            if (t===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+        }
+        ctx.stroke();
+        // ICP-corrected (smoothed by ac — higher ac means ICP corrects fast motion)
+        ctx.strokeStyle = '#67e8f9'; ctx.lineWidth = 2;
+        ctx.beginPath();
+        seed = 1234;
+        const rng2 = () => { seed = (seed*1103515245+12345) & 0x7fffffff; return (seed/0x7fffffff)*2-1; };
+        let prev = -0.3;
+        const alpha = Math.min(1, ac*0.4);
+        for (let t=0;t<=3;t+=0.02) {
+            const truth = 0.2*t - 0.3;
+            prev = prev + alpha*(truth - prev) + rng2()*gc*0.05*(1-alpha);
+            const x = toX(t), y = toY(prev);
+            if (t===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+        }
+        ctx.stroke();
+        // legend
+        ctx.font = '10px JetBrains Mono';
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillText('— truth', t0+4, b1+10);
+        ctx.fillStyle = '#60a5fa';
+        ctx.fillText('— IMU only', t0+4, b1+22);
+        ctx.fillStyle = '#67e8f9';
+        ctx.fillText('— ICP+IMU fused', t0+4, b1+34);
+        ctx.fillStyle = '#64748b';
+        ctx.fillText('0s', t0, b0+12);
+        ctx.fillText('3s', t1-12, b0+12);
+        stat.innerHTML = ac>0.3 ? '<span class="ok">ICP-led: fast-motion robust</span>' : '<span class="warn">IMU-led: smoother but can lag in turns</span>';
+    }
+    [eA,eG].forEach(e=>e.addEventListener('input', draw));
+    window.addEventListener('resize', draw); draw();
+})();
+
+// ============================================================
+// Card 14: det_range
+// ============================================================
+(function() {
+    const cv = document.querySelector('[data-card=detrange]');
+    const stat = document.getElementById('stat-detrange');
+    const eV = document.getElementById('detrange-v');
+    const vV = document.getElementById('detrange-vVal');
+    function draw() {
+        const { ctx, w, h } = fitDPR(cv);
+        const dr = +eV.value;
+        vV.textContent = dr.toFixed(1) + ' m';
+        ctx.clearRect(0,0,w,h); ctx.fillStyle='#050510'; ctx.fillRect(0,0,w,h);
+        const { s, P } = mkTopProjection(w, h);
+        drawRoomOutline(ctx, P);
+        drawFurnitureFootprint(ctx, P, s);
+        let kept=0, lost=0;
+        for (const p of cloud) {
+            if (p.self) continue;
+            const r = Math.hypot(p.x,p.y);
+            const ok = r <= dr;
+            ok ? kept++ : lost++;
+            const pt = P(p.x, p.y);
+            ctx.fillStyle = ok ? 'rgba(103,232,249,0.85)' : 'rgba(71,85,105,0.25)';
+            ctx.beginPath(); ctx.arc(pt.x, pt.y, ok?1.1:0.7, 0, Math.PI*2); ctx.fill();
+        }
+        // range ring
+        const o = P(0,0);
+        ctx.strokeStyle = '#fcd34d'; ctx.setLineDash([3,3]);
+        ctx.beginPath(); ctx.arc(o.x, o.y, dr*s, 0, Math.PI*2); ctx.stroke();
+        ctx.setLineDash([]);
+        drawRobot(ctx, P);
+        const cls = dr < 5 ? 'bad' : dr < 20 ? 'warn' : 'ok';
+        stat.innerHTML = `<span class="ok">${kept}</span> kept · <span class="bad">${lost}</span> beyond range · <span class="${cls}">${dr.toFixed(1)} m</span> covers ${(dr/8.5*100).toFixed(0)}% of room diagonal`;
+    }
+    eV.addEventListener('input', draw);
+    window.addEventListener('resize', draw); draw();
+})();
+
+// ============================================================
+// Defaults + reset buttons
+// Snapshots each input's initial value (which matches the project default
+// from the YAML/launch file), injects a "default = X" hint into every
+// slider/checkbox row, and adds a "↺ Reset" button per card plus one
+// global reset.
+// ============================================================
+(function() {
+    const defaults = new Map();   // id -> default value
+    const hintEls  = new Map();   // id -> default-hint element
+
+    function fmt(el) {
+        if (el.type === 'checkbox') {
+            return el.checked ? 'on' : 'off';
+        }
+        const v = +el.value;
+        const step = +el.step || 1;
+        if (step < 0.01) return v.toFixed(3);
+        if (step < 0.1)  return v.toFixed(2);
+        if (step < 1)    return v.toFixed(1);
+        return v.toFixed(0);
+    }
+    function isDefault(el) {
+        const def = defaults.get(el.id);
+        if (el.type === 'checkbox') return el.checked === def;
+        return Math.abs(+el.value - def) < (+el.step || 0.001) / 2;
+    }
+    function refreshHint(el) {
+        const hint = hintEls.get(el.id);
+        if (!hint) return;
+        hint.classList.toggle('match', isDefault(el));
+        hint.classList.toggle('diff',  !isDefault(el));
+    }
+
+    // 1) Snapshot defaults + inject hint spans
+    document.querySelectorAll('.card input[type=range], .card input[type=checkbox]').forEach(el => {
+        if (!el.id) return;
+        const def = el.type === 'checkbox' ? el.checked : +el.value;
+        defaults.set(el.id, def);
+
+        const row = el.closest('.slider-row, .toggle-row');
+        if (!row) return;
+        const hint = document.createElement('span');
+        hint.className = 'default-hint match';
+        hint.textContent = 'def ' + fmt(el);
+        row.appendChild(hint);
+        hintEls.set(el.id, hint);
+
+        // refresh hint color whenever the input moves
+        el.addEventListener('input',  () => refreshHint(el));
+        el.addEventListener('change', () => refreshHint(el));
+    });
+
+    // 2) One reset button per card
+    function resetInputsIn(scope) {
+        scope.querySelectorAll('input[type=range], input[type=checkbox]').forEach(el => {
+            if (!defaults.has(el.id)) return;
+            const def = defaults.get(el.id);
+            if (el.type === 'checkbox') {
+                if (el.checked !== def) {
+                    el.checked = def;
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                    el.dispatchEvent(new Event('input',  { bubbles: true }));
+                }
+            } else {
+                if (Math.abs(+el.value - def) > 1e-9) {
+                    el.value = def;
+                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+            }
+            refreshHint(el);
+        });
+    }
+    document.querySelectorAll('.card').forEach(card => {
+        const inputs = card.querySelectorAll('input[type=range], input[type=checkbox]');
+        if (inputs.length === 0) return;
+        const btn = document.createElement('button');
+        btn.className = 'reset-btn';
+        btn.type = 'button';
+        btn.textContent = '↺ Reset to defaults';
+        btn.addEventListener('click', () => resetInputsIn(card));
+        card.appendChild(btn);
+    });
+
+    // 3) Global reset
+    document.getElementById('globalReset').addEventListener('click', () => {
+        resetInputsIn(document);
+    });
+})();
+
+</script>
+</body>
+</html>

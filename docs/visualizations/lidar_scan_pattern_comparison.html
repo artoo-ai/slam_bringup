@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>LiDAR Scan Pattern Comparison</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    background: #0a0a1a;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    overflow: hidden;
+}
+canvas { display: block; }
+.controls {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    z-index: 10;
+}
+.controls select, .controls button, .controls label {
+    padding: 6px 14px;
+    background: #1e293b;
+    color: #94a3b8;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    transition: all 0.2s;
+}
+.controls select:hover, .controls button:hover { background: #334155; color: #e2e8f0; }
+.controls label { cursor: pointer; display: flex; align-items: center; gap: 6px; }
+.controls .separator { color: #475569; font-size: 13px; }
+.controls .rotation-counter {
+    color: #94a3b8; font-size: 13px; font-family: inherit;
+    min-width: 120px; text-align: right;
+}
+</style>
+</head>
+<body>
+<div class="controls">
+    <span style="color:#64748b;font-size:13px;">Built-in:</span>
+    <select id="slot0" onchange="switchSlot(0)">
+        <option value="None">None</option>
+        <option value="L1-builtin" selected>L1 (Built-in)</option>
+    </select>
+    <span class="separator">|</span>
+    <span style="color:#64748b;font-size:13px;">Back Mount:</span>
+    <select id="slot1" onchange="switchSlot(1)">
+        <option value="None">None</option>
+        <option value="VLP-16" selected>VLP-16</option>
+        <option value="Pandar40P">Pandar40P</option>
+        <option value="L1">L1</option>
+        <option value="Mid-360">Mid-360</option>
+        <option value="Mid-70">Mid-70</option>
+        <option value="C1M1">RPLiDAR C1M1</option>
+    </select>
+    <select id="slot2" onchange="switchSlot(2)">
+        <option value="None" selected>None</option>
+        <option value="VLP-16">VLP-16</option>
+        <option value="Pandar40P">Pandar40P</option>
+        <option value="L1">L1</option>
+        <option value="Mid-360">Mid-360</option>
+        <option value="Mid-70">Mid-70</option>
+        <option value="C1M1">RPLiDAR C1M1</option>
+    </select>
+    <span class="separator">|</span>
+    <span style="color:#64748b;font-size:13px;">Near Box:</span>
+    <select id="boxNear" onchange="switchBox()">
+        <option value="None" selected>None</option>
+        <option value="Small">Small</option>
+        <option value="Medium">Medium</option>
+        <option value="Large">Large</option>
+    </select>
+    <span style="color:#64748b;font-size:13px;">Far Box:</span>
+    <select id="boxFar" onchange="switchBox()">
+        <option value="None" selected>None</option>
+        <option value="Small">Small</option>
+        <option value="Medium">Medium</option>
+        <option value="Large">Large</option>
+    </select>
+    <span class="separator">|</span>
+    <span style="color:#64748b;font-size:13px;">Wall:</span>
+    <select id="wallDist" onchange="switchWallDistance()">
+        <option value="Close" selected>Close (~4m / ~13ft)</option>
+        <option value="Mid">Depth Cam Max (~10m / ~33ft)</option>
+        <option value="Far">Go2 L1 Max (~30m / ~98ft)</option>
+    </select>
+    <button id="pauseBtn" onclick="togglePause()">Pause</button>
+    <button onclick="resetAnimation()">Reset</button>
+    <button onclick="downloadPNG()">Download PNG</button>
+    <span class="rotation-counter" id="rotCounter">Rotation: 0 / 20</span>
+</div>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+canvas.width = 1920;
+canvas.height = 1080;
+
+// Scale canvas to fit viewport
+function fitCanvas() {
+    const sx = window.innerWidth / 1920;
+    const sy = window.innerHeight / 1080;
+    const s = Math.min(sx, sy, 1);
+    canvas.style.width = (1920 * s) + 'px';
+    canvas.style.height = (1080 * s) + 'px';
+}
+fitCanvas();
+window.addEventListener('resize', fitCanvas);
+
+// ─── World coordinates ───
+const MARGIN = { top: 90, right: 120, bottom: 250, left: 160 };
+const DRAW_W = 1920 - MARGIN.left - MARGIN.right;
+const DRAW_H = 1080 - MARGIN.top - MARGIN.bottom;
+let WORLD_W = 5.0;
+const WORLD_H = 2.6;
+let SCALE = Math.min(DRAW_W / WORLD_W, DRAW_H / WORLD_H);
+
+let WALL_X = 4.2;
+const CEIL_Z = 2.5;
+
+// ─── Wall Distance Options ───
+const WALL_DISTANCES = {
+    'Close': { wallX: 4.2, worldW: 5.0 },
+    'Mid':   { wallX: 10.5, worldW: 11.5 },
+    'Far':   { wallX: 30.5, worldW: 32.0 }
+};
+
+// ─── Mount Positions ───
+const HEAD_POS = { x: 0.78, z: 0.32 };   // Go2 head (built-in L1)
+const BACK_POS = { x: 0.50, z: 0.38 };   // Go2 back (add-on LiDARs)
+
+function w2c(wx, wz) {
+    return [
+        MARGIN.left + wx * SCALE,
+        MARGIN.top + DRAW_H - wz * SCALE
+    ];
+}
+
+// ─── Imperial conversion helper ───
+function mToImp(m) {
+    const totalIn = Math.round(m * 39.3701);
+    const ft = Math.floor(totalIn / 12);
+    const inch = totalIn % 12;
+    return ft + '\'' + inch + '"';
+}
+
+// ─── LiDAR Model Registry ───
+const MODELS = {
+    'VLP-16': {
+        name: 'Velodyne VLP-16', type: 'fixed', numBeams: 16,
+        fovTop: 15, fovBot: -15, color: '#38bdf8', colorRgb: [56, 189, 248]
+    },
+    'Pandar40P': {
+        name: 'Hesai Pandar40P', type: 'fixed', numBeams: 40,
+        fovTop: 15, fovBot: -25, color: '#f59e0b', colorRgb: [245, 158, 11]
+    },
+    'L1': {
+        name: 'Unitree L1', type: 'non-repetitive', numBeams: 24,
+        fovTop: 22, fovBot: -52, color: '#4ade80', colorRgb: [74, 222, 128]
+    },
+    'Mid-360': {
+        name: 'Livox Mid-360', type: 'non-repetitive', numBeams: 40,
+        fovTop: 52, fovBot: -7, color: '#a78bfa', colorRgb: [167, 139, 250]
+    },
+    'Mid-70': {
+        name: 'Livox Mid-70', type: 'non-repetitive', numBeams: 40,
+        fovTop: 35.2, fovBot: -35.2, color: '#ec4899', colorRgb: [236, 72, 153]
+    },
+    'L1-builtin': {
+        name: 'Go2 Built-in L1', type: 'non-repetitive', numBeams: 24,
+        fovTop: 22, fovBot: -52, color: '#ef4444', colorRgb: [239, 68, 68]
+    },
+    'C1M1': {
+        name: 'Slamtec RPLiDAR C1M1', type: 'fixed', numBeams: 1,
+        fovTop: 0, fovBot: 0, maxRange: 12, color: '#06b6d4', colorRgb: [6, 182, 212]
+    }
+};
+
+// ─── Slot-Based State Management ───
+const SLOTS = [
+    { id: 'slot0', modelKey: 'L1-builtin', originX: HEAD_POS.x, originZ: HEAD_POS.z, currentBeams: [], particles: [], accumulatedHits: [] },
+    { id: 'slot1', modelKey: 'VLP-16', originX: BACK_POS.x, originZ: BACK_POS.z, currentBeams: [], particles: [], accumulatedHits: [] },
+    { id: 'slot2', modelKey: 'None', originX: BACK_POS.x, originZ: BACK_POS.z, currentBeams: [], particles: [], accumulatedHits: [] }
+];
+
+// ─── Floor Boxes — two locations, same size options ───
+const BOX_SIZES = {
+    'Small':  { label: 'Small (15cm)',  width: 0.15, height: 0.15 },
+    'Medium': { label: 'Medium (30cm)', width: 0.30, height: 0.30 },
+    'Large':  { label: 'Large (50cm)',  width: 0.50, height: 0.50 }
+};
+const NEAR_X = 1.2;  // near the robot
+let FAR_X = 3.5;   // near the wall
+let activeNearBox = 'None';
+let activeFarBox = 'None';
+
+function getBoxDef(size, baseX) {
+    const s = BOX_SIZES[size];
+    return { name: s.label, xPos: baseX - s.width / 2, width: s.width, height: s.height };
+}
+
+// ─── Beam Computation ───
+function computeBeams(modelKey, rotation, originX, originZ) {
+    const model = MODELS[modelKey];
+    const fovRange = model.fovTop - model.fovBot;
+    const beams = [];
+
+    for (let i = 0; i < model.numBeams; i++) {
+        let deg = model.numBeams === 1 ? (model.fovTop + model.fovBot) / 2
+            : model.fovTop - fovRange * (i / (model.numBeams - 1));
+
+        // Non-repetitive: apply golden ratio offset every rotation
+        if (model.type === 'non-repetitive') {
+            const offset = rotation * fovRange * 0.618 / model.numBeams;
+            deg = deg + offset;
+            const range = fovRange;
+            deg = model.fovBot + ((deg - model.fovBot) % range + range) % range;
+        }
+
+        const rad = deg * Math.PI / 180;
+        const dx = Math.cos(rad);
+        const dz = Math.sin(rad);
+
+        // Raycast to room surfaces
+        const tWall = dx > 0 ? (WALL_X - originX) / dx : Infinity;
+        const zWall = originZ + tWall * dz;
+
+        const tFloor = dz < 0 ? (-originZ / dz) : Infinity;
+        const xFloor = originX + tFloor * dx;
+
+        const tCeil = dz > 0 ? ((CEIL_Z - originZ) / dz) : Infinity;
+        const xCeil = originX + tCeil * dx;
+
+        let hitX, hitZ, surface;
+
+        if (tFloor > 0 && tFloor < tWall && xFloor >= 0 && xFloor <= WALL_X) {
+            hitX = xFloor; hitZ = 0; surface = 'floor';
+        } else if (tWall > 0 && zWall >= 0 && zWall <= CEIL_Z) {
+            hitX = WALL_X; hitZ = zWall; surface = 'wall';
+        } else if (tCeil > 0 && tCeil < Infinity && xCeil >= 0 && xCeil <= WALL_X) {
+            hitX = xCeil; hitZ = CEIL_Z; surface = 'ceiling';
+        } else {
+            hitX = WALL_X; hitZ = Math.max(0, Math.min(CEIL_Z, zWall)); surface = 'wall';
+        }
+
+        // Clamp to maxRange if defined
+        if (model.maxRange) {
+            const hitDist = Math.hypot(hitX - originX, hitZ - originZ);
+            if (hitDist > model.maxRange) {
+                hitX = originX + dx * model.maxRange;
+                hitZ = originZ + dz * model.maxRange;
+                surface = 'range-limit';
+            }
+        }
+
+        beams.push({
+            deg, rad, originX, originZ,
+            hitX, hitZ, surface,
+            length: Math.hypot(hitX - originX, hitZ - originZ)
+        });
+    }
+
+    return beams;
+}
+
+// ─── Drawing helpers ───
+function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+}
+
+function line(x1, y1, x2, y2) {
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+}
+
+// ─── Draw functions ───
+function drawBackground() {
+    const grad = ctx.createRadialGradient(960, 540, 100, 960, 540, 900);
+    grad.addColorStop(0, '#0f172a');
+    grad.addColorStop(1, '#020617');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 1920, 1080);
+}
+
+function drawRoom() {
+    // Floor
+    const [fx1, fy] = w2c(0, 0);
+    const [fx2] = w2c(WORLD_W, 0);
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 3;
+    line(fx1, fy, fx2, fy);
+
+    // Floor label
+    ctx.fillStyle = '#64748b';
+    ctx.font = '15px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    const [flx, fly] = w2c(WALL_X / 2, -0.08);
+    ctx.fillText('FLOOR', flx, fly);
+
+    // Wall (right side)
+    const [wx, wy1] = w2c(WALL_X, 0);
+    const [, wy2] = w2c(WALL_X, CEIL_Z);
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 3;
+    line(wx, wy1, wx, wy2);
+
+    // Wall label
+    ctx.save();
+    ctx.translate(wx + 22, (wy1 + wy2) / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillStyle = '#64748b';
+    ctx.font = '15px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('WALL', 0, 0);
+    ctx.restore();
+
+    // Ceiling (dashed)
+    const [cx1, cy] = w2c(0, CEIL_Z);
+    const [cx2] = w2c(WORLD_W, CEIL_Z);
+    ctx.setLineDash([10, 8]);
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 1.5;
+    line(cx1, cy, cx2, cy);
+    ctx.setLineDash([]);
+
+    // Ceiling label
+    ctx.fillStyle = '#475569';
+    ctx.font = '13px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    const [clx, cly] = w2c(WALL_X / 2, CEIL_Z + 0.06);
+    ctx.fillText('CEILING (~2.5m / ~8\'2")', clx, cly);
+
+    // Height markers on wall
+    ctx.fillStyle = '#475569';
+    ctx.font = '12px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'right';
+    for (let h = 0.5; h <= 2.0; h += 0.5) {
+        const [mx, my] = w2c(WALL_X, h);
+        ctx.fillStyle = '#475569';
+        line(mx - 6, my, mx + 6, my);
+        ctx.fillStyle = '#64748b';
+        ctx.fillText(h.toFixed(1) + 'm (' + mToImp(h) + ')', mx - 12, my + 4);
+    }
+
+    // Distance annotation (robot to wall)
+    const [rx] = w2c(BACK_POS.x, 0);
+    const [wallMarkX] = w2c(WALL_X, 0);
+    const distY = MARGIN.top + DRAW_H + 35;
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 1;
+    line(rx, distY, wallMarkX, distY);
+    line(rx, distY - 4, rx, distY + 4);
+    line(wallMarkX, distY - 4, wallMarkX, distY + 4);
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '12px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    const distM = WALL_X - BACK_POS.x;
+    ctx.fillText(distM.toFixed(1) + 'm (' + mToImp(distM) + ')', (rx + wallMarkX) / 2, distY - 6);
+}
+
+function drawRobot() {
+    // Simplified Go2 side profile facing right
+    const bodyL = 0.3, bodyR = 0.68;
+    const bodyBot = 0.22, bodyTop = 0.34;
+
+    // Legs
+    ctx.strokeStyle = '#4c566a';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    // Back leg
+    let [x1, y1] = w2c(0.36, bodyBot);
+    let [x2, y2] = w2c(0.33, 0.12);
+    let [x3, y3] = w2c(0.36, 0);
+    line(x1, y1, x2, y2); line(x2, y2, x3, y3);
+    // Front leg
+    [x1, y1] = w2c(0.62, bodyBot);
+    [x2, y2] = w2c(0.65, 0.12);
+    [x3, y3] = w2c(0.62, 0);
+    line(x1, y1, x2, y2); line(x2, y2, x3, y3);
+
+    // Body
+    const [bx1, by1] = w2c(bodyL, bodyTop);
+    const [bx2, by2] = w2c(bodyR, bodyBot);
+    ctx.fillStyle = '#334155';
+    ctx.strokeStyle = '#4c566a';
+    ctx.lineWidth = 2;
+    roundRect(bx1, by1, bx2 - bx1, by2 - by1, 10);
+    ctx.fill();
+    ctx.stroke();
+
+    // Head
+    const [hx1, hy1] = w2c(0.68, 0.37);
+    const [hx2, hy2] = w2c(0.78, 0.27);
+    ctx.fillStyle = '#334155';
+    roundRect(hx1, hy1, hx2 - hx1, hy2 - hy1, 6);
+    ctx.fill();
+    ctx.strokeStyle = '#4c566a';
+    ctx.stroke();
+
+    // Head LiDAR mount dot (built-in L1) — always show if slot 0 is active
+    if (SLOTS[0].modelKey !== 'None') {
+        const [lx, ly] = w2c(HEAD_POS.x, HEAD_POS.z);
+        ctx.beginPath();
+        ctx.arc(lx, ly, 5, 0, Math.PI * 2);
+        ctx.fillStyle = '#ef4444';
+        ctx.shadowBlur = 18;
+        ctx.shadowColor = '#ef4444';
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    }
+
+    // Back mount dot — show if slot 1 or 2 is active
+    const backActive = SLOTS[1].modelKey !== 'None' || SLOTS[2].modelKey !== 'None';
+    if (backActive) {
+        // Pick the color from the first active back slot
+        let backColor = '#94a3b8';
+        if (SLOTS[1].modelKey !== 'None') {
+            backColor = MODELS[SLOTS[1].modelKey].color;
+        } else if (SLOTS[2].modelKey !== 'None') {
+            backColor = MODELS[SLOTS[2].modelKey].color;
+        }
+        const [bpx, bpy] = w2c(BACK_POS.x, BACK_POS.z);
+        ctx.beginPath();
+        ctx.arc(bpx, bpy, 5, 0, Math.PI * 2);
+        ctx.fillStyle = backColor;
+        ctx.shadowBlur = 14;
+        ctx.shadowColor = backColor;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    }
+
+    // Robot label
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = 'bold 16px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    const [tx] = w2c(0.5, 0);
+    const [, floorCanvasY] = w2c(0, 0);
+    ctx.fillText('Unitree Go2', tx, floorCanvasY + 24);
+}
+
+// ─── Beam Drawing ───
+function drawBeams(beams, colorRgb, alpha) {
+    beams.forEach(beam => {
+        const [ox, oy] = w2c(beam.originX, beam.originZ);
+        const [hx, hy] = w2c(beam.hitX, beam.hitZ);
+        ctx.strokeStyle = `rgba(${colorRgb[0]}, ${colorRgb[1]}, ${colorRgb[2]}, ${alpha})`;
+        ctx.lineWidth = 1.5;
+        line(ox, oy, hx, hy);
+    });
+}
+
+// ─── Impact Points ───
+function drawImpactPoints(beams, colorRgb, modelType) {
+    beams.forEach(beam => {
+        // Skip wall hits for non-repetitive models (drawAccumulatedHits handles those)
+        if (modelType === 'non-repetitive' && beam.surface === 'wall') return;
+        if (beam.surface === 'range-limit') return;
+
+        const [hx, hy] = w2c(beam.hitX, beam.hitZ);
+
+        // Glow
+        ctx.beginPath();
+        ctx.arc(hx, hy, beam.surface === 'wall' ? 6 : 4, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${colorRgb[0]}, ${colorRgb[1]}, ${colorRgb[2]}, 0.15)`;
+        ctx.fill();
+
+        // Dot
+        ctx.beginPath();
+        ctx.arc(hx, hy, beam.surface === 'wall' ? 3.5 : 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${colorRgb[0]}, ${colorRgb[1]}, ${colorRgb[2]}, 0.9)`;
+        ctx.fill();
+    });
+}
+
+// ─── Accumulated Wall Hits ───
+function accumulateWallHits(beams, rotation) {
+    const hits = [];
+    beams.forEach(beam => {
+        if (beam.surface === 'wall') {
+            hits.push({ z: beam.hitZ, rotation });
+        }
+    });
+    return hits;
+}
+
+function drawAccumulatedHits(hits, colorRgb, currentRot) {
+    hits.forEach(hit => {
+        const age = currentRot - hit.rotation;
+        const maxAge = MAX_ROTATIONS;
+        const ageFrac = Math.min(age / maxAge, 1);
+        const opacity = 0.9 - ageFrac * 0.6;
+        const size = 3.5 - ageFrac * 1.5;
+        const [hx, hy] = w2c(WALL_X, hit.z);
+
+        ctx.beginPath();
+        ctx.arc(hx, hy, size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${colorRgb[0]}, ${colorRgb[1]}, ${colorRgb[2]}, ${opacity})`;
+        ctx.fill();
+    });
+}
+
+// ─── Rotation Tracking ───
+let currentRotation = 0;
+let rotationTimer = 0;
+const ROTATION_DURATION = 0.5;
+const MAX_ROTATIONS = 20;
+
+// ─── Particle System ───
+function createParticles(beams) {
+    const particles = [];
+    const pPerBeam = beams.length > 20 ? 1 : 2; // fewer particles for dense beam sets
+    beams.forEach(beam => {
+        for (let j = 0; j < pPerBeam; j++) {
+            particles.push({
+                beam,
+                t: Math.random(),
+                speed: 0.6 + Math.random() * 0.4,
+                size: 2 + Math.random() * 2
+            });
+        }
+    });
+    return particles;
+}
+
+function updateAndDrawParticles(particles, colorRgb, dt, updatePositions) {
+    particles.forEach(p => {
+        if (updatePositions) {
+            p.t += dt / p.speed;
+            if (p.t >= 1) {
+                p.t -= 1;
+                p.speed = 0.6 + Math.random() * 0.4;
+            }
+        }
+
+        const px = p.beam.originX + (p.beam.hitX - p.beam.originX) * p.t;
+        const pz = p.beam.originZ + (p.beam.hitZ - p.beam.originZ) * p.t;
+        const [cx, cy] = w2c(px, pz);
+
+        const alpha = 0.7 + 0.3 * p.t;
+        ctx.beginPath();
+        ctx.arc(cx, cy, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${colorRgb[0]}, ${colorRgb[1]}, ${colorRgb[2]}, ${alpha})`;
+        ctx.fill();
+    });
+}
+
+function updateParticlesForBeams(particles, newBeams) {
+    const pPerBeam = newBeams.length > 20 ? 1 : 2;
+    particles.forEach((p, i) => {
+        const beamIndex = Math.floor(i / pPerBeam) % newBeams.length;
+        p.beam = newBeams[beamIndex];
+    });
+}
+
+// ─── Controls ───
+let paused = false;
+
+function switchSlot(index) {
+    const sel = document.getElementById(SLOTS[index].id);
+    SLOTS[index].modelKey = sel.value;
+    resetAnimation();
+}
+
+function switchBox() {
+    activeNearBox = document.getElementById('boxNear').value;
+    activeFarBox = document.getElementById('boxFar').value;
+}
+
+function switchWallDistance() {
+    const cfg = WALL_DISTANCES[document.getElementById('wallDist').value];
+    WALL_X = cfg.wallX;
+    WORLD_W = cfg.worldW;
+    SCALE = Math.min(DRAW_W / WORLD_W, DRAW_H / WORLD_H);
+    FAR_X = WALL_X - 0.7;
+    resetAnimation();
+}
+
+function togglePause() {
+    paused = !paused;
+    document.getElementById('pauseBtn').textContent = paused ? 'Play' : 'Pause';
+}
+
+function resetAnimation() {
+    currentRotation = 0;
+    rotationTimer = 0;
+    cachedRotation = -1; // invalidate cache
+    SLOTS.forEach(slot => {
+        if (slot.modelKey === 'None') {
+            slot.currentBeams = [];
+            slot.particles = [];
+            slot.accumulatedHits = [];
+            return;
+        }
+        slot.currentBeams = computeBeams(slot.modelKey, 0, slot.originX, slot.originZ);
+        slot.particles = createParticles(slot.currentBeams);
+        slot.accumulatedHits = [];
+        if (MODELS[slot.modelKey].type === 'non-repetitive') {
+            slot.accumulatedHits = accumulateWallHits(slot.currentBeams, 0);
+        }
+    });
+}
+
+function downloadPNG() {
+    const link = document.createElement('a');
+    link.download = 'lidar_scan_pattern_comparison.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+}
+
+// ─── Floor Box Drawing and Detection ───
+function drawOneBox(box, locationLabel) {
+    const [x1, y1] = w2c(box.xPos, box.height);
+    const [x2, y2] = w2c(box.xPos + box.width, 0);
+    const w = x2 - x1;
+    const h = y2 - y1;
+
+    // Filled rectangle
+    ctx.fillStyle = 'rgba(148, 163, 184, 0.1)';
+    ctx.fillRect(x1, y1, w, h);
+
+    // Outline
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x1, y1, w, h);
+
+    // Label above box
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '11px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    const [lx, ly] = w2c(box.xPos + box.width / 2, box.height + 0.06);
+    ctx.fillText(locationLabel + ': ' + box.name, lx, ly);
+}
+
+function drawFloorBoxes() {
+    if (activeNearBox !== 'None') drawOneBox(getBoxDef(activeNearBox, NEAR_X), 'Near');
+    if (activeFarBox !== 'None') drawOneBox(getBoxDef(activeFarBox, FAR_X), 'Far');
+}
+
+function checkBoxDetection(slotIndex, box) {
+    const slot = SLOTS[slotIndex];
+    if (slot.modelKey === 'None') return false;
+    const beams = slot.currentBeams;
+    const accumulated = slot.accumulatedHits;
+    const model = MODELS[slot.modelKey];
+
+    // Check current beams: does any beam pass through the box?
+    for (const beam of beams) {
+        // For downward beams (hitting floor): check if the beam crosses z=box.height
+        // within the box's x range
+        if (beam.hitZ <= box.height) {
+            // Beam goes below box top; check x at z=box.height
+            const dz = beam.hitZ - beam.originZ;
+            const dx = beam.hitX - beam.originX;
+            if (dz !== 0) {
+                const t = (box.height - beam.originZ) / dz;
+                if (t > 0 && t <= 1) {
+                    const xAtBoxTop = beam.originX + dx * t;
+                    if (xAtBoxTop >= box.xPos && xAtBoxTop <= box.xPos + box.width) {
+                        return true;
+                    }
+                }
+            }
+        }
+        // Also check if floor hit x lands within box x range (beam grazes through)
+        if (beam.surface === 'floor' && beam.hitX >= box.xPos && beam.hitX <= box.xPos + box.width) {
+            return true;
+        }
+        // Forward beams hitting wall: check if they pass through the box front face
+        if (beam.surface === 'wall' || beam.surface === 'ceiling') {
+            const dx = beam.hitX - beam.originX;
+            const dz = beam.hitZ - beam.originZ;
+            if (dx !== 0) {
+                const t = (box.xPos - beam.originX) / dx;
+                if (t > 0 && t <= 1) {
+                    const zAtBoxFront = beam.originZ + dz * t;
+                    if (zAtBoxFront >= 0 && zAtBoxFront <= box.height) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+
+    // For non-repetitive, also check accumulated wall hits passing through box
+    if (model.type === 'non-repetitive') {
+        // Accumulated hits are wall hits; check if any beam at that z would pass through box
+        // This is approximate - check if any accumulated pattern would have crossed through
+        for (const hit of accumulated) {
+            // Reconstruct approximate beam from origin to wall hit
+            const dz = hit.z - slot.originZ;
+            const dx = WALL_X - slot.originX;
+            if (dx !== 0) {
+                const t = (box.xPos - slot.originX) / dx;
+                if (t > 0 && t <= 1) {
+                    const zAtBoxFront = slot.originZ + dz * t;
+                    if (zAtBoxFront >= 0 && zAtBoxFront <= box.height) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
+// ─── Coverage and Density (cached per rotation) ───
+const BAND_HEIGHT = 0.1;
+const NUM_BANDS = Math.ceil(CEIL_Z / BAND_HEIGHT);
+
+// Cache: recomputed only when rotation changes
+let cachedRotation = -1;
+let cachedCoverage = [0, 0, 0];
+let cachedDensity = [null, null, null]; // arrays of band counts
+
+function recomputeCache() {
+    if (cachedRotation === currentRotation) return;
+    cachedRotation = currentRotation;
+    for (let si = 0; si < 3; si++) {
+        const slot = SLOTS[si];
+        if (slot.modelKey === 'None') {
+            cachedCoverage[si] = 0;
+            cachedDensity[si] = new Array(NUM_BANDS).fill(0);
+            continue;
+        }
+        const model = MODELS[slot.modelKey];
+        const bands = new Array(NUM_BANDS).fill(0);
+        const coverageBands = new Set();
+
+        // Current beam wall hits
+        slot.currentBeams.forEach(b => {
+            if (b.surface === 'wall') {
+                const idx = Math.floor(b.hitZ / BAND_HEIGHT);
+                if (idx >= 0 && idx < NUM_BANDS) { bands[idx]++; coverageBands.add(idx); }
+            }
+        });
+        // Accumulated hits (non-repetitive only)
+        if (model.type === 'non-repetitive') {
+            slot.accumulatedHits.forEach(h => {
+                const idx = Math.floor(h.z / BAND_HEIGHT);
+                if (idx >= 0 && idx < NUM_BANDS) { bands[idx]++; coverageBands.add(idx); }
+            });
+        }
+        cachedCoverage[si] = Math.round((coverageBands.size / NUM_BANDS) * 100);
+        cachedDensity[si] = bands;
+    }
+}
+
+function getAllWallHits(slotIndex) {
+    const slot = SLOTS[slotIndex];
+    if (slot.modelKey === 'None') return [];
+    const model = MODELS[slot.modelKey];
+    const currentHits = slot.currentBeams.filter(b => b.surface === 'wall').map(b => ({ z: b.hitZ }));
+    if (model.type === 'fixed') return currentHits;
+    return [...currentHits, ...slot.accumulatedHits];
+}
+
+function drawCoverageBars() {
+    const barY = MARGIN.top + DRAW_H + 100;
+    const barW = 400;
+    const barH = 18;
+    const startX = MARGIN.left;
+
+    let row = 0;
+    SLOTS.forEach((slot, i) => {
+        if (slot.modelKey === 'None') return;
+        const model = MODELS[slot.modelKey];
+        const cov = cachedCoverage[i];
+        const col = model.colorRgb;
+        const rowY = barY + row * 30;
+
+        // Label
+        ctx.fillStyle = `rgb(${col[0]},${col[1]},${col[2]})`;
+        ctx.font = 'bold 13px Inter, system-ui, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(model.name, startX + 150, rowY + 13);
+
+        // Color swatch
+        ctx.fillStyle = `rgb(${col[0]},${col[1]},${col[2]})`;
+        ctx.fillRect(startX + 156, rowY + 2, 10, 14);
+
+        // Bar background
+        const barStartX = startX + 174;
+        ctx.fillStyle = '#1e293b';
+        roundRect(barStartX, rowY, barW, barH, 4);
+        ctx.fill();
+        ctx.strokeStyle = '#334155';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Filled portion
+        if (cov > 0) {
+            ctx.fillStyle = `rgba(${col[0]},${col[1]},${col[2]}, 0.6)`;
+            roundRect(barStartX, rowY, barW * cov / 100, barH, 4);
+            ctx.fill();
+        }
+
+        // Percentage
+        ctx.fillStyle = '#e2e8f0';
+        ctx.font = '13px Inter, system-ui, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(cov + '%', barStartX + barW + 10, rowY + 13);
+
+        row++;
+    });
+
+    // Coverage label
+    if (row > 0) {
+        const barStartX = startX + 174;
+        ctx.fillStyle = '#64748b';
+        ctx.font = '11px Inter, system-ui, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('Wall Coverage', barStartX + barW / 2 - 35, barY - 8);
+    }
+}
+
+// ─── Detection Legend ───
+function drawDetectionRow(box, label, startX, startY, activeSlots) {
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '12px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(label + ' ' + box.name + ':', startX, startY);
+    let xOff = startX + ctx.measureText(label + ' ' + box.name + ':').width + 10;
+
+    activeSlots.forEach(si => {
+        const model = MODELS[SLOTS[si].modelKey];
+        const det = checkBoxDetection(si, box);
+        ctx.fillStyle = det ? `rgb(${model.colorRgb[0]},${model.colorRgb[1]},${model.colorRgb[2]})` : '#475569';
+        ctx.font = '14px Inter, system-ui, sans-serif';
+        ctx.fillText(det ? '\u2713' : '\u2717', xOff, startY);
+        xOff += 16;
+        ctx.fillStyle = `rgb(${model.colorRgb[0]},${model.colorRgb[1]},${model.colorRgb[2]})`;
+        ctx.font = '10px Inter, system-ui, sans-serif';
+        ctx.fillText(model.name, xOff, startY);
+        xOff += ctx.measureText(model.name).width + 12;
+    });
+}
+
+function drawDetectionLegend() {
+    if (activeNearBox === 'None' && activeFarBox === 'None') return;
+
+    const activeSlots = [];
+    SLOTS.forEach((slot, i) => {
+        if (slot.modelKey !== 'None') activeSlots.push(i);
+    });
+    if (activeSlots.length === 0) return;
+
+    const startX = MARGIN.left;
+    let startY = MARGIN.top + DRAW_H + 160;
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = 'bold 12px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('Box Detection:', startX, startY);
+
+    if (activeNearBox !== 'None') {
+        startY += 16;
+        drawDetectionRow(getBoxDef(activeNearBox, NEAR_X), 'Near', startX + 10, startY, activeSlots);
+    }
+    if (activeFarBox !== 'None') {
+        startY += 16;
+        drawDetectionRow(getBoxDef(activeFarBox, FAR_X), 'Far', startX + 10, startY, activeSlots);
+    }
+}
+
+// ─── Density Chart ───
+function drawDensityChart() {
+    const activeSlots = [];
+    SLOTS.forEach((slot, i) => {
+        if (slot.modelKey !== 'None') activeSlots.push(i);
+    });
+    if (activeSlots.length === 0) return;
+
+    const chartX = MARGIN.left + DRAW_W + 20;
+    const chartW = 70;
+    const [, chartTopY] = w2c(0, CEIL_Z);
+    const [, chartBotY] = w2c(0, 0);
+    const chartH = chartBotY - chartTopY;
+    const bandPixH = chartH / NUM_BANDS;
+
+    // Title
+    ctx.fillStyle = '#64748b';
+    ctx.font = '11px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Wall Density', chartX + chartW / 2, chartTopY - 8);
+
+    // Background outline
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(chartX, chartTopY, chartW, chartH);
+
+    // Use cached density data
+    const allBands = activeSlots.map(si => cachedDensity[si]);
+    const maxCount = Math.max(1, ...allBands.flat());
+
+    // Draw overlaid bars for each slot
+    for (let i = 0; i < NUM_BANDS; i++) {
+        const bandY = chartBotY - (i + 1) * bandPixH;
+
+        activeSlots.forEach((si, ai) => {
+            const count = allBands[ai][i];
+            if (count > 0) {
+                const model = MODELS[SLOTS[si].modelKey];
+                const bw = (count / maxCount) * chartW;
+                // Offset slightly for visibility when overlaid
+                const offsetY = ai * 1;
+                ctx.fillStyle = `rgba(${model.colorRgb[0]},${model.colorRgb[1]},${model.colorRgb[2]}, 0.5)`;
+                ctx.fillRect(chartX, bandY + offsetY, bw, bandPixH - 1);
+            }
+        });
+    }
+}
+
+// ─── Title, Annotations + FOV Arc ───
+function drawTitle() {
+    ctx.fillStyle = '#f1f5f9';
+    ctx.font = 'bold 32px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('LiDAR Scan Pattern Comparison', 960, 52);
+
+    ctx.fillStyle = '#64748b';
+    ctx.font = '17px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Multi-LiDAR coverage from the Unitree Go2', 960, 80);
+}
+
+function drawFOVArc(model, originX, originZ, offset) {
+    const [lx, ly] = w2c(originX, originZ);
+    const radius = 50 + offset;
+
+    const topRad = -model.fovTop * Math.PI / 180;
+    const botRad = -model.fovBot * Math.PI / 180;
+
+    ctx.beginPath();
+    ctx.arc(lx, ly, radius, topRad, botRad, false);
+    ctx.strokeStyle = `rgba(${model.colorRgb[0]},${model.colorRgb[1]},${model.colorRgb[2]}, 0.5)`;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Small lines at edges
+    const topEndX = lx + Math.cos(topRad) * (radius + 6);
+    const topEndY = ly + Math.sin(topRad) * (radius + 6);
+    const topStartX = lx + Math.cos(topRad) * (radius - 6);
+    const topStartY = ly + Math.sin(topRad) * (radius - 6);
+    ctx.beginPath();
+    ctx.moveTo(topStartX, topStartY);
+    ctx.lineTo(topEndX, topEndY);
+    ctx.stroke();
+
+    const botEndX = lx + Math.cos(botRad) * (radius + 6);
+    const botEndY = ly + Math.sin(botRad) * (radius + 6);
+    const botStartX = lx + Math.cos(botRad) * (radius - 6);
+    const botStartY = ly + Math.sin(botRad) * (radius - 6);
+    ctx.beginPath();
+    ctx.moveTo(botStartX, botStartY);
+    ctx.lineTo(botEndX, botEndY);
+    ctx.stroke();
+
+    // FOV degree label at midpoint
+    const midDeg = (model.fovTop + model.fovBot) / 2;
+    const midRad = -midDeg * Math.PI / 180;
+    const labelR = radius + 16;
+    const labelX = lx + Math.cos(midRad) * labelR;
+    const labelY = ly + Math.sin(midRad) * labelR;
+
+    const totalFov = model.fovTop - model.fovBot;
+    ctx.fillStyle = `rgba(${model.colorRgb[0]},${model.colorRgb[1]},${model.colorRgb[2]}, 0.8)`;
+    ctx.font = '11px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(totalFov + '\u00B0', labelX, labelY);
+    ctx.textBaseline = 'alphabetic';
+}
+
+function drawModelLabels() {
+    // Position labels near the head mount area
+    const [lx, ly] = w2c(HEAD_POS.x + 0.04, HEAD_POS.z + 0.12);
+
+    let yOff = 0;
+    SLOTS.forEach((slot, i) => {
+        if (slot.modelKey === 'None') return;
+        const model = MODELS[slot.modelKey];
+        const col = model.colorRgb;
+
+        ctx.beginPath();
+        ctx.arc(lx - 80, ly - 6 + yOff, 5, 0, Math.PI * 2);
+        ctx.fillStyle = `rgb(${col[0]},${col[1]},${col[2]})`;
+        ctx.fill();
+        ctx.fillStyle = `rgb(${col[0]},${col[1]},${col[2]})`;
+        ctx.font = '13px Inter, system-ui, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(model.name, lx - 70, ly - 2 + yOff);
+
+        yOff += 20;
+    });
+}
+
+// ─── Initialize ───
+let lastTime = 0;
+resetAnimation();
+
+// ─── Animation Loop ───
+function draw(timestamp) {
+    const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+    lastTime = timestamp;
+
+    // Update rotation (capped at MAX_ROTATIONS)
+    if (!paused && currentRotation < MAX_ROTATIONS) {
+        rotationTimer += dt;
+        if (rotationTimer >= ROTATION_DURATION) {
+            currentRotation++;
+            rotationTimer -= ROTATION_DURATION;
+            SLOTS.forEach(slot => {
+                if (slot.modelKey === 'None') return;
+                const model = MODELS[slot.modelKey];
+                if (model.type === 'non-repetitive') {
+                    slot.currentBeams = computeBeams(slot.modelKey, currentRotation, slot.originX, slot.originZ);
+                    slot.accumulatedHits.push(...accumulateWallHits(slot.currentBeams, currentRotation));
+                    updateParticlesForBeams(slot.particles, slot.currentBeams);
+                }
+            });
+        }
+    }
+
+    recomputeCache();
+
+    drawBackground();
+    drawRoom();
+    drawFloorBoxes();
+
+    // Draw FOV arcs for each active slot with different offsets
+    let fovOffset = 0;
+    SLOTS.forEach((slot, i) => {
+        if (slot.modelKey === 'None') return;
+        const model = MODELS[slot.modelKey];
+        drawFOVArc(model, slot.originX, slot.originZ, fovOffset);
+        fovOffset += 25;
+    });
+
+    // Draw beams, hits, particles for each active slot
+    SLOTS.forEach((slot, i) => {
+        if (slot.modelKey === 'None') return;
+        const model = MODELS[slot.modelKey];
+        drawBeams(slot.currentBeams, model.colorRgb, 0.15);
+        if (model.type === 'non-repetitive') {
+            drawAccumulatedHits(slot.accumulatedHits, model.colorRgb, currentRotation);
+        }
+        drawImpactPoints(slot.currentBeams, model.colorRgb, model.type);
+        updateAndDrawParticles(slot.particles, model.colorRgb, dt, !paused);
+    });
+
+    drawRobot();
+    drawTitle();
+    drawModelLabels();
+    drawCoverageBars();
+    drawDensityChart();
+    drawDetectionLegend();
+
+    document.getElementById('rotCounter').textContent = `Rotation: ${currentRotation} / ${MAX_ROTATIONS}`;
+
+    requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>

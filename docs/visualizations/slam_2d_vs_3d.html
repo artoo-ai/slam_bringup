@@ -1,0 +1,1655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Why 2D SLAM works — comparison with the 3D stack</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    background: #0a0a1a;
+    color: #e2e8f0;
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    padding: 32px 16px 80px;
+}
+.wrap { max-width: 1280px; margin: 0 auto; }
+h1 {
+    font-size: 28px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #f1f5f9;
+}
+h1 .sub { color: #67e8f9; }
+.lede {
+    color: #94a3b8;
+    font-size: 15px;
+    line-height: 1.6;
+    margin-bottom: 28px;
+    max-width: 900px;
+}
+.grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-bottom: 32px;
+}
+@media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+.panel {
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 18px;
+}
+.panel.bad { border-color: #7f1d1d; }
+.panel.good { border-color: #14532d; }
+.panel h2 {
+    font-size: 18px;
+    margin-bottom: 4px;
+    color: #f1f5f9;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.tag {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+.tag.bad  { background: #7f1d1d; color: #fecaca; }
+.tag.good { background: #14532d; color: #bbf7d0; }
+.panel .why {
+    color: #94a3b8;
+    font-size: 13px;
+    margin-bottom: 14px;
+    line-height: 1.55;
+}
+canvas { display: block; width: 100%; height: auto; border-radius: 6px; background: #050510; }
+.caption {
+    font-size: 11px;
+    color: #64748b;
+    margin-top: 8px;
+    font-family: 'JetBrains Mono', monospace;
+}
+.legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 18px;
+    margin-top: 12px;
+    font-size: 12px;
+    color: #cbd5e1;
+}
+.legend .sw {
+    display: inline-block;
+    width: 12px; height: 12px;
+    border-radius: 2px;
+    vertical-align: middle;
+    margin-right: 6px;
+}
+.controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    align-items: center;
+    background: rgba(30, 41, 59, 0.6);
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 24px;
+}
+.controls .group { display: flex; align-items: center; gap: 10px; }
+.controls label { font-size: 12px; color: #94a3b8; }
+.controls .pval {
+    font-family: 'JetBrains Mono', monospace;
+    color: #67e8f9;
+    font-size: 12px;
+    min-width: 56px;
+    text-align: right;
+}
+.controls input[type=range] { width: 160px; accent-color: #67e8f9; }
+.controls button {
+    background: #1e293b; color: #cbd5e1; border: 1px solid #334155;
+    border-radius: 6px; padding: 6px 12px; cursor: pointer;
+    font-family: inherit; font-size: 12px;
+}
+.controls button:hover { background: #334155; color: #f1f5f9; }
+.controls button.active { background: #0e7490; color: #ecfeff; border-color: #0891b2; }
+.section-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: #f1f5f9;
+    margin: 36px 0 14px;
+    border-bottom: 1px solid #334155;
+    padding-bottom: 8px;
+}
+.kid {
+    background: rgba(67, 56, 202, 0.08);
+    border-left: 3px solid #818cf8;
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin-bottom: 24px;
+    color: #cbd5e1;
+    font-size: 14px;
+    line-height: 1.65;
+}
+.kid b { color: #c4b5fd; }
+.kid em { color: #fcd34d; font-style: normal; }
+table.facts {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-bottom: 24px;
+}
+table.facts th, table.facts td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid #334155;
+    vertical-align: top;
+}
+table.facts th {
+    color: #94a3b8;
+    font-weight: 500;
+    background: rgba(30, 41, 59, 0.4);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+table.facts td.bad  { color: #fca5a5; }
+table.facts td.good { color: #86efac; }
+code {
+    font-family: 'JetBrains Mono', 'Fira Mono', monospace;
+    background: rgba(30, 41, 59, 0.6);
+    color: #67e8f9;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+.pipeline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin: 10px 0 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+}
+.pipeline .node {
+    background: #1e293b;
+    border: 1px solid #475569;
+    border-radius: 4px;
+    padding: 4px 8px;
+    color: #cbd5e1;
+}
+.pipeline .node.off { opacity: 0.25; text-decoration: line-through; }
+.pipeline .arrow { color: #475569; }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <h1>Why <span class="sub">2D SLAM</span> works where the 3D stack stalled</h1>
+    <p class="lede">
+        The same Livox Mid-360 lidar feeds both pipelines. The difference is what
+        the rest of the stack does with the cloud. The 3D path tries to solve a
+        15-state estimation problem on a robot whose wheels lie about where it
+        went. The 2D path throws away the top and the bottom of the cloud, keeps
+        only the closest hit at chair-leg height, and runs the same graph-SLAM
+        that a $500 robot vacuum runs.
+    </p>
+
+    <div class="kid">
+        <b>Like you're 5:</b> imagine drawing a map of your room with your eyes closed,
+        and a friend whispers what's around you. The <em>3D way</em> is your friend
+        describing the ceiling, the floor, the lamp, the dog, the chair, all of it —
+        and you have to remember every piece in 3D <em>and</em> track how tilted you
+        are. The <em>2D way</em> is your friend only describing things <em>between
+        your knees and your hips</em>: chair legs, table legs, walls. That's it.
+        Way less to keep track of, and the map comes out right the first try.
+    </div>
+
+    <!-- ============================================================ -->
+    <h2 class="section-title">The two pipelines, side by side</h2>
+
+    <div class="grid">
+        <div class="panel bad">
+            <h2>3D stack <span class="tag bad">struggled</span></h2>
+            <div class="why">
+                FAST-LIO2 tracks 15+ states (x, y, z, roll, pitch, yaw, IMU
+                biases, gravity). RTAB-Map adds visual + lidar loop closure on
+                top. Every extra state is a new way to drift, and the mecanum
+                wheels feed lying odometry into the optimizer.
+            </div>
+            <div class="pipeline">
+                <span class="node">Mid-360</span><span class="arrow">→</span>
+                <span class="node">D435i</span><span class="arrow">+</span>
+                <span class="node">IMU</span><span class="arrow">→</span>
+                <span class="node">FAST-LIO2</span><span class="arrow">→</span>
+                <span class="node">RTAB-Map</span><span class="arrow">→</span>
+                <span class="node">3D map</span>
+            </div>
+        </div>
+        <div class="panel good">
+            <h2>2D stack <span class="tag good">working</span></h2>
+            <div class="why">
+                slam_toolbox tracks 3 numbers: x, y, yaw. rf2o invents odom
+                from successive laser scans — wheels don't get a vote.
+                D435i and WitMotion IMU are turned <b>off</b>. Same algorithm
+                class as a Roborock.
+            </div>
+            <div class="pipeline">
+                <span class="node">Mid-360</span><span class="arrow">→</span>
+                <span class="node">pc_to_laserscan</span><span class="arrow">→</span>
+                <span class="node">/scan</span><span class="arrow">→</span>
+                <span class="node">rf2o_odom</span><span class="arrow">→</span>
+                <span class="node">slam_toolbox</span><span class="arrow">→</span>
+                <span class="node">2D map</span>
+            </div>
+            <div class="pipeline">
+                <span class="node off">D435i</span>
+                <span class="node off">WitMotion IMU</span>
+                <span class="node off">wheel odom</span>
+            </div>
+        </div>
+    </div>
+
+    <table class="facts">
+        <tr><th>What it tracks</th><td class="bad">x, y, z, roll, pitch, yaw, IMU biases, gravity (15+)</td><td class="good">x, y, yaw (3)</td></tr>
+        <tr><th>Sensors live</th><td class="bad">Mid-360 + D435i + Mid-360 IMU (+ optional WitMotion)</td><td class="good">Mid-360 only</td></tr>
+        <tr><th>Odometry source</th><td class="bad">IMU pre-integration + lidar-inertial fusion in FAST-LIO2</td><td class="good">rf2o: scan-to-scan registration. No IMU. No wheels.</td></tr>
+        <tr><th>Loop closure</th><td class="bad">Appearance-based (visual + lidar descriptors)</td><td class="good">Scan-matching with pose-graph optimization</td></tr>
+        <tr><th>What drifts</th><td class="bad">Z, pitch, roll — and the map tilts</td><td class="good">Only yaw can drift, and slam_toolbox aggressively corrects it</td></tr>
+        <tr><th>Mecanum-wheel slip</th><td class="bad">Hurts: odom prior is wrong → fights lidar</td><td class="good">Doesn't matter — wheels aren't in the loop</td></tr>
+    </table>
+
+    <!-- ============================================================ -->
+    <h2 class="section-title">How the 3D cloud becomes a 2D scan — sliced, not averaged</h2>
+
+    <p class="lede" style="margin-bottom: 14px;">
+        Drag the Z band. Every point inside the band survives; every point
+        outside is thrown away. For each angular ray around the robot, the
+        scan reports the <b>closest</b> surviving hit — not the average.
+        That's the whole "3D → 2D" trick.
+    </p>
+
+    <div class="controls">
+        <div class="group">
+            <label>Z min</label>
+            <input type="range" id="zmin" min="0" max="2" step="0.01" value="0.15">
+            <span class="pval" id="zminVal">0.15 m</span>
+        </div>
+        <div class="group">
+            <label>Z max</label>
+            <input type="range" id="zmax" min="0" max="2" step="0.01" value="0.45">
+            <span class="pval" id="zmaxVal">0.45 m</span>
+        </div>
+        <div class="group">
+            <button id="preset_default" class="active">chair-leg (default)</button>
+            <button id="preset_floor">floor-skim</button>
+            <button id="preset_full">all heights</button>
+        </div>
+    </div>
+
+    <div class="grid">
+        <div class="panel">
+            <h2>Side view — what the band keeps</h2>
+            <div class="why">
+                Same scene from the side. Gray dots = full 3D cloud.
+                Cyan dots = points inside the Z band that survive.
+                Faded dots = thrown away. The dashed lines are the band edges.
+            </div>
+            <canvas id="sideView" width="600" height="420"></canvas>
+            <div class="legend">
+                <span><span class="sw" style="background:#475569"></span>discarded points</span>
+                <span><span class="sw" style="background:#67e8f9"></span>kept (in band)</span>
+                <span><span class="sw" style="background:#fcd34d"></span>Z-band edges</span>
+                <span><span class="sw" style="background:#f87171"></span>robot</span>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>Top view — the 2D /scan</h2>
+            <div class="why">
+                Bird's-eye. Cyan dots = kept points (same as side view).
+                Red rays = the resulting <code>/scan</code>: for each angular
+                bin, the closest hit wins. Notice how a tall lamp and a short
+                chair leg in the same direction get merged into one ray — the
+                nearest one.
+            </div>
+            <canvas id="topView" width="600" height="420"></canvas>
+            <div class="legend">
+                <span><span class="sw" style="background:#475569"></span>discarded</span>
+                <span><span class="sw" style="background:#67e8f9"></span>kept in band</span>
+                <span><span class="sw" style="background:#f87171"></span>/scan ray (min-range)</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="kid" style="margin-top: 18px;">
+        <b>So is it averaged?</b> No. It's <em>sliced</em> by Z (top and bottom
+        thrown out), then for each direction the scan keeps the <em>closest</em>
+        thing in that direction. Three obstacles in the same direction at
+        1.2 m, 1.5 m, and 3.0 m? The scan reports 1.2 m. That's "the first
+        thing the robot would bump into" — which is exactly what 2D SLAM and
+        Nav2's costmap want.
+    </div>
+
+    <table class="facts">
+        <tr><th>Param</th><th>Value</th><th>Meaning</th></tr>
+        <tr><td><code>min_height</code></td><td>0.15 m</td><td>Lower edge of the Z band (base_link frame)</td></tr>
+        <tr><td><code>max_height</code></td><td>0.45 m</td><td>Upper edge of the Z band — knee-to-hip on the rover</td></tr>
+        <tr><td><code>angle_increment</code></td><td>0.0087 rad</td><td>~0.5° between rays → 720 rays total</td></tr>
+        <tr><td><code>range_min / max</code></td><td>0.20 / 20.0 m</td><td>Inner cutoff (rover body) and outer cutoff</td></tr>
+        <tr><td>Per-bin reduction</td><td>min</td><td>Closest hit wins. <b>Not</b> mean, <b>not</b> median.</td></tr>
+    </table>
+    <p class="caption">
+        Source: launch/slam_2d.launch.py:321-346 — pointcloud_to_laserscan node parameters.
+    </p>
+
+    <!-- ============================================================ -->
+    <h2 class="section-title">Bin mapping — how points become a /scan</h2>
+
+    <p class="lede" style="margin-bottom: 8px;">
+        Zoom in on the "for each angular bin, keep the closest hit" step.
+        The lidar always sees the <b>full 360°</b> around the robot — that
+        doesn't change. What the slider changes is the <b>angular resolution</b>:
+        how finely that 360° is sliced into discrete reported rays. The yellow
+        wedge highlights <em>one</em> bin so you can see how wide each
+        slice is at the current resolution.
+    </p>
+    <p class="lede" style="margin-bottom: 14px;">
+        <b>720 bins</b> (the real launch default) = 0.5° per bin → razor-thin
+        slices, can resolve a chair leg from the wall behind it.
+        <b>12 bins</b> = 30° per bin → very coarse; one slice spans a huge arc,
+        and if a chair at 2 m and a wall at 4 m both fall in the same wedge
+        the scan reports <em>2 m</em> (the chair — min wins) and you've lost
+        the wall direction entirely. Try cranking it down to 12 and watch
+        the rays collapse.
+    </p>
+
+    <div class="controls">
+        <div class="group">
+            <label>Angular resolution</label>
+            <input type="range" id="binN" min="12" max="720" step="6" value="36">
+            <span class="pval" id="binNVal">36 bins · 10.0°/bin</span>
+        </div>
+        <div class="group">
+            <button id="binPreset_ultra">12 (extreme — angular aliasing)</button>
+            <button id="binPreset_coarse" class="active">36 (coarse — see the wedges)</button>
+            <button id="binPreset_default">720 (real default · 0.5°/bin)</button>
+        </div>
+        <div class="group">
+            <label><input type="checkbox" id="showWedges" checked> show wedges</label>
+            <label><input type="checkbox" id="showWinners" checked> highlight winners</label>
+            <label><input type="checkbox" id="showLosers" checked> show losers</label>
+        </div>
+    </div>
+
+    <div class="grid">
+        <div class="panel">
+            <h2>Angular wedges around the robot</h2>
+            <div class="why">
+                Each wedge is one angular bin. The angle of every kept point
+                (cyan dots from the previous section) is computed; the point
+                lands in exactly one wedge. <b>Green</b> = the winner of that
+                wedge (smallest range). <b>Faded</b> = losers, discarded by
+                the min reduction. Empty wedges report <code>+inf</code>
+                (no hit in that direction).
+            </div>
+            <canvas id="binView" width="600" height="520"></canvas>
+            <div class="legend">
+                <span><span class="sw" style="background:#1e293b; border:1px solid #475569"></span>wedge boundary</span>
+                <span><span class="sw" style="background:#86efac"></span>winner (min range)</span>
+                <span><span class="sw" style="background:#475569"></span>loser (same wedge, farther)</span>
+                <span><span class="sw" style="background:#f87171"></span>/scan ray (winner → robot)</span>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>One wedge, unrolled — winner takes all</h2>
+            <div class="why">
+                Look at a single wedge end-on. The x-axis is range from the
+                robot (0 m → 6 m); each marker is a point that fell into
+                this wedge. The vertical red line is what gets reported in
+                <code>scan.ranges[i]</code>: the leftmost (closest) marker.
+                Click a different wedge on the left to inspect it.
+            </div>
+            <canvas id="wedgeView" width="600" height="280"></canvas>
+            <div class="caption" id="wedgeInfo">
+                wedge #0 — 0.0° → 10.0° — 0 points, range = +inf
+            </div>
+        </div>
+    </div>
+
+    <div class="kid" style="margin-top: 6px;">
+        <b>Why min and not average?</b> Because the robot needs to know
+        <em>the first thing it would hit</em>, not the typical distance to
+        stuff in that direction. If there's a chair leg at 0.8 m and a wall
+        at 3 m in the same direction, averaging gives you 1.9 m — a number
+        that exists in physical reality at exactly <em>nothing</em>. The
+        robot would happily plan a path that crashes into the chair.
+        <code>min</code> is conservative and matches what 2D occupancy grids
+        and Nav2's inflation layer assume.
+    </div>
+
+    <table class="facts">
+        <tr><th>Step</th><th>What happens</th><th>Where</th></tr>
+        <tr><td>1. Slice by Z</td><td>Drop points outside <code>[min_height, max_height]</code></td><td>previous section</td></tr>
+        <tr><td>2. Compute angle</td><td><code>θ = atan2(y, x)</code> for each surviving point (in <code>base_link</code>)</td><td>per-point</td></tr>
+        <tr><td>3. Map to bin</td><td><code>i = floor((θ − angle_min) / angle_increment)</code></td><td>integer index 0…N−1</td></tr>
+        <tr><td>4. Compute range</td><td><code>r = hypot(x, y)</code></td><td>per-point</td></tr>
+        <tr><td>5. Min reduce</td><td><code>scan.ranges[i] = min(scan.ranges[i], r)</code></td><td>updated as points stream in</td></tr>
+        <tr><td>6. Empty bins</td><td>If <code>use_inf=true</code>, report <code>+inf</code>; else <code>range_max</code></td><td><code>use_inf: true</code> in our launch</td></tr>
+    </table>
+
+    <!-- ============================================================ -->
+    <h2 class="section-title">Final output — what each stack actually consumes</h2>
+
+    <p class="lede" style="margin-bottom: 14px;">
+        Same room, same Mid-360, same instant in time. The <b>3D stack</b>
+        (FAST-LIO2 + RTAB-Map) consumes the entire cloud — every dot below,
+        colored by height. The <b>2D stack</b> (pointcloud_to_laserscan +
+        slam_toolbox) throws away everything outside the Z band, keeps the
+        closest hit per angular bin, and feeds those rays into a 2D
+        occupancy grid. Same sensor, two completely different views of the world.
+    </p>
+
+    <div class="grid">
+        <div class="panel bad">
+            <h2>3D stack sees this <span class="tag bad">full cloud</span></h2>
+            <div class="why">
+                Top-down view, color = height. The fan (purple), tabletop
+                (mid-blue), chair seats, lamp shade, walls floor-to-ceiling
+                — everything goes into FAST-LIO2's state estimator and
+                RTAB-Map's voxel map. More information, but also: more
+                things to drift on, more loop-closure candidates to
+                misidentify, more state to track.
+            </div>
+            <canvas id="cloud3d" width="600" height="420"></canvas>
+            <div class="legend">
+                <span><span class="sw" style="background:linear-gradient(to right,#1e3a8a,#67e8f9,#fef3c7)"></span>height: floor → ceiling</span>
+                <span id="cloud3dStats" style="margin-left:auto;color:#94a3b8;font-family:'JetBrains Mono',monospace;font-size:11px"></span>
+            </div>
+        </div>
+        <div class="panel good">
+            <h2>2D stack sees this <span class="tag good">just /scan</span></h2>
+            <div class="why">
+                Same room, after the Z-gate + min-reduce. Red dots are the
+                720 ray endpoints — that's the entire <code>sensor_msgs/LaserScan</code>
+                message slam_toolbox receives. Notice the fan is invisible
+                (too high), the tabletop is invisible (top is above z_max),
+                and the lamp shade is invisible — but the chair legs, table
+                legs, lamp pole, and walls all show up clearly.
+            </div>
+            <canvas id="scan2d" width="600" height="420"></canvas>
+            <div class="legend">
+                <span><span class="sw" style="background:#f87171"></span>/scan endpoint (720 rays)</span>
+                <span><span class="sw" style="background:#60a5fa44; border:1px solid #60a5faaa"></span>furniture footprint</span>
+                <span id="scan2dStats" style="margin-left:auto;color:#94a3b8;font-family:'JetBrains Mono',monospace;font-size:11px"></span>
+            </div>
+        </div>
+    </div>
+
+    <div class="kid" style="margin-top: 6px;">
+        <b>The contrast in one image:</b> the left panel has tens of
+        thousands of points spread across the floor, walls, tabletop,
+        chair legs, lamp pole, lamp shade, ceiling fan — color tells you
+        the height. The right panel has at most 720 numbers — one range
+        per angular ray, only from objects between knee and hip. The fan
+        is invisible (above the band). The tabletop is invisible (top is
+        above <code>z_max</code>). The lamp shade is invisible. But chair
+        legs, table legs, lamp pole, and walls all show up crisply as red
+        dots — and those red dots are <em>the entire</em>
+        <code>sensor_msgs/LaserScan</code> message slam_toolbox processes.
+        Both panels update live when you change the Z band sliders above.
+    </div>
+
+</div>
+
+<script>
+// ============================================================
+// Scene: a simple top-down room with stuff at various heights.
+// We place "objects" as vertical bars in 3D: (x, y, z_low, z_high).
+// Then we sample each object as a column of points and let the
+// UI gate them by Z to show the 2D-projection behaviour.
+// ============================================================
+
+const robot = { x: 0, y: 0 };
+
+// ---------- Furniture definition (used for BOTH point sampling and label/outline drawing) ----------
+// One source of truth: every object has a footprint, a Z extent, and a label.
+// The lamp has a thin pole that DOES show in the chair-leg band; the fan is
+// entirely above the band and never produces points in /scan. That contrast
+// is the whole teaching point.
+const ROOM = { xMin:-4, xMax:4, yMin:-3, yMax:3, ceiling:2.6 };
+
+const furniture = {
+    table: {
+        label: 'TABLE',
+        sub:   'legs 0–0.72m · top 0.72–0.78m',
+        cx: -2.5, cy: -1.5,
+        // legs at the four corners of a 0.9 × 0.7 footprint
+        legHalfX: 0.45, legHalfY: 0.35,
+        legZHi: 0.72,
+        topZLo: 0.72, topZHi: 0.78,
+    },
+    chair: {
+        label: 'CHAIR',
+        sub:   'legs 0–0.45m',
+        cx: 2.5, cy: 1.5,
+        legHalfX: 0.22, legHalfY: 0.22,
+        legZHi: 0.45,
+    },
+    lamp: {
+        label: 'FLOOR LAMP',
+        sub:   'thin pole 0–1.4m · shade 1.4–1.9m',
+        cx: 3.0, cy: -1.8,
+        poleZHi: 1.4,
+        shadeR: 0.22, shadeZLo: 1.4, shadeZHi: 1.9,
+    },
+    fan: {
+        label: 'CEILING FAN',
+        sub:   '2.45–2.55m (above any reasonable Z-band)',
+        cx: 0.0, cy: 2.3,
+        r: 0.65, zLo: 2.45, zHi: 2.55,
+    },
+};
+
+// ---------- Build the raw point cloud from the furniture definition ----------
+const points = [];
+function sampleScene() {
+    points.length = 0;
+
+    // Walls — full-height perimeter.
+    const walls = [
+        [[ROOM.xMin, ROOM.yMin], [ROOM.xMax, ROOM.yMin]],
+        [[ROOM.xMax, ROOM.yMin], [ROOM.xMax, ROOM.yMax]],
+        [[ROOM.xMax, ROOM.yMax], [ROOM.xMin, ROOM.yMax]],
+        [[ROOM.xMin, ROOM.yMax], [ROOM.xMin, ROOM.yMin]],
+    ];
+    for (const [a, b] of walls) {
+        const dx = b[0]-a[0], dy = b[1]-a[1];
+        const L = Math.hypot(dx, dy);
+        const N = Math.max(20, Math.floor(L * 12));
+        for (let i = 0; i <= N; i++) {
+            const t = i / N;
+            const x = a[0] + dx*t;
+            const y = a[1] + dy*t;
+            for (let z = 0; z <= ROOM.ceiling; z += 0.10) {
+                points.push({ x, y, z });
+            }
+        }
+    }
+
+    // Table: 4 legs + tabletop disc.
+    const T = furniture.table;
+    const legXY = [
+        [T.cx - T.legHalfX, T.cy - T.legHalfY],
+        [T.cx + T.legHalfX, T.cy - T.legHalfY],
+        [T.cx - T.legHalfX, T.cy + T.legHalfY],
+        [T.cx + T.legHalfX, T.cy + T.legHalfY],
+    ];
+    for (const [lx, ly] of legXY) {
+        for (let z = 0; z <= T.legZHi; z += 0.04) {
+            for (let k = 0; k < 3; k++) {
+                const a = Math.random()*Math.PI*2;
+                const r = 0.025*Math.random();
+                points.push({ x: lx + r*Math.cos(a), y: ly + r*Math.sin(a), z });
+            }
+        }
+    }
+    // tabletop: thin filled rectangle of points
+    for (let z = T.topZLo; z <= T.topZHi; z += 0.02) {
+        for (let i = 0; i < 80; i++) {
+            const u = (Math.random()*2-1) * T.legHalfX;
+            const v = (Math.random()*2-1) * T.legHalfY;
+            points.push({ x: T.cx + u, y: T.cy + v, z });
+        }
+    }
+
+    // Chair: 4 legs only.
+    const C = furniture.chair;
+    const chairLegs = [
+        [C.cx - C.legHalfX, C.cy - C.legHalfY],
+        [C.cx + C.legHalfX, C.cy - C.legHalfY],
+        [C.cx - C.legHalfX, C.cy + C.legHalfY],
+        [C.cx + C.legHalfX, C.cy + C.legHalfY],
+    ];
+    for (const [lx, ly] of chairLegs) {
+        for (let z = 0; z <= C.legZHi; z += 0.04) {
+            for (let k = 0; k < 3; k++) {
+                const a = Math.random()*Math.PI*2;
+                const r = 0.025*Math.random();
+                points.push({ x: lx + r*Math.cos(a), y: ly + r*Math.sin(a), z });
+            }
+        }
+    }
+
+    // Lamp: thin pole all the way up, then a shade disc on top.
+    const L = furniture.lamp;
+    for (let z = 0; z <= L.poleZHi; z += 0.05) {
+        for (let k = 0; k < 2; k++) {
+            const a = Math.random()*Math.PI*2;
+            const r = 0.02*Math.random();
+            points.push({ x: L.cx + r*Math.cos(a), y: L.cy + r*Math.sin(a), z });
+        }
+    }
+    for (let z = L.shadeZLo; z <= L.shadeZHi; z += 0.05) {
+        for (let i = 0; i < 30; i++) {
+            const a = (i/30)*Math.PI*2;
+            points.push({ x: L.cx + L.shadeR*Math.cos(a),
+                          y: L.cy + L.shadeR*Math.sin(a), z });
+        }
+    }
+
+    // Fan: ring of points way up high.
+    const F = furniture.fan;
+    for (let z = F.zLo; z <= F.zHi; z += 0.04) {
+        const N = 60;
+        for (let i = 0; i < N; i++) {
+            const a = (i/N)*Math.PI*2;
+            points.push({ x: F.cx + F.r*Math.cos(a),
+                          y: F.cy + F.r*Math.sin(a), z });
+        }
+    }
+
+    // Floor texture (just above z=0).
+    for (let i = 0; i < 1200; i++) {
+        const x = (Math.random()-0.5) * (ROOM.xMax - ROOM.xMin) * 0.98;
+        const y = (Math.random()-0.5) * (ROOM.yMax - ROOM.yMin) * 0.98;
+        points.push({ x, y, z: 0.005 + Math.random()*0.02 });
+    }
+}
+
+sampleScene();
+
+// ============================================================
+// Drawing
+// ============================================================
+const sideC = document.getElementById('sideView');
+const topC  = document.getElementById('topView');
+const sideCtx = sideC.getContext('2d');
+const topCtx  = topC.getContext('2d');
+
+// HiDPI
+function fitDPR(canvas, ctx) {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width  = Math.round(rect.width  * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { w: rect.width, h: rect.height };
+}
+
+let zMin = 0.15, zMax = 0.45;
+
+function draw() {
+    drawSide();
+    drawTop();
+}
+
+function drawSide() {
+    const { w, h } = fitDPR(sideC, sideCtx);
+    const ctx = sideCtx;
+    ctx.clearRect(0, 0, w, h);
+
+    // background grid
+    ctx.fillStyle = '#050510';
+    ctx.fillRect(0, 0, w, h);
+
+    // Side view: x is forward (range from -4..4), y axis on canvas is Z (0..3).
+    // We need a 1:1 aspect for honesty, so compute scale to fit.
+    const xRange = 9.0, zRange = 3.0;
+    const pad = 36;
+    const sx = (w - 2*pad) / xRange;
+    const sz = (h - 2*pad) / zRange;
+    const s  = Math.min(sx, sz);
+    const cx = w / 2;
+    const baseY = h - pad;  // z=0 line
+
+    function P(xWorld, zWorld) {
+        return { x: cx + xWorld * s, y: baseY - zWorld * s };
+    }
+
+    // axis lines
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 1;
+    // z grid every 0.5 m
+    for (let z = 0; z <= 3; z += 0.5) {
+        const y = baseY - z * s;
+        ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(w - pad, y); ctx.stroke();
+        ctx.fillStyle = '#475569';
+        ctx.font = '10px JetBrains Mono';
+        ctx.fillText(z.toFixed(1) + ' m', 4, y + 3);
+    }
+    // x grid
+    for (let x = -4; x <= 4; x += 1) {
+        const p = P(x, 0);
+        ctx.beginPath(); ctx.moveTo(p.x, pad); ctx.lineTo(p.x, baseY); ctx.stroke();
+    }
+
+    // Z-band highlight
+    const yHi = baseY - zMax * s;
+    const yLo = baseY - zMin * s;
+    ctx.fillStyle = 'rgba(103, 232, 249, 0.08)';
+    ctx.fillRect(pad, yHi, w - 2*pad, yLo - yHi);
+    ctx.strokeStyle = '#fcd34d';
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(pad, yHi); ctx.lineTo(w - pad, yHi); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(pad, yLo); ctx.lineTo(w - pad, yLo); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // labels for band edges
+    ctx.fillStyle = '#fcd34d';
+    ctx.font = '11px JetBrains Mono';
+    ctx.fillText('z_max = ' + zMax.toFixed(2), w - pad - 90, yHi - 4);
+    ctx.fillText('z_min = ' + zMin.toFixed(2), w - pad - 90, yLo + 12);
+
+    // ground line
+    ctx.strokeStyle = '#334155';
+    ctx.beginPath(); ctx.moveTo(pad, baseY); ctx.lineTo(w - pad, baseY); ctx.stroke();
+
+    // ---- Furniture outlines (drawn before points so points sit on top) ----
+    function rectAt(xWorld, zLo, zHi, halfW, fill, stroke) {
+        const a = P(xWorld - halfW, zHi);
+        const b = P(xWorld + halfW, zLo);
+        if (fill)   { ctx.fillStyle   = fill;   ctx.fillRect(a.x, a.y, b.x - a.x, b.y - a.y); }
+        if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.strokeRect(a.x, a.y, b.x - a.x, b.y - a.y); }
+    }
+    // Table side profile: a wide low rectangle from 0→0.78m at x = T.cx
+    const T = furniture.table;
+    rectAt(T.cx, 0, T.topZHi, T.legHalfX + 0.08,
+           'rgba(96, 165, 250, 0.06)', 'rgba(96, 165, 250, 0.45)');
+    // Chair side profile
+    const C = furniture.chair;
+    rectAt(C.cx, 0, C.legZHi, C.legHalfX + 0.05,
+           'rgba(244, 114, 182, 0.06)', 'rgba(244, 114, 182, 0.45)');
+    // Lamp side profile: thin pole + shade ellipse
+    const Lf = furniture.lamp;
+    rectAt(Lf.cx, 0, Lf.poleZHi, 0.04,
+           'rgba(250, 204, 21, 0.06)', 'rgba(250, 204, 21, 0.45)');
+    rectAt(Lf.cx, Lf.shadeZLo, Lf.shadeZHi, Lf.shadeR,
+           'rgba(250, 204, 21, 0.06)', 'rgba(250, 204, 21, 0.45)');
+    // Fan side profile (thin slab way up high)
+    const Ff = furniture.fan;
+    rectAt(Ff.cx, Ff.zLo, Ff.zHi, Ff.r,
+           'rgba(167, 139, 250, 0.08)', 'rgba(167, 139, 250, 0.55)');
+
+    // points — use the x coord as "forward distance" for the side view.
+    // To show vertical structure we plot every point at (x_world, z_world)
+    // regardless of y. Slight transparency so dense columns aren't pure white.
+    for (const p of points) {
+        const inBand = (p.z >= zMin && p.z <= zMax);
+        const pt = P(p.x, p.z);
+        if (pt.x < pad || pt.x > w - pad) continue;
+        ctx.fillStyle = inBand ? 'rgba(103, 232, 249, 0.85)' : 'rgba(71, 85, 105, 0.35)';
+        ctx.beginPath(); ctx.arc(pt.x, pt.y, inBand ? 1.4 : 0.9, 0, Math.PI*2); ctx.fill();
+    }
+
+    // ---- Furniture labels (drawn after points so text is readable) ----
+    function labelAt(xWorld, zWorld, color, text, sub) {
+        const pt = P(xWorld, zWorld);
+        ctx.fillStyle = color;
+        ctx.font = 'bold 11px JetBrains Mono';
+        ctx.fillText(text, pt.x + 8, pt.y - 4);
+        if (sub) {
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '9px JetBrains Mono';
+            ctx.fillText(sub, pt.x + 8, pt.y + 7);
+        }
+    }
+    labelAt(T.cx, T.topZHi + 0.05,  '#60a5fa', 'TABLE',  '0–0.78 m');
+    labelAt(C.cx, C.legZHi + 0.05,  '#f472b6', 'CHAIR',  '0–0.45 m');
+    labelAt(Lf.cx, Lf.shadeZHi + 0.05, '#facc15', 'LAMP',   '0–1.9 m');
+    labelAt(Ff.cx, Ff.zHi + 0.05,   '#a78bfa', 'FAN',    '2.45–2.55 m');
+
+    // robot at origin (side view: a little box at z=0..0.18)
+    const r0 = P(0, 0);
+    const r1 = P(0, 0.18);
+    ctx.fillStyle = '#f87171';
+    ctx.fillRect(r0.x - 12, r1.y, 24, r0.y - r1.y);
+    ctx.fillStyle = '#fecaca';
+    ctx.font = '10px JetBrains Mono';
+    ctx.fillText('rover', r0.x - 14, r0.y + 14);
+
+    // axes labels
+    ctx.fillStyle = '#64748b';
+    ctx.font = '11px JetBrains Mono';
+    ctx.fillText('z (m)  — up', 8, 16);
+    ctx.fillText('x (m)  — forward', w - 130, h - 8);
+}
+
+function drawTop() {
+    const { w, h } = fitDPR(topC, topCtx);
+    const ctx = topCtx;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#050510';
+    ctx.fillRect(0, 0, w, h);
+
+    const xRange = 9.0, yRange = 7.0;
+    const pad = 36;
+    const sx = (w - 2*pad) / xRange;
+    const sy = (h - 2*pad) / yRange;
+    const s  = Math.min(sx, sy);
+    const cx = w / 2, cy = h / 2;
+
+    function P(xw, yw) {
+        return { x: cx + xw * s, y: cy - yw * s };
+    }
+
+    // grid
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 1;
+    for (let x = -4; x <= 4; x += 1) {
+        const p1 = P(x, -3.5), p2 = P(x, 3.5);
+        ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+    }
+    for (let y = -3; y <= 3; y += 1) {
+        const p1 = P(-4.5, y), p2 = P(4.5, y);
+        ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+    }
+
+    // ---- Furniture footprints (under the points) ----
+    // Each piece gets a colored bounding box + label so the user can identify
+    // each cluster. Color matches the side view.
+    function footprint(cxW, cyW, halfW, halfH, color) {
+        const a = P(cxW - halfW, cyW + halfH);  // top-left in canvas space
+        const b = P(cxW + halfW, cyW - halfH);
+        ctx.fillStyle   = color + '14';   // ~8% alpha
+        ctx.strokeStyle = color + '99';
+        ctx.lineWidth = 1;
+        ctx.fillRect(a.x, a.y, b.x - a.x, b.y - a.y);
+        ctx.strokeRect(a.x, a.y, b.x - a.x, b.y - a.y);
+    }
+    function dotFootprint(cxW, cyW, rW, color) {
+        const c = P(cxW, cyW);
+        ctx.fillStyle   = color + '14';
+        ctx.strokeStyle = color + '99';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(c.x, c.y, rW * s, 0, Math.PI*2);
+        ctx.fill(); ctx.stroke();
+    }
+    const T  = furniture.table;
+    const Ch = furniture.chair;
+    const Lf = furniture.lamp;
+    const Ff = furniture.fan;
+    footprint(T.cx,  T.cy,  T.legHalfX + 0.08, T.legHalfY + 0.08, '#60a5fa');
+    footprint(Ch.cx, Ch.cy, Ch.legHalfX + 0.05, Ch.legHalfY + 0.05, '#f472b6');
+    dotFootprint(Lf.cx, Lf.cy, Lf.shadeR, '#facc15');
+    dotFootprint(Ff.cx, Ff.cy, Ff.r, '#a78bfa');
+
+    // 1. Plot all points: gray for out-of-band, cyan for in-band.
+    for (const p of points) {
+        const inBand = (p.z >= zMin && p.z <= zMax);
+        const pt = P(p.x, p.y);
+        ctx.fillStyle = inBand ? 'rgba(103, 232, 249, 0.95)' : 'rgba(71, 85, 105, 0.22)';
+        ctx.beginPath(); ctx.arc(pt.x, pt.y, inBand ? 1.3 : 0.8, 0, Math.PI*2); ctx.fill();
+    }
+
+    // 2. Compute /scan: for each angular bin, min range over in-band points.
+    const NB = 360;            // 1° bins for display (real launch uses 0.5°)
+    const ranges = new Array(NB).fill(Infinity);
+    for (const p of points) {
+        if (p.z < zMin || p.z > zMax) continue;
+        const dx = p.x - robot.x, dy = p.y - robot.y;
+        const r  = Math.hypot(dx, dy);
+        if (r < 0.2 || r > 20) continue;  // range_min / range_max
+        let a = Math.atan2(dy, dx);
+        if (a < 0) a += Math.PI*2;
+        const bin = Math.floor(a / (Math.PI*2) * NB) % NB;
+        if (r < ranges[bin]) ranges[bin] = r;
+    }
+
+    // 3. Draw scan rays in red.
+    const origin = P(robot.x, robot.y);
+    ctx.strokeStyle = 'rgba(248, 113, 113, 0.32)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < NB; i++) {
+        const r = ranges[i];
+        if (!isFinite(r)) continue;
+        const a = (i + 0.5) / NB * Math.PI*2;
+        const xw = robot.x + r * Math.cos(a);
+        const yw = robot.y + r * Math.sin(a);
+        const pt = P(xw, yw);
+        ctx.beginPath();
+        ctx.moveTo(origin.x, origin.y);
+        ctx.lineTo(pt.x, pt.y);
+        ctx.stroke();
+    }
+    // ray endpoints
+    ctx.fillStyle = '#f87171';
+    for (let i = 0; i < NB; i++) {
+        const r = ranges[i];
+        if (!isFinite(r)) continue;
+        const a = (i + 0.5) / NB * Math.PI*2;
+        const xw = robot.x + r * Math.cos(a);
+        const yw = robot.y + r * Math.sin(a);
+        const pt = P(xw, yw);
+        ctx.beginPath(); ctx.arc(pt.x, pt.y, 1.6, 0, Math.PI*2); ctx.fill();
+    }
+
+    // robot
+    ctx.fillStyle = '#f87171';
+    ctx.beginPath(); ctx.arc(origin.x, origin.y, 5, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#fee2e2';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(origin.x, origin.y);
+    ctx.lineTo(origin.x + 14, origin.y);
+    ctx.stroke();
+
+    // ---- Furniture labels in the top view (on top of everything) ----
+    function topLabel(cxW, cyW, dxPx, dyPx, color, text, sub) {
+        const c = P(cxW, cyW);
+        ctx.fillStyle = color;
+        ctx.font = 'bold 11px JetBrains Mono';
+        ctx.fillText(text, c.x + dxPx, c.y + dyPx);
+        if (sub) {
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '9px JetBrains Mono';
+            ctx.fillText(sub, c.x + dxPx, c.y + dyPx + 11);
+        }
+    }
+    topLabel(T.cx,  T.cy,  -22, -(T.legHalfY * s + 8),  '#60a5fa', 'TABLE',  'legs visible');
+    topLabel(Ch.cx, Ch.cy, -22, -(Ch.legHalfY * s + 8), '#f472b6', 'CHAIR',  'legs visible');
+    topLabel(Lf.cx, Lf.cy,  10,  -4,                    '#facc15', 'LAMP',   'pole visible');
+    topLabel(Ff.cx, Ff.cy, -28, -(Ff.r * s + 8),        '#a78bfa', 'FAN',    'above band — no rays');
+    ctx.fillStyle = '#fecaca';
+    ctx.font = '10px JetBrains Mono';
+    ctx.fillText('rover', origin.x + 8, origin.y + 16);
+
+    // labels
+    ctx.fillStyle = '#64748b';
+    ctx.font = '11px JetBrains Mono';
+    ctx.fillText('y (m)', 8, 16);
+    ctx.fillText('x (m) →', w - 70, h - 8);
+
+    // hit count
+    const hits = ranges.filter(r => isFinite(r)).length;
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '11px JetBrains Mono';
+    ctx.fillText(hits + ' / ' + NB + ' rays have a hit', pad + 4, pad - 10);
+}
+
+// ============================================================
+// UI
+// ============================================================
+const zminEl = document.getElementById('zmin');
+const zmaxEl = document.getElementById('zmax');
+const zminVal = document.getElementById('zminVal');
+const zmaxVal = document.getElementById('zmaxVal');
+
+function setBand(lo, hi) {
+    zMin = Math.min(lo, hi);
+    zMax = Math.max(lo, hi);
+    zminEl.value = zMin;
+    zmaxEl.value = zMax;
+    zminVal.textContent = zMin.toFixed(2) + ' m';
+    zmaxVal.textContent = zMax.toFixed(2) + ' m';
+    draw();
+}
+
+zminEl.addEventListener('input', () => setBand(parseFloat(zminEl.value), parseFloat(zmaxEl.value)));
+zmaxEl.addEventListener('input', () => setBand(parseFloat(zminEl.value), parseFloat(zmaxEl.value)));
+
+const btns = {
+    preset_default: [0.15, 0.45],
+    preset_floor:   [0.02, 0.10],
+    preset_full:    [0.00, 2.60],
+};
+for (const id of Object.keys(btns)) {
+    document.getElementById(id).addEventListener('click', () => {
+        for (const k of Object.keys(btns)) document.getElementById(k).classList.toggle('active', k === id);
+        const [lo, hi] = btns[id];
+        setBand(lo, hi);
+    });
+}
+
+window.addEventListener('resize', draw);
+setBand(0.15, 0.45);
+
+// ============================================================
+// Bin-mapping visualization
+// ============================================================
+const binC   = document.getElementById('binView');
+const wedgeC = document.getElementById('wedgeView');
+const binCtx   = binC.getContext('2d');
+const wedgeCtx = wedgeC.getContext('2d');
+
+let binN = 36;
+let selectedBin = 0;
+let showWedges  = true;
+let showWinners = true;
+let showLosers  = true;
+
+const binNEl   = document.getElementById('binN');
+const binNVal  = document.getElementById('binNVal');
+const showWedgesEl  = document.getElementById('showWedges');
+const showWinnersEl = document.getElementById('showWinners');
+const showLosersEl  = document.getElementById('showLosers');
+
+function computeBins() {
+    // Returns { bins: Array(N) of arrays of {x,y,r,angle}, winners: Array(N) of point|null }
+    const bins = Array.from({length: binN}, () => []);
+    for (const p of points) {
+        if (p.z < zMin || p.z > zMax) continue;
+        const dx = p.x - robot.x, dy = p.y - robot.y;
+        const r = Math.hypot(dx, dy);
+        if (r < 0.2 || r > 20) continue;
+        let a = Math.atan2(dy, dx);
+        if (a < 0) a += Math.PI * 2;
+        const idx = Math.floor(a / (Math.PI * 2) * binN) % binN;
+        bins[idx].push({ x: p.x, y: p.y, z: p.z, r, a });
+    }
+    const winners = bins.map(arr => {
+        if (arr.length === 0) return null;
+        let best = arr[0];
+        for (const q of arr) if (q.r < best.r) best = q;
+        return best;
+    });
+    return { bins, winners };
+}
+
+function drawBinView() {
+    const { w, h } = fitDPR(binC, binCtx);
+    const ctx = binCtx;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#050510';
+    ctx.fillRect(0, 0, w, h);
+
+    const xRange = 9.0, yRange = 7.0;
+    const pad = 36;
+    const sx = (w - 2*pad) / xRange;
+    const sy = (h - 2*pad) / yRange;
+    const s = Math.min(sx, sy);
+    const cx = w / 2, cy = h / 2;
+    const P = (xw, yw) => ({ x: cx + xw*s, y: cy - yw*s });
+
+    // wedge boundaries
+    const maxR = 6.0;  // metres for wedge drawing
+    const origin = P(0, 0);
+    const Rpx = maxR * s;
+
+    if (showWedges) {
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < binN; i++) {
+            const a = i / binN * Math.PI * 2;
+            ctx.beginPath();
+            ctx.moveTo(origin.x, origin.y);
+            ctx.lineTo(origin.x + Math.cos(a) * Rpx,
+                       origin.y - Math.sin(a) * Rpx);
+            ctx.stroke();
+        }
+        // outer ring
+        ctx.strokeStyle = '#1e293b';
+        ctx.beginPath(); ctx.arc(origin.x, origin.y, Rpx, 0, Math.PI*2); ctx.stroke();
+    }
+
+    // ---- Furniture footprints (so the user can identify each cluster) ----
+    const T  = furniture.table;
+    const Ch = furniture.chair;
+    const Lf = furniture.lamp;
+    const Ff = furniture.fan;
+    function rect(cxW, cyW, halfW, halfH, color) {
+        const a = P(cxW - halfW, cyW + halfH);
+        const b = P(cxW + halfW, cyW - halfH);
+        ctx.fillStyle   = color + '14';
+        ctx.strokeStyle = color + '88';
+        ctx.lineWidth = 1;
+        ctx.fillRect(a.x, a.y, b.x - a.x, b.y - a.y);
+        ctx.strokeRect(a.x, a.y, b.x - a.x, b.y - a.y);
+    }
+    function circ(cxW, cyW, rW, color) {
+        const c = P(cxW, cyW);
+        ctx.fillStyle   = color + '14';
+        ctx.strokeStyle = color + '88';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(c.x, c.y, rW * s, 0, Math.PI*2);
+        ctx.fill(); ctx.stroke();
+    }
+    rect(T.cx,  T.cy,  T.legHalfX + 0.08, T.legHalfY + 0.08, '#60a5fa');
+    rect(Ch.cx, Ch.cy, Ch.legHalfX + 0.05, Ch.legHalfY + 0.05, '#f472b6');
+    circ(Lf.cx, Lf.cy, Lf.shadeR, '#facc15');
+    circ(Ff.cx, Ff.cy, Ff.r, '#a78bfa');
+
+    // selected wedge highlight
+    const aLo = selectedBin / binN * Math.PI * 2;
+    const aHi = (selectedBin + 1) / binN * Math.PI * 2;
+    ctx.fillStyle = 'rgba(252, 211, 77, 0.10)';
+    ctx.beginPath();
+    ctx.moveTo(origin.x, origin.y);
+    // canvas y is inverted vs. math y; draw arc with negative angles
+    ctx.arc(origin.x, origin.y, Rpx, -aHi, -aLo, false);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#fcd34d';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    const { bins, winners } = computeBins();
+
+    // losers + winners
+    for (let i = 0; i < binN; i++) {
+        const win = winners[i];
+        for (const q of bins[i]) {
+            const pt = P(q.x, q.y);
+            const isWinner = (q === win);
+            if (isWinner && !showWinners) continue;
+            if (!isWinner && !showLosers)  continue;
+            ctx.fillStyle = isWinner ? 'rgba(134, 239, 172, 0.95)'
+                                     : 'rgba(71, 85, 105, 0.45)';
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, isWinner ? 2.2 : 1.0, 0, Math.PI*2);
+            ctx.fill();
+        }
+    }
+
+    // /scan rays from origin to each winner
+    if (showWinners) {
+        ctx.strokeStyle = 'rgba(248, 113, 113, 0.45)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < binN; i++) {
+            const win = winners[i];
+            if (!win) continue;
+            const pt = P(win.x, win.y);
+            ctx.beginPath();
+            ctx.moveTo(origin.x, origin.y);
+            ctx.lineTo(pt.x, pt.y);
+            ctx.stroke();
+        }
+    }
+
+    // robot
+    ctx.fillStyle = '#f87171';
+    ctx.beginPath(); ctx.arc(origin.x, origin.y, 5, 0, Math.PI*2); ctx.fill();
+
+    // bin index labels (only if N is small)
+    if (binN <= 72) {
+        ctx.fillStyle = '#64748b';
+        ctx.font = '10px JetBrains Mono';
+        ctx.textAlign = 'center';
+        for (let i = 0; i < binN; i++) {
+            const a = (i + 0.5) / binN * Math.PI * 2;
+            const r = Rpx + 14;
+            ctx.fillText(String(i),
+                origin.x + Math.cos(a) * r,
+                origin.y - Math.sin(a) * r + 3);
+        }
+        ctx.textAlign = 'left';
+    }
+
+    // stats
+    const filled = winners.filter(w => w).length;
+    const degPerBin = 360 / binN;
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '11px JetBrains Mono';
+    ctx.fillText(`${binN} bins · ${degPerBin.toFixed(degPerBin < 1 ? 2 : 1)}° per bin · ${filled} have a hit · ${binN - filled} are +inf`,
+                 pad - 4, pad - 10);
+    ctx.fillStyle = '#fcd34d';
+    const selDist = winners[selectedBin] ? `range = ${winners[selectedBin].r.toFixed(2)} m` : 'range = +inf';
+    ctx.fillText(`selected: bin #${selectedBin} (${(selectedBin*degPerBin).toFixed(1)}°–${((selectedBin+1)*degPerBin).toFixed(1)}°) · ${selDist}`,
+                 pad - 4, pad + 6);
+
+    // Angular-aliasing warning: at very coarse N, ONE wedge can cover both
+    // a near object (chair) and a far one (wall), and the scan collapses
+    // them into the closer range. Surface this explicitly when relevant.
+    if (binN <= 36) {
+        const sel = bins[selectedBin] || [];
+        if (sel.length >= 2) {
+            const rs = sel.map(p => p.r);
+            const rMin = Math.min(...rs);
+            const rMax = Math.max(...rs);
+            if (rMax - rMin > 0.5) {
+                ctx.fillStyle = '#fca5a5';
+                ctx.font = 'bold 11px JetBrains Mono';
+                ctx.fillText(
+                    `⚠ angular aliasing: this wedge spans ${rMin.toFixed(2)}–${rMax.toFixed(2)} m — scan reports only ${rMin.toFixed(2)} m, the rest are lost`,
+                    pad - 4, h - 14
+                );
+            }
+        }
+    }
+
+    drawWedgeView(bins, winners);
+}
+
+function drawWedgeView(bins, winners) {
+    const { w, h } = fitDPR(wedgeC, wedgeCtx);
+    const ctx = wedgeCtx;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#050510';
+    ctx.fillRect(0, 0, w, h);
+
+    const pad = 40;
+    const rMax = 6.0;
+    const sx = (w - 2*pad) / rMax;
+    const yMid = h / 2;
+
+    // axis
+    ctx.strokeStyle = '#334155';
+    ctx.beginPath();
+    ctx.moveTo(pad, yMid); ctx.lineTo(w - pad, yMid); ctx.stroke();
+
+    // ticks
+    ctx.fillStyle = '#475569';
+    ctx.font = '10px JetBrains Mono';
+    for (let r = 0; r <= 6; r += 1) {
+        const x = pad + r * sx;
+        ctx.beginPath();
+        ctx.moveTo(x, yMid - 4); ctx.lineTo(x, yMid + 4); ctx.stroke();
+        ctx.fillText(r + ' m', x - 8, yMid + 18);
+    }
+
+    // robot at left
+    ctx.fillStyle = '#f87171';
+    ctx.beginPath(); ctx.arc(pad, yMid, 6, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#fecaca';
+    ctx.fillText('robot', pad - 16, yMid - 12);
+
+    const arr = bins[selectedBin] || [];
+    const win = winners[selectedBin] || null;
+
+    // Sort points by range so we can plot left-to-right and cluster cleanly.
+    const sortedArr = arr.slice().sort((a, b) => a.r - b.r);
+
+    // --- Draw every point as a small dot, vertical position = its Z height ---
+    // 61 points really can land in one wedge (wall samples × Z layers per wall
+    // column). Encoding Z as vertical offset makes the density visible AND
+    // shows which points came from which heights — wall = vertical line of
+    // dots, single chair leg = one dot.
+    const dotRowY = yMid - 22;
+    const dotRowH = 28;  // px vertical band for Z-encoded scatter
+    const zSpan  = Math.max(0.001, zMax - zMin);
+    for (const q of sortedArr) {
+        const isWinner = (q === win);
+        const x  = pad + q.r * sx;
+        const tz = (q.z - zMin) / zSpan;            // 0..1 within band
+        const dy = (tz - 0.5) * dotRowH;
+        ctx.fillStyle = isWinner ? '#86efac' : 'rgba(100, 116, 139, 0.85)';
+        ctx.beginPath();
+        ctx.arc(x, dotRowY + dy, isWinner ? 5 : 2.5, 0, Math.PI*2);
+        ctx.fill();
+    }
+    // Z-axis tick on the left so the user can decode the vertical offset.
+    ctx.strokeStyle = '#334155';
+    ctx.beginPath();
+    ctx.moveTo(pad - 14, dotRowY - dotRowH/2);
+    ctx.lineTo(pad - 14, dotRowY + dotRowH/2);
+    ctx.stroke();
+    ctx.fillStyle = '#64748b';
+    ctx.font = '9px JetBrains Mono';
+    ctx.textAlign = 'right';
+    ctx.fillText('z=' + zMax.toFixed(2), pad - 18, dotRowY - dotRowH/2 + 3);
+    ctx.fillText('z=' + zMin.toFixed(2), pad - 18, dotRowY + dotRowH/2 + 3);
+    ctx.textAlign = 'left';
+
+    // --- Cluster points whose on-screen positions are within ~24px ---
+    // Each cluster gets ONE label, staggered above/below the axis.
+    const clusterPx = 24;
+    const clusters = [];
+    for (const q of sortedArr) {
+        const x = pad + q.r * sx;
+        const last = clusters[clusters.length - 1];
+        if (last && x - last.xMax < clusterPx) {
+            last.points.push(q);
+            last.xMax = x;
+            last.rMax = q.r;
+            if (q === win) last.containsWinner = true;
+        } else {
+            clusters.push({
+                xMin: x, xMax: x,
+                rMin: q.r, rMax: q.r,
+                points: [q],
+                containsWinner: (q === win),
+            });
+        }
+    }
+
+    // Draw cluster labels — alternate above / below so they never overlap.
+    let above = true;
+    for (const cl of clusters) {
+        const xMid = (cl.xMin + cl.xMax) / 2;
+        const yLab = above ? (yMid - 50) : (yMid + 44);
+        const n = cl.points.length;
+        let text;
+        if (n === 1) {
+            text = cl.rMin.toFixed(2) + ' m';
+        } else if (cl.rMin === cl.rMax || Math.abs(cl.rMax - cl.rMin) < 0.01) {
+            text = cl.rMin.toFixed(2) + ' m  ×' + n;
+        } else {
+            text = cl.rMin.toFixed(2) + '–' + cl.rMax.toFixed(2) + ' m  ×' + n;
+        }
+        const isWinnerCluster = cl.containsWinner;
+        ctx.fillStyle = isWinnerCluster ? '#bbf7d0' : '#94a3b8';
+        ctx.font = isWinnerCluster ? 'bold 11px JetBrains Mono' : '10px JetBrains Mono';
+        ctx.textAlign = 'center';
+        ctx.fillText(text, xMid, yLab);
+        // thin connector tick from label to the dot row
+        ctx.strokeStyle = isWinnerCluster ? 'rgba(187, 247, 208, 0.5)'
+                                          : 'rgba(148, 163, 184, 0.3)';
+        ctx.beginPath();
+        ctx.moveTo(xMid, above ? yLab + 3 : yLab - 11);
+        ctx.lineTo(xMid, yMid - 22 + (above ? -8 : 0));
+        ctx.stroke();
+        above = !above;
+    }
+    ctx.textAlign = 'left';
+
+    // vertical line at the winner — this is what scan.ranges[i] becomes
+    if (win) {
+        const x = pad + win.r * sx;
+        ctx.strokeStyle = '#f87171';
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(x, 14); ctx.lineTo(x, h - 14); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#fecaca';
+        ctx.font = 'bold 12px JetBrains Mono';
+        // place the headline label clear of the cluster labels
+        const headX = Math.min(x + 10, w - 240);
+        ctx.fillText('scan.ranges[' + selectedBin + '] = ' + win.r.toFixed(2) + ' m',
+                     headX, 18);
+    } else {
+        ctx.fillStyle = '#fcd34d';
+        ctx.font = 'bold 12px JetBrains Mono';
+        ctx.fillText('scan.ranges[' + selectedBin + '] = +inf  (empty bin)',
+                     pad + 40, 18);
+    }
+
+    // info caption under the canvas
+    const aLo = (selectedBin)     / binN * 360;
+    const aHi = (selectedBin + 1) / binN * 360;
+    const info = `wedge #${selectedBin} — ${aLo.toFixed(1)}° → ${aHi.toFixed(1)}° — ${arr.length} point${arr.length===1?'':'s'} — ${win ? 'range = ' + win.r.toFixed(2) + ' m' : 'range = +inf'}`;
+    document.getElementById('wedgeInfo').textContent = info;
+}
+
+// click on bin canvas to select a wedge
+binC.addEventListener('click', (ev) => {
+    const rect = binC.getBoundingClientRect();
+    const px = ev.clientX - rect.left;
+    const py = ev.clientY - rect.top;
+    const cx = rect.width / 2, cy = rect.height / 2;
+    const dx = px - cx, dy = cy - py;  // canvas y flipped
+    let a = Math.atan2(dy, dx);
+    if (a < 0) a += Math.PI * 2;
+    selectedBin = Math.floor(a / (Math.PI * 2) * binN) % binN;
+    drawBinView();
+});
+
+function formatBinReadout(n) {
+    const deg = (360 / n);
+    return n + ' bins · ' + deg.toFixed(deg < 1 ? 2 : 1) + '°/bin';
+}
+function setPresetActive(activeId) {
+    for (const id of ['binPreset_ultra', 'binPreset_coarse', 'binPreset_default']) {
+        document.getElementById(id).classList.toggle('active', id === activeId);
+    }
+}
+binNEl.addEventListener('input', () => {
+    binN = parseInt(binNEl.value, 10);
+    binNVal.textContent = formatBinReadout(binN);
+    selectedBin = Math.min(selectedBin, binN - 1);
+    setPresetActive(null);
+    drawBinView();
+});
+document.getElementById('binPreset_ultra').addEventListener('click', () => {
+    binN = 12; binNEl.value = binN; binNVal.textContent = formatBinReadout(12);
+    selectedBin = Math.min(selectedBin, binN - 1);
+    setPresetActive('binPreset_ultra');
+    drawBinView();
+});
+document.getElementById('binPreset_coarse').addEventListener('click', () => {
+    binN = 36; binNEl.value = binN; binNVal.textContent = formatBinReadout(36);
+    selectedBin = Math.min(selectedBin, binN - 1);
+    setPresetActive('binPreset_coarse');
+    drawBinView();
+});
+document.getElementById('binPreset_default').addEventListener('click', () => {
+    binN = 720; binNEl.value = binN; binNVal.textContent = formatBinReadout(720);
+    selectedBin = Math.min(selectedBin, binN - 1);
+    setPresetActive('binPreset_default');
+    drawBinView();
+});
+showWedgesEl.addEventListener('change',  () => { showWedges  = showWedgesEl.checked;  drawBinView(); });
+showWinnersEl.addEventListener('change', () => { showWinners = showWinnersEl.checked; drawBinView(); });
+showLosersEl.addEventListener('change',  () => { showLosers  = showLosersEl.checked;  drawBinView(); });
+
+// ============================================================
+// Final-output comparison: 3D cloud vs 2D scan, side-by-side
+// ============================================================
+const cloud3dC = document.getElementById('cloud3d');
+const scan2dC  = document.getElementById('scan2d');
+const cloud3dCtx = cloud3dC.getContext('2d');
+const scan2dCtx  = scan2dC.getContext('2d');
+
+// Height → color (deep blue at floor → cyan at chair-leg → cream at ceiling).
+function heightColor(z) {
+    const t = Math.max(0, Math.min(1, z / 2.6));
+    // 3-stop gradient: #1e3a8a → #67e8f9 → #fef3c7
+    const stops = [
+        { t: 0.0,  c: [30, 58, 138] },
+        { t: 0.45, c: [103, 232, 249] },
+        { t: 1.0,  c: [254, 243, 199] },
+    ];
+    let a = stops[0], b = stops[1];
+    for (let i = 0; i < stops.length - 1; i++) {
+        if (t >= stops[i].t && t <= stops[i+1].t) { a = stops[i]; b = stops[i+1]; break; }
+    }
+    const u = (t - a.t) / (b.t - a.t || 1);
+    const r = Math.round(a.c[0] + (b.c[0] - a.c[0]) * u);
+    const g = Math.round(a.c[1] + (b.c[1] - a.c[1]) * u);
+    const bl = Math.round(a.c[2] + (b.c[2] - a.c[2]) * u);
+    return `rgb(${r},${g},${bl})`;
+}
+
+function makeTopProjection(canvas, ctx) {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width  = Math.round(rect.width  * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const w = rect.width, h = rect.height;
+    const pad = 32;
+    const xRange = 9.0, yRange = 7.0;
+    const sx = (w - 2*pad) / xRange;
+    const sy = (h - 2*pad) / yRange;
+    const s = Math.min(sx, sy);
+    const cx = w / 2, cy = h / 2;
+    const P = (xw, yw) => ({ x: cx + xw*s, y: cy - yw*s });
+    return { w, h, s, pad, P };
+}
+
+function drawGrid(ctx, w, h, P, pad) {
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 1;
+    for (let x = -4; x <= 4; x += 1) {
+        const p1 = P(x, -3.5), p2 = P(x, 3.5);
+        ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+    }
+    for (let y = -3; y <= 3; y += 1) {
+        const p1 = P(-4.5, y), p2 = P(4.5, y);
+        ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+    }
+}
+
+function drawFurnitureFootprint(ctx, P, s) {
+    const T  = furniture.table, Ch = furniture.chair;
+    const Lf = furniture.lamp,  Ff = furniture.fan;
+    function r(cxW, cyW, halfW, halfH, color) {
+        const a = P(cxW - halfW, cyW + halfH);
+        const b = P(cxW + halfW, cyW - halfH);
+        ctx.fillStyle = color + '14'; ctx.strokeStyle = color + '88'; ctx.lineWidth = 1;
+        ctx.fillRect(a.x, a.y, b.x - a.x, b.y - a.y);
+        ctx.strokeRect(a.x, a.y, b.x - a.x, b.y - a.y);
+    }
+    function c(cxW, cyW, rW, color) {
+        const cc = P(cxW, cyW);
+        ctx.fillStyle = color + '14'; ctx.strokeStyle = color + '88'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(cc.x, cc.y, rW * s, 0, Math.PI*2);
+        ctx.fill(); ctx.stroke();
+    }
+    r(T.cx,  T.cy,  T.legHalfX + 0.08, T.legHalfY + 0.08, '#60a5fa');
+    r(Ch.cx, Ch.cy, Ch.legHalfX + 0.05, Ch.legHalfY + 0.05, '#f472b6');
+    c(Lf.cx, Lf.cy, Lf.shadeR, '#facc15');
+    c(Ff.cx, Ff.cy, Ff.r, '#a78bfa');
+}
+
+function drawCloud3D() {
+    const ctx = cloud3dCtx;
+    const { w, h, s, pad, P } = makeTopProjection(cloud3dC, ctx);
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#050510'; ctx.fillRect(0, 0, w, h);
+    drawGrid(ctx, w, h, P, pad);
+    drawFurnitureFootprint(ctx, P, s);
+
+    // Draw all points top-down, colored by height. Sort so lower points
+    // paint first and higher points (fan, lamp shade) sit on top.
+    const sorted = points.slice().sort((a, b) => a.z - b.z);
+    for (const p of sorted) {
+        const pt = P(p.x, p.y);
+        ctx.fillStyle = heightColor(p.z);
+        // Higher points slightly bigger + more opaque so the fan / lamp
+        // shade / tabletop pop visually above the floor speckle.
+        const t = Math.max(0, Math.min(1, p.z / 2.6));
+        const radius = 1.4 + t * 0.9;
+        ctx.globalAlpha = 0.55 + t * 0.40;
+        ctx.beginPath(); ctx.arc(pt.x, pt.y, radius, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // robot
+    const origin = P(0, 0);
+    ctx.fillStyle = '#f87171';
+    ctx.beginPath(); ctx.arc(origin.x, origin.y, 5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#fecaca';
+    ctx.font = '10px JetBrains Mono';
+    ctx.fillText('rover', origin.x + 8, origin.y + 14);
+
+    // Per-feature labels so the user knows what they're looking at
+    function annotate(cxW, cyW, dxPx, dyPx, color, text) {
+        const c = P(cxW, cyW);
+        ctx.fillStyle = color;
+        ctx.font = 'bold 10px JetBrains Mono';
+        ctx.fillText(text, c.x + dxPx, c.y + dyPx);
+    }
+    annotate(furniture.fan.cx,  furniture.fan.cy,   -30, -furniture.fan.r * s - 6, '#fef3c7', 'fan ceiling');
+    annotate(furniture.lamp.cx, furniture.lamp.cy,   10, -4,                       '#fde68a', 'lamp shade');
+    annotate(furniture.table.cx, furniture.table.cy, -28, -furniture.table.legHalfY * s - 6, '#a5f3fc', 'tabletop');
+    annotate(furniture.chair.cx, furniture.chair.cy, -22, -furniture.chair.legHalfY * s - 6, '#bae6fd', 'chair');
+
+    // axes
+    ctx.fillStyle = '#64748b';
+    ctx.font = '11px JetBrains Mono';
+    ctx.fillText('y (m)', 8, 16);
+    ctx.fillText('x (m) →', w - 70, h - 8);
+
+    // Vertical Z color key (bottom-right): shows the deep-blue→cyan→cream
+    // gradient with floor/band/ceiling tick labels.
+    const keyW = 12, keyH = 100;
+    const keyX = w - pad - keyW - 4;
+    const keyY = h - pad - keyH - 4;
+    const grad = ctx.createLinearGradient(0, keyY + keyH, 0, keyY);
+    grad.addColorStop(0.0, heightColor(0));
+    grad.addColorStop(0.45/2.6 * 1, heightColor(0.45));
+    grad.addColorStop(0.5, heightColor(1.3));
+    grad.addColorStop(1.0, heightColor(2.6));
+    ctx.fillStyle = grad;
+    ctx.fillRect(keyX, keyY, keyW, keyH);
+    ctx.strokeStyle = '#475569';
+    ctx.strokeRect(keyX, keyY, keyW, keyH);
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '9px JetBrains Mono';
+    ctx.textAlign = 'right';
+    ctx.fillText('2.6 m (ceiling)', keyX - 4, keyY + 8);
+    ctx.fillText('0.45 m (z_max)', keyX - 4, keyY + keyH - (0.45/2.6)*keyH + 3);
+    ctx.fillText('0 m (floor)',    keyX - 4, keyY + keyH + 4);
+    ctx.textAlign = 'left';
+
+    document.getElementById('cloud3dStats').textContent =
+        points.length.toLocaleString() + ' points · ' +
+        'all 6 DOF must be estimated';
+}
+
+function drawScan2D() {
+    const ctx = scan2dCtx;
+    const { w, h, s, pad, P } = makeTopProjection(scan2dC, ctx);
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#050510'; ctx.fillRect(0, 0, w, h);
+    drawGrid(ctx, w, h, P, pad);
+    drawFurnitureFootprint(ctx, P, s);
+
+    // Compute the real 720-bin scan.
+    const NB = 720;
+    const ranges = new Array(NB).fill(Infinity);
+    for (const p of points) {
+        if (p.z < zMin || p.z > zMax) continue;
+        const dx = p.x - robot.x, dy = p.y - robot.y;
+        const r = Math.hypot(dx, dy);
+        if (r < 0.2 || r > 20) continue;
+        let a = Math.atan2(dy, dx);
+        if (a < 0) a += Math.PI*2;
+        const bin = Math.floor(a / (Math.PI*2) * NB) % NB;
+        if (r < ranges[bin]) ranges[bin] = r;
+    }
+
+    // Faint rays from robot to each endpoint.
+    const origin = P(robot.x, robot.y);
+    ctx.strokeStyle = 'rgba(248, 113, 113, 0.18)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < NB; i++) {
+        const r = ranges[i];
+        if (!isFinite(r)) continue;
+        const a = (i + 0.5) / NB * Math.PI*2;
+        const pt = P(robot.x + r*Math.cos(a), robot.y + r*Math.sin(a));
+        ctx.beginPath();
+        ctx.moveTo(origin.x, origin.y);
+        ctx.lineTo(pt.x, pt.y);
+        ctx.stroke();
+    }
+    // Endpoint dots — this IS the LaserScan message slam_toolbox sees.
+    ctx.fillStyle = '#f87171';
+    let hits = 0;
+    for (let i = 0; i < NB; i++) {
+        const r = ranges[i];
+        if (!isFinite(r)) continue;
+        hits++;
+        const a = (i + 0.5) / NB * Math.PI*2;
+        const pt = P(robot.x + r*Math.cos(a), robot.y + r*Math.sin(a));
+        ctx.beginPath(); ctx.arc(pt.x, pt.y, 1.8, 0, Math.PI*2); ctx.fill();
+    }
+
+    // robot
+    ctx.fillStyle = '#f87171';
+    ctx.beginPath(); ctx.arc(origin.x, origin.y, 5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#fecaca';
+    ctx.font = '10px JetBrains Mono';
+    ctx.fillText('rover', origin.x + 8, origin.y + 14);
+
+    // axes
+    ctx.fillStyle = '#64748b';
+    ctx.font = '11px JetBrains Mono';
+    ctx.fillText('y (m)', 8, 16);
+    ctx.fillText('x (m) →', w - 70, h - 8);
+
+    document.getElementById('scan2dStats').textContent =
+        hits + ' / ' + NB + ' rays · band ' +
+        zMin.toFixed(2) + '–' + zMax.toFixed(2) + ' m · only x, y, yaw to estimate';
+}
+
+// Re-draw bin view + final comparison whenever the Z band changes too.
+const origSetBand = setBand;
+setBand = function(lo, hi) {
+    origSetBand(lo, hi);
+    drawBinView();
+    drawCloud3D();
+    drawScan2D();
+};
+
+window.addEventListener('resize', () => { drawBinView(); drawCloud3D(); drawScan2D(); });
+drawBinView();
+drawCloud3D();
+drawScan2D();
+</script>
+</body>
+</html>
