@@ -1062,6 +1062,412 @@ h1 .sub { color: #67e8f9; }
   </div>
 </div>
 
+<!-- Card 10b: controller_frequency -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">controller_frequency</span>
+    <span class="paramFile">config/nav2_params_2d.yaml:116</span>
+    <span class="paramDesc">How often Nav2's controller (DWB) runs the trajectory sampler and publishes <code>/cmd_vel</code>. Sets the entire control loop rate.</span>
+    <div class="modes"><span class="mode-chip mode-nav">Nav2 only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>Hz</label><input type="range" id="cfreq-v" min="5" max="50" step="1" value="20" data-unit=" Hz" data-precision="0"><span class="val" id="cfreq-vVal">20 Hz</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> control loop rate. At 20 Hz, the controller re-samples 1600 trajectories every 50 ms.</div>
+    <div class="ex-up">↑ <b>30–50 Hz:</b> tighter control of fast rovers; reaction to costmap changes within ~30 ms. Doesn't help if the costmap publishes at only 5 Hz.</div>
+    <div class="ex-down">↓ <b>5–10 Hz:</b> saves CPU; rover oscillates around path because corrections come too slowly.</div>
+    <div class="ex-deps">🔗 <b>Must match downstream rates:</b> velocity_smoother's <code>smoothing_frequency</code> (20 Hz default) should be ≥ controller_frequency. If costmap update_frequency is only 5 Hz, the controller is sampling on stale data 75% of the time.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-significant">significant</span> Each cycle = 1600 trajectories × 34 steps each = ~55k ops. Doubling Hz doubles CPU.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic 10–30 Hz</span>
+      <span class="test-step">Watch <code>ros2 topic hz /cmd_vel</code> — should match controller_frequency.</span>
+      <span class="test-step">At 5 Hz: drive a curving path, rover overshoots corners visibly. At 20 Hz (default): smooth tracking. At 50 Hz: smooth but DWB process pegs CPU.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Card 10c: DWB sampling -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">vx_samples · vy_samples · vtheta_samples · sim_time · linear_granularity · angular_granularity</span>
+    <span class="paramFile">config/nav2_params_2d.yaml:158–164</span>
+    <span class="paramDesc">DWB's trajectory generator: how many velocity candidates to evaluate per axis, how far ahead to roll them out, and how finely to discretize the rollout.</span>
+    <div class="modes"><span class="mode-chip mode-nav">Nav2 only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>vx_samples</label><input type="range" id="vxs-v" min="5" max="40" step="1" value="20" data-unit="" data-precision="0"><span class="val" id="vxs-vVal">20</span></div>
+    <div class="slider-row"><label>vy_samples</label><input type="range" id="vys-v" min="1" max="20" step="1" value="10" data-unit="" data-precision="0"><span class="val" id="vys-vVal">10</span></div>
+    <div class="slider-row"><label>vth_samples</label><input type="range" id="vts-v" min="3" max="30" step="1" value="8" data-unit="" data-precision="0"><span class="val" id="vts-vVal">8</span></div>
+    <div class="slider-row"><label>sim_time</label><input type="range" id="stm-v" min="0.5" max="4.0" step="0.1" value="1.7" data-unit=" s" data-precision="1"><span class="val" id="stm-vVal">1.7 s</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> total trajectories = vx × vy × vθ = 20 × 10 × 8 = 1600 (default). sim_time = how far each trajectory is rolled out (1.7 s = ~34 steps at 20 Hz).</div>
+    <div class="ex-up">↑ <b>vy_samples = 20</b>: finer mecanum strafe planning. <b>sim_time 3 s</b>: rover plans further ahead, smoother in long corridors but slower to react.</div>
+    <div class="ex-down">↓ <b>vy_samples = 1</b> for non-mecanum platforms (saves 90% CPU). <b>sim_time 0.7 s</b>: tight reactive control; bad in winding paths.</div>
+    <div class="ex-deps">🔗 <b>Pairs with</b> <code>controller_frequency</code> and <code>max_vel_*</code>. Samples are spread over [min_vel, max_vel].</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-significant">significant</span> Linear in product of samples; CPU per controller cycle = samples × sim_time/dt ops.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic samples 8–24 each · sim_time 1.0–2.5 s</span>
+      <span class="test-step">Send a goal that requires a sharp turn (90° corner). At vth_samples=3: jerky turn, rover overshoots. At vth=8 (default): clean. At vth=20: smooth but DWB slows.</span>
+      <span class="test-step">Foxglove: visualize <code>/local_plan</code> — short bumps = sim_time too small, long looping lines = sim_time too big.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Card 10d: acceleration limits -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">acc_lim_x · acc_lim_y · acc_lim_theta · decel_lim_*</span>
+    <span class="paramFile">config/nav2_params_2d.yaml:148–155</span>
+    <span class="paramDesc">Max acceleration and deceleration the controller will command. DWB constrains sampled trajectories to these limits.</span>
+    <div class="modes"><span class="mode-chip mode-nav">Nav2 only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>acc_x</label><input type="range" id="alx-v" min="0.5" max="5.0" step="0.1" value="2.5" data-unit=" m/s²" data-precision="1"><span class="val" id="alx-vVal">2.5 m/s²</span></div>
+    <div class="slider-row"><label>acc_y</label><input type="range" id="aly-v" min="0.0" max="5.0" step="0.1" value="2.0" data-unit=" m/s²" data-precision="1"><span class="val" id="aly-vVal">2.0 m/s²</span></div>
+    <div class="slider-row"><label>acc_theta</label><input type="range" id="alt-v" min="0.5" max="10.0" step="0.1" value="5.0" data-unit=" rad/s²" data-precision="1"><span class="val" id="alt-vVal">5.0 rad/s²</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> the slope of the velocity ramp. From rest, time-to-max-vel = max_vel / acc_lim. Default: 0.5 m/s ÷ 2.5 m/s² = 0.2 s to max.</div>
+    <div class="ex-up">↑ <b>Higher (5 m/s²):</b> snappy start, but mecanum slip + IMU saturation likely. <b>acc_theta 10:</b> sudden yaw whip, IMU may temporarily desaturate the EKF.</div>
+    <div class="ex-down">↓ <b>Lower (0.5 m/s²):</b> smooth, predictable motion; the rover takes a full second to reach cruise speed. <b>Pairs with sim_time:</b> if sim_time × acc_lim < max_vel, the rover can never reach max_vel in a single planning horizon.</div>
+    <div class="ex-deps">🔗 <b>Mirror in</b> <code>velocity_smoother.max_accel</code> (line ~365) — values must match or smoother fights DWB.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-none">none</span> Pure limits, no extra ops.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic acc 1–4 m/s² · acc_theta 2–8 rad/s² (platform-limited)</span>
+      <span class="test-step">Send a goal 5 m ahead. With acc 1 m/s²: rover reaches cruise speed at 0.5 s (smooth). With 5 m/s²: cruise at 0.1 s (jerky takeoff). Watch the wheels for slip.</span>
+      <span class="test-step">Plot <code>/cmd_vel</code> using PlotJuggler — the velocity ramp slope = acc_lim.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Card 10e: DWB critic weights -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">BaseObstacle · PathAlign · GoalAlign · PathDist · GoalDist · RotateToGoal scales</span>
+    <span class="paramFile">config/nav2_params_2d.yaml:178–183</span>
+    <span class="paramDesc">DWB's cost function is a weighted sum of these critics. Each candidate trajectory gets a score; the lowest-cost one is executed. <b>Tune these to change behavior</b>: hug the path vs head for the goal vs stay away from obstacles.</span>
+    <div class="modes"><span class="mode-chip mode-nav">Nav2 only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>BaseObstacle</label><input type="range" id="bos-v" min="0.001" max="1.0" step="0.001" value="0.02" data-unit="" data-precision="3"><span class="val" id="bos-vVal">0.020</span></div>
+    <div class="slider-row"><label>PathAlign</label><input type="range" id="pas-v" min="0" max="64" step="1" value="32" data-unit="" data-precision="0"><span class="val" id="pas-vVal">32</span></div>
+    <div class="slider-row"><label>GoalAlign</label><input type="range" id="gas-v" min="0" max="64" step="1" value="24" data-unit="" data-precision="0"><span class="val" id="gas-vVal">24</span></div>
+    <div class="slider-row"><label>PathDist</label><input type="range" id="pds-v" min="0" max="64" step="1" value="32" data-unit="" data-precision="0"><span class="val" id="pds-vVal">32</span></div>
+    <div class="slider-row"><label>GoalDist</label><input type="range" id="gds-v" min="0" max="64" step="1" value="24" data-unit="" data-precision="0"><span class="val" id="gds-vVal">24</span></div>
+    <div class="slider-row"><label>RotateToGoal</label><input type="range" id="rts-v" min="0" max="64" step="1" value="32" data-unit="" data-precision="0"><span class="val" id="rts-vVal">32</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> <b>PathAlign</b> = hug the planned path's headings; <b>PathDist</b> = stay close to the path geometrically; <b>GoalAlign</b> = face the goal; <b>GoalDist</b> = head toward the goal; <b>BaseObstacle</b> = stay clear of obstacles; <b>RotateToGoal</b> = final yaw alignment.</div>
+    <div class="ex-up">↑ <b>BaseObstacle to 0.2:</b> rover hugs centerline obsessively, may refuse narrow paths. <b>GoalDist to 50:</b> rover prioritizes reaching the goal over following the planner's path (cuts corners aggressively).</div>
+    <div class="ex-down">↓ <b>PathAlign to 5:</b> rover ignores planner's preferred orientation; useful with omnidirectional mecanum that can strafe.</div>
+    <div class="ex-deps">🔗 <b>Relative magnitudes matter, not absolute values.</b> Doubling all six = same behavior. Defaults are tuned for differential-drive — mecanum often wants PathAlign lower (rover should be free to crab).</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-none">none</span> Simple weighted sum per trajectory.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic: scale together, not individually</span>
+      <span class="test-step">Send a path that requires sideways motion (mecanum-only). With PathAlign:32 default, rover yaws to face the path direction even when it should strafe. Reduce to PathAlign:8 — rover crabs sideways more naturally.</span>
+      <span class="test-step">Set BaseObstacle to 1.0: rover refuses any path within 0.5 m of an obstacle, even open doorways.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Card 10f: RotateToGoal tuning -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">RotateToGoal.slowing_factor · lookahead_time · forward_point_distance</span>
+    <span class="paramFile">config/nav2_params_2d.yaml:184–187</span>
+    <span class="paramDesc">Final-rotation behavior. <code>slowing_factor</code> = how aggressively to brake xy when approaching goal yaw. <code>lookahead_time</code> = how far ahead to anticipate. <code>forward_point_distance</code> = where the "robot front" is for alignment.</span>
+    <div class="modes"><span class="mode-chip mode-nav">Nav2 only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>slowing_factor</label><input type="range" id="rsf-v" min="0.5" max="10" step="0.1" value="2.0" data-unit="" data-precision="1"><span class="val" id="rsf-vVal">2.0</span></div>
+    <div class="slider-row"><label>lookahead_time</label><input type="range" id="rlt-v" min="-1.0" max="3.0" step="0.1" value="0.5" data-unit=" s" data-precision="1"><span class="val" id="rlt-vVal">0.5 s</span></div>
+    <div class="slider-row"><label>fwd_pt_dist</label><input type="range" id="fpd-v" min="0.05" max="1.0" step="0.05" value="0.1" data-unit=" m" data-precision="2"><span class="val" id="fpd-vVal">0.10 m</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> the final-approach yaw alignment behavior. Affects whether the rover overshoots the goal pose or undershoots.</div>
+    <div class="ex-up">↑ <b>slowing_factor 5–8:</b> hard brake near goal; rover stops fast at the cost of overshoot. <b>lookahead_time 2.0:</b> anticipates yaw further, smoother on mecanum.</div>
+    <div class="ex-down">↓ <b>slowing_factor 1.0:</b> gentle approach, may cruise past goal before yawing. <b>lookahead_time -1.0:</b> disable yaw lookahead (used in 3D config).</div>
+    <div class="ex-deps">🔗 <b>Tightly coupled to</b> <code>yaw_goal_tolerance</code>. Mecanum yaw-at-goal is hard; this config has slowing_factor 2.0 + tolerance 0.4 to make it achievable.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-none">none</span> Just scalars.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic slowing 1.5–4.0 (mecanum)</span>
+      <span class="test-step">Send a goal requiring 90° final yaw. Stopwatch the last 1 m of approach + yaw stop.</span>
+      <span class="test-step">slowing_factor 1.0: rover yaws while still moving; smooth approach but may overshoot xy. 2.0 (default): brief pause and snap to yaw. 5.0: stop, then yaw — slow but precise.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Card 10g: costmap update rates -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">local_costmap.update_frequency · publish_frequency · global_costmap.update_frequency · publish_frequency</span>
+    <span class="paramFile">config/nav2_params_2d.yaml:208–209, 257–258</span>
+    <span class="paramDesc">How often each costmap recomputes obstacle data internally (<code>update_frequency</code>) and re-publishes for visualization (<code>publish_frequency</code>).</span>
+    <div class="modes"><span class="mode-chip mode-nav">Nav2 only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>local_upd</label><input type="range" id="lcu-v" min="1" max="30" step="1" value="5" data-unit=" Hz" data-precision="0"><span class="val" id="lcu-vVal">5 Hz</span></div>
+    <div class="slider-row"><label>local_pub</label><input type="range" id="lcp-v" min="1" max="30" step="1" value="2" data-unit=" Hz" data-precision="0"><span class="val" id="lcp-vVal">2 Hz</span></div>
+    <div class="slider-row"><label>global_upd</label><input type="range" id="gcu-v" min="0.2" max="10" step="0.1" value="1.0" data-unit=" Hz" data-precision="1"><span class="val" id="gcu-vVal">1.0 Hz</span></div>
+    <div class="slider-row"><label>global_pub</label><input type="range" id="gcp-v" min="0.2" max="10" step="0.1" value="1.0" data-unit=" Hz" data-precision="1"><span class="val" id="gcp-vVal">1.0 Hz</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> reactivity vs CPU. Local costmap defaults 5 Hz update, 2 Hz publish (rover reacts to obstacles within 200 ms). Global is slower (1 Hz) since it's mostly a static map.</div>
+    <div class="ex-up">↑ <b>local 20 Hz:</b> reacts to dynamic obstacles within 50 ms. <b>publish_freq = update_freq:</b> Foxglove updates fast but bandwidth + CPU spike.</div>
+    <div class="ex-down">↓ <b>local 1 Hz:</b> rover may collide with fast-moving obstacles (person walking). <b>global 0.2 Hz:</b> saves CPU but planner can stall while waiting for fresh global.</div>
+    <div class="ex-deps">🔗 <b>update_frequency ≥ publish_frequency</b> by convention. <b>controller_frequency (20 Hz)</b> should be ≥ local update_frequency or the controller sees stale data.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-moderate">moderate</span> Update = scan rasterization + inflation propagation. At 20 Hz on a 6×6 m local costmap, this is a measurable CPU load.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic local 5–10 Hz · global 0.5–2 Hz</span>
+      <span class="test-step">Have an assistant walk in front of the rover at 1 m/s. <b>local 1 Hz:</b> rover may collide (only 1 second of warning). <b>local 20 Hz:</b> rover stops cleanly.</span>
+      <span class="test-step">Watch <code>top</code>: at local 20 Hz + global 5 Hz on Jetson, costmap processes start eating 30%+ CPU.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Card 10h: local costmap extent -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">local_costmap.width · height · rolling_window</span>
+    <span class="paramFile">config/nav2_params_2d.yaml:213–215</span>
+    <span class="paramDesc">Local costmap's spatial footprint. <code>rolling_window: true</code> = the costmap follows the rover (window slides); width/height = box size around the rover in meters.</span>
+    <div class="modes"><span class="mode-chip mode-nav">Nav2 only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>width</label><input type="range" id="lcw-v" min="2" max="20" step="1" value="6" data-unit=" m" data-precision="0"><span class="val" id="lcw-vVal">6 m</span></div>
+    <div class="slider-row"><label>height</label><input type="range" id="lch-v" min="2" max="20" step="1" value="6" data-unit=" m" data-precision="0"><span class="val" id="lch-vVal">6 m</span></div>
+    <div class="toggle-row"><input type="checkbox" id="lcrw-v" checked><label for="lcrw-v">rolling_window</label></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> size of the local-planning "bubble" around the rover. Cells = (width × height) / resolution² = (6 × 6)/0.05² = 14400 cells at default.</div>
+    <div class="ex-up">↑ <b>10 m:</b> rover sees obstacles farther — useful at higher speeds. <b>20 m:</b> overkill, costmap CPU quadruples.</div>
+    <div class="ex-down">↓ <b>3 m:</b> tight bubble, rover misses obstacles at sensor range. <b>rolling_window: false</b> = fixed costmap at launch origin (don't do this; will run off-grid).</div>
+    <div class="ex-deps">🔗 <b>Pairs with</b> <code>obstacle_max_range</code> (10 m) — costmap can only see obstacles within its window AND within sensor range.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-significant">significant</span> Quadratic in width: doubling width = 4× cells = 4× update work.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic 4–10 m square</span>
+      <span class="test-step">Drive a 2 m/s sprint. With width 3 m: rover collides with obstacles that enter at high speed. With 10 m: rover plans further ahead, stops in time.</span>
+      <span class="test-step">Foxglove: view <code>/local_costmap/costmap</code> — the dotted edge is the local-window boundary moving with the rover.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Card 10i: max_obstacle_height -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">max_obstacle_height (costmap)</span>
+    <span class="paramFile">config/nav2_params_2d.yaml:228</span>
+    <span class="paramDesc">Costmap-side Z gate. The obstacle_layer ignores any /scan ray whose source Z exceeds this. Independent of <code>scan_z_max</code> (which lives upstream in pointcloud_to_laserscan).</span>
+    <div class="modes"><span class="mode-chip mode-nav">Nav2 only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>max_height</label><input type="range" id="moh-v" min="0.1" max="3.0" step="0.05" value="0.5" data-unit=" m" data-precision="2"><span class="val" id="moh-vVal">0.50 m</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> Z ceiling for the costmap obstacle layer. Should match the upstream Z slice's upper bound.</div>
+    <div class="ex-up">↑ <b>Higher than scan_z_max:</b> wastes CPU (filters nothing the scan stage already filtered). Set just above scan_z_max.</div>
+    <div class="ex-down">↓ <b>Lower than scan_z_max:</b> drops valid obstacle returns. The YAML comment warns: "Set lower silently drops legit obstacles."</div>
+    <div class="ex-deps">🔗 <b>Must match</b> the upper end of the scan_z slice (0.45 in <code>scan_z_max</code>, but this config sets 0.5 as a small buffer). <b>Distinct from</b> RTABMap's <code>Grid/MaxObstacleHeight</code>.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-none">none</span> Per-ray comparison.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic 0.4–0.6 m (matches scan_z_max)</span>
+      <span class="test-step">Set scan_z_max to 0.45, max_obstacle_height to 0.30. Drive past a chair leg — costmap should NOT mark it (because chair returns hit between 0.30 and 0.45). Now bump max_obstacle_height to 0.60 — chair appears in costmap.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Card 10j: planner tolerance -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">planner_server.tolerance · use_astar · allow_unknown</span>
+    <span class="paramFile">config/nav2_params_2d.yaml (planner_server section)</span>
+    <span class="paramDesc">Global planner (NavFn) parameters. <code>tolerance</code> = how close to the goal a plan must reach before accepting. <code>use_astar</code> = A* vs Dijkstra. <code>allow_unknown</code> = plan into unmapped areas.</span>
+    <div class="modes"><span class="mode-chip mode-nav">Nav2 only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>tolerance</label><input type="range" id="plt-v" min="0.05" max="2.0" step="0.05" value="0.5" data-unit=" m" data-precision="2"><span class="val" id="plt-vVal">0.50 m</span></div>
+    <div class="toggle-row"><input type="checkbox" id="ast-v"><label for="ast-v">use_astar</label></div>
+    <div class="toggle-row"><input type="checkbox" id="alu-v" checked><label for="alu-v">allow_unknown</label></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> <code>tolerance</code> lets the planner accept a plan that lands within X meters of the requested goal (useful if goal is inside an obstacle). <code>use_astar</code> = faster but slightly less optimal. <code>allow_unknown</code> = explore-as-you-go.</div>
+    <div class="ex-up">↑ <b>tolerance 1.5 m:</b> useful when goals come from sloppy human input. <b>use_astar: true</b>: faster planning in big maps.</div>
+    <div class="ex-down">↓ <b>tolerance 0.1 m:</b> strict goal acceptance. <b>allow_unknown: false</b>: rover refuses to enter unmapped territory (safer in autonomous exploration).</div>
+    <div class="ex-deps">🔗 <b>Distinct from</b> <code>xy_goal_tolerance</code> (controller side) — planner tolerance is "did the plan reach the goal?", controller tolerance is "did the rover reach the plan's end?".</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-minor">minor</span> A* is slightly faster than Dijkstra in open spaces.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic tolerance 0.2–1.0 m</span>
+      <span class="test-step">Send a goal INSIDE a wall (or known obstacle). With tolerance 0.1: planner fails. With 1.0: planner finds a nearby reachable pose 1 m short of the goal.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Card 10k: path smoother -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">smoother_server.tolerance · max_its · do_refinement</span>
+    <span class="paramFile">config/nav2_params_2d.yaml (smoother_server section)</span>
+    <span class="paramDesc">Path smoother — converts the jagged grid-based plan into a smooth curve before the controller follows it.</span>
+    <div class="modes"><span class="mode-chip mode-nav">Nav2 only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>tolerance</label><input type="range" id="smt-v" min="0.000000001" max="0.001" step="0.000000001" value="0.0000000001" data-unit="" data-precision="-1"><span class="val" id="smt-vVal">1e-10</span></div>
+    <div class="slider-row"><label>max_its</label><input type="range" id="smi-v" min="10" max="5000" step="10" value="1000" data-unit="" data-precision="0"><span class="val" id="smi-vVal">1000</span></div>
+    <div class="toggle-row"><input type="checkbox" id="smd-v"><label for="smd-v">do_refinement</label></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> how tightly the smoother converges. Tighter tolerance + more iterations = smoother path, more CPU.</div>
+    <div class="ex-up">↑ <b>do_refinement: true</b>: extra pass over the smoothed path for extra polish.</div>
+    <div class="ex-down">↓ <b>max_its 100:</b> faster smoothing, path may have visible kinks.</div>
+    <div class="ex-deps">🔗 <b>Smoother runs AFTER</b> the global planner; affects only the published path, not actual control. Controller still tracks the smoothed result.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-minor">minor</span> Runs once per global plan; not in the controller loop.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic max_its 100–2000</span>
+      <span class="test-step">Visualize <code>/plan</code> and <code>/smoothed_path</code> in Foxglove. Send a goal through a winding corridor. Default smoother produces a continuous curve; lowering max_its to 50 leaves visible jagged segments.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Card 10l: behavior server -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">behavior_server.cycle_frequency · simulate_ahead_time · spin/backup limits</span>
+    <span class="paramFile">config/nav2_params_2d.yaml (behavior_server section)</span>
+    <span class="paramDesc">Recovery behaviors (Spin, BackUp, DriveOnHeading, Wait). Run when the BT triggers recovery, NOT during normal goal pursuit.</span>
+    <div class="modes"><span class="mode-chip mode-nav">Nav2 only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>cycle_freq</label><input type="range" id="bcf-v" min="2" max="50" step="1" value="10" data-unit=" Hz" data-precision="0"><span class="val" id="bcf-vVal">10 Hz</span></div>
+    <div class="slider-row"><label>sim_ahead</label><input type="range" id="bsa-v" min="0.5" max="5.0" step="0.1" value="2.0" data-unit=" s" data-precision="1"><span class="val" id="bsa-vVal">2.0 s</span></div>
+    <div class="slider-row"><label>max_rot_vel</label><input type="range" id="bmr-v" min="0.2" max="3.0" step="0.1" value="1.5" data-unit=" rad/s" data-precision="1"><span class="val" id="bmr-vVal">1.5 rad/s</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> recovery behaviors' speed and lookahead. <code>simulate_ahead_time</code> = how far to predict collision before executing each step of the recovery.</div>
+    <div class="ex-up">↑ <b>simulate_ahead_time 5 s:</b> conservative recovery; aborts if a long backup would clip a wall. <b>max_rot_vel 3.0:</b> aggressive spin recovery.</div>
+    <div class="ex-down">↓ <b>simulate_ahead 0.5:</b> recovery is fast but may collide. <b>max_rot_vel 0.4:</b> gentle spin; takes longer to clear stuck state.</div>
+    <div class="ex-deps">🔗 <b>Independent of</b> normal max_vel_theta. Recovery has its own velocity profile.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-minor">minor</span> Only active during recovery.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic sim_ahead 1.5–3.0 s</span>
+      <span class="test-step">Get the rover stuck (drive into a wall on purpose). Nav2 triggers Spin recovery. Time it — with max_rot_vel 1.5, the spin completes in ~4 s; with 0.5, ~12 s.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Card 10m: velocity smoother -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">velocity_smoother.smoothing_frequency · max_velocity · max_accel · velocity_timeout</span>
+    <span class="paramFile">config/nav2_params_2d.yaml:330–365</span>
+    <span class="paramDesc">Final cleanup stage between DWB and <code>/cmd_vel</code>. Caps velocity + acceleration; can re-publish stale velocity if input stops.</span>
+    <div class="modes"><span class="mode-chip mode-nav">Nav2 only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>smooth_Hz</label><input type="range" id="vsh-v" min="5" max="50" step="1" value="20" data-unit=" Hz" data-precision="0"><span class="val" id="vsh-vVal">20 Hz</span></div>
+    <div class="slider-row"><label>velocity_to</label><input type="range" id="vto-v" min="0.1" max="5.0" step="0.1" value="1.0" data-unit=" s" data-precision="1"><span class="val" id="vto-vVal">1.0 s</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> output rate of <code>/cmd_vel</code> and how the smoother handles dropped DWB outputs.</div>
+    <div class="ex-up">↑ <b>smooth_Hz 50:</b> very smooth velocity; rover responds to changes within 20 ms. <b>velocity_timeout 5 s:</b> rover keeps driving for 5 s after last command (DANGEROUS — only for testing).</div>
+    <div class="ex-down">↓ <b>velocity_timeout 0.2 s:</b> rover stops cleanly within 200 ms of any command interruption.</div>
+    <div class="ex-deps">🔗 <b>max_velocity / max_accel arrays</b> MUST match DWB's <code>max_vel_*</code> + <code>acc_lim_*</code> or the smoother clips DWB's commands.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-none">none</span> Just clipping + ramp computation.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic smooth_Hz 20 · velocity_to 0.5–1.0 s</span>
+      <span class="test-step">Hard-kill the controller node (<code>ros2 node kill /controller_server</code>). With velocity_timeout 5 s, rover keeps driving for 5 s (collision risk). With 0.3 s, rover stops within a heartbeat.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Card 10n: BT timing -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">bt_navigator.bt_loop_duration · default_server_timeout · wait_for_service_timeout</span>
+    <span class="paramFile">config/nav2_params_2d.yaml:30–32</span>
+    <span class="paramDesc">Behavior Tree executor timing. <code>bt_loop_duration</code> = ms between BT ticks. <code>default_server_timeout</code> = how long each action server can take before BT considers it failed.</span>
+    <div class="modes"><span class="mode-chip mode-nav">Nav2 only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>loop_dur</label><input type="range" id="bld-v" min="1" max="100" step="1" value="10" data-unit=" ms" data-precision="0"><span class="val" id="bld-vVal">10 ms</span></div>
+    <div class="slider-row"><label>srv_to</label><input type="range" id="dsto-v" min="1" max="60" step="1" value="20" data-unit=" s" data-precision="0"><span class="val" id="dsto-vVal">20 s</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> how often the BT re-evaluates conditions (running 100 Hz at 10 ms) and how patient it is with slow action servers.</div>
+    <div class="ex-up">↑ <b>bt_loop 50 ms:</b> 20 Hz tick — saves CPU but BT reacts slower to fresh conditions. <b>srv_timeout 60 s:</b> very patient; useful in low-CPU environments.</div>
+    <div class="ex-down">↓ <b>bt_loop 1 ms:</b> 1000 Hz tick — wasteful. <b>srv_timeout 2 s:</b> aggressive, may abort goals during temporary stalls.</div>
+    <div class="ex-deps">🔗 <b>Independent of</b> controller_frequency. BT ticks are separate from controller cycles.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-minor">minor</span> Tighter loop = more BT process CPU.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic loop_dur 10–50 ms · srv_to 10–30 s</span>
+      <span class="test-step">Watch BT process CPU in <code>top</code>. At loop_duration 1 ms, BT pegs to ~30% CPU just on ticking. At 10 ms (default), barely measurable.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Card 10o: progress checker -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">PoseProgressChecker.required_movement_radius · required_movement_angle · movement_time_allowance</span>
+    <span class="paramFile">config/nav2_params_2d.yaml:118–121</span>
+    <span class="paramDesc">Watchdog that aborts the goal if the rover stops making progress. "Has the rover moved X m or rotated Y rad in the last Z seconds?"</span>
+    <div class="modes"><span class="mode-chip mode-nav">Nav2 only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>radius</label><input type="range" id="rmr-v" min="0.05" max="2.0" step="0.05" value="0.3" data-unit=" m" data-precision="2"><span class="val" id="rmr-vVal">0.30 m</span></div>
+    <div class="slider-row"><label>angle</label><input type="range" id="rma-v" min="0.01" max="0.5" step="0.01" value="0.05" data-unit=" rad" data-precision="2"><span class="val" id="rma-vVal">0.05 rad</span></div>
+    <div class="slider-row"><label>time_allow</label><input type="range" id="mta-v" min="2" max="60" step="1" value="25" data-unit=" s" data-precision="0"><span class="val" id="mta-vVal">25 s</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> patience for stuck rovers. If rover hasn't moved <code>radius</code> meters OR rotated <code>angle</code> radians in <code>time_allow</code> seconds, the BT triggers recovery.</div>
+    <div class="ex-up">↑ <b>radius 1.0 m:</b> harder to satisfy — rover declared stuck more often. <b>time_allow 60 s:</b> patient with slow yaw-at-goal.</div>
+    <div class="ex-down">↓ <b>radius 0.05 m:</b> very loose check; rover that wiggles a tiny bit counts as "progressing." <b>time_allow 5 s:</b> aggressive abort.</div>
+    <div class="ex-deps">🔗 <b>Mecanum-specific in this config:</b> <code>required_movement_angle 0.05 rad</code> and <code>movement_time_allowance 25 s</code> (bumped 10→25 in project) because mecanum's slow yaw-at-goal otherwise triggers false "stuck" aborts.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-none">none</span> Pure scalar comparisons.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic radius 0.2–0.5 m · time_allow 15–30 s (mecanum)</span>
+      <span class="test-step">Send a goal that requires precise yaw alignment. Time how long the rover spends in final yaw correction. If time_allow &lt; observed yaw-correction time, the goal aborts mid-yaw.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Card 10p: velocity thresholds + failure_tolerance -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">min_x/y/theta_velocity_threshold · trans_stopped_velocity · failure_tolerance</span>
+    <span class="paramFile">config/nav2_params_2d.yaml:135–143, 175</span>
+    <span class="paramDesc">Deadband + stopped-detection thresholds. Velocities below these are treated as zero. <code>failure_tolerance</code> = how many seconds of controller failures before the BT escalates.</span>
+    <div class="modes"><span class="mode-chip mode-nav">Nav2 only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>min_x_vel</label><input type="range" id="mxv-v" min="0.0001" max="0.05" step="0.0001" value="0.001" data-unit=" m/s" data-precision="4"><span class="val" id="mxv-vVal">0.001 m/s</span></div>
+    <div class="slider-row"><label>min_th_vel</label><input type="range" id="mthv-v" min="0.001" max="0.5" step="0.001" value="0.05" data-unit=" rad/s" data-precision="3"><span class="val" id="mthv-vVal">0.050 rad/s</span></div>
+    <div class="slider-row"><label>trans_stop</label><input type="range" id="tsv-v" min="0.01" max="1.0" step="0.01" value="0.25" data-unit=" m/s" data-precision="2"><span class="val" id="tsv-vVal">0.25 m/s</span></div>
+    <div class="slider-row"><label>fail_tol</label><input type="range" id="ft-v" min="0.05" max="5.0" step="0.05" value="0.3" data-unit=" s" data-precision="2"><span class="val" id="ft-vVal">0.30 s</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> velocity deadband (commands below are zero); stopped-velocity check; failure ride-out window.</div>
+    <div class="ex-up">↑ <b>min_th_vel 0.2:</b> ignores tiny yaw commands — useful with noisy mecanum yaw, but causes coarse final alignment.</div>
+    <div class="ex-down">↓ <b>min_th_vel 0.001:</b> hyper-sensitive yaw — every wiggle becomes a motor command (motor whine).</div>
+    <div class="ex-deps">🔗 <b>This config's min_theta is 0.05 rad/s — higher than 3D config's 0.001</b> because mecanum yaw needs an impulsive minimum to overcome static friction.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-none">none</span> Trivial compares.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic min_th 0.02–0.10 rad/s (mecanum)</span>
+      <span class="test-step">Set min_th_vel to 0.001 (very small). Send a goal requiring tiny yaw correction at end. Rover audibly buzzes (motor PWM jitter). Bump to 0.05 (default), buzz stops.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Card 10q: waypoint follower -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">waypoint_follower.loop_rate · waypoint_pause_duration</span>
+    <span class="paramFile">config/nav2_params_2d.yaml (waypoint_follower section)</span>
+    <span class="paramDesc">Multi-goal sequence: drive to each waypoint, optionally pause, drive to next. <code>loop_rate</code> = action server tick; <code>waypoint_pause_duration</code> = ms to wait at each waypoint.</span>
+    <div class="modes"><span class="mode-chip mode-nav">Nav2 only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>loop_rate</label><input type="range" id="wlr-v" min="5" max="50" step="1" value="20" data-unit=" Hz" data-precision="0"><span class="val" id="wlr-vVal">20 Hz</span></div>
+    <div class="slider-row"><label>pause_dur</label><input type="range" id="wpd-v" min="0" max="10000" step="50" value="200" data-unit=" ms" data-precision="0"><span class="val" id="wpd-vVal">200 ms</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> ticking rate of waypoint follower and how long the rover dwells at each waypoint.</div>
+    <div class="ex-up">↑ <b>pause 5000 ms:</b> rover pauses 5 s at each waypoint — useful for photo capture, inspection routines.</div>
+    <div class="ex-down">↓ <b>pause 0 ms:</b> seamless transition to next waypoint. Good for patrol paths.</div>
+    <div class="ex-deps">🔗 <b>Only active when</b> sending a <code>FollowWaypoints</code> action. Single-goal nav (NavToPose) ignores these.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-none">none</span> Just timers.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic pause 200–5000 ms</span>
+      <span class="test-step">Send a 5-waypoint patrol. At pause:0, rover blends through waypoints (smooth). At pause:3000, rover stops fully at each — useful for video inspection points.</span>
+    </div>
+  </div>
+</div>
+
 </div><!-- /cards -->
 
 <!-- ============================================================ -->
