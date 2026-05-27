@@ -20,8 +20,9 @@
   --ink:#e2e8f0;
   --ink-dim:#94a3b8;
   --ink-faint:#64748b;
-  --line:rgba(122,45,255,0.25);
-  --card-bg:rgba(20,8,32,0.55);
+  --line:#334155;
+  --card-bg:rgba(15,23,42,0.7);
+  --line-purple:rgba(122,45,255,0.4);
   --good:#34d399;
   --warn:#fbbf24;
   --bad:#f87171;
@@ -40,7 +41,7 @@ body{
 .wrap{max-width:1400px;margin:0 auto;padding:48px 24px 96px}
 
 /* ----- masthead ----- */
-.mast{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:24px;margin-bottom:32px}
+.mast{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;flex-wrap:wrap;border-bottom:1px solid #334155;padding-bottom:24px;margin-bottom:32px}
 .mast h1{
   font-family:var(--font-display);
   font-size:42px;
@@ -77,12 +78,11 @@ body{
 .card{
   background:var(--card-bg);
   border:1px solid var(--line);
-  border-radius:8px;
+  border-radius:10px;
   padding:20px 22px;
   display:flex;
   flex-direction:column;
   gap:14px;
-  box-shadow:0 0 24px rgba(122,45,255,0.08) inset;
 }
 .card.span-2{grid-column:1 / -1}
 .card-head{display:flex;flex-direction:column;gap:6px}
@@ -123,8 +123,8 @@ canvas{
   width:100%;
   display:block;
   border-radius:6px;
-  background:rgba(10,10,20,0.5);
-  border:1px solid rgba(122,45,255,0.18);
+  background:#050510;
+  border:1px solid #334155;
 }
 .canvas-wrap{position:relative}
 .stat{font-size:13px;color:#cbd5e1;line-height:1.7;margin-top:4px}
@@ -178,7 +178,7 @@ canvas{
 /* explanations */
 .card-explain{
   display:flex;flex-direction:column;gap:8px;
-  padding-top:12px;border-top:1px dashed rgba(122,45,255,0.25);
+  padding-top:12px;border-top:1px dashed #334155;
   font-size:13px;line-height:1.65;color:var(--ink);
 }
 .card-explain code{
@@ -190,7 +190,7 @@ canvas{
 .ex-deps,.ex-cost,.ex-cross,.ex-test{
   border-left:3px solid;
   padding:8px 10px;
-  background:rgba(10,10,20,0.4);
+  background:rgba(30,41,59,0.4);
   border-radius:0 4px 4px 0;
   font-size:13px;
 }
@@ -213,8 +213,8 @@ canvas{
   display:block;
   padding:8px 10px;
   margin:4px 0;
-  background:rgba(10,10,20,0.7);
-  border:1px solid rgba(122,45,255,0.2);
+  background:#050510;
+  border:1px solid #334155;
   white-space:pre;
   overflow-x:auto;
   color:#cbd5e1;
@@ -232,7 +232,7 @@ canvas{
 .kbd{background:rgba(122,45,255,0.18);border:1px solid var(--brand-purple);border-radius:3px;padding:1px 6px;color:#fff;font-size:11px}
 
 /* footer */
-.foot{margin-top:64px;padding-top:24px;border-top:1px solid var(--line);color:var(--ink-faint);font-size:12px;text-align:center}
+.foot{margin-top:64px;padding-top:24px;border-top:1px solid #334155;color:var(--ink-faint);font-size:12px;text-align:center}
 .foot b{color:var(--brand-blue);font-family:var(--font-display-alt)}
 </style>
 </head>
