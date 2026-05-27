@@ -1775,6 +1775,216 @@ h1 .sub { color: #67e8f9; }
 
 </div><!-- /cards -->
 
+<!-- ============================================================ -->
+<h2 class="section-title">3D stack — RTABMap
+    <span class="tag t3d">launch/rtabmap.launch.py</span>
+</h2>
+<div class="cards">
+
+<!-- RTABMap Card 1: ICP registration -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">Icp/Iterations · Icp/VoxelSize · Icp/MaxCorrespondenceDistance · Icp/Epsilon · Icp/MaxTranslation</span>
+    <span class="paramFile">launch/rtabmap.launch.py (Icp/* params)</span>
+    <span class="paramDesc">Iterative Closest Point parameters for RTABMap's lidar scan registration. ICP aligns the current lidar cloud to the existing map.</span>
+    <div class="modes"><span class="mode-chip mode-3d">3D stack only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>Iterations</label><input type="range" id="icpit-v" min="3" max="50" step="1" value="10" data-unit="" data-precision="0"><span class="val" id="icpit-vVal">10</span></div>
+    <div class="slider-row"><label>VoxelSize</label><input type="range" id="icpvs-v" min="0.02" max="0.5" step="0.01" value="0.1" data-unit=" m" data-precision="2"><span class="val" id="icpvs-vVal">0.10 m</span></div>
+    <div class="slider-row"><label>MaxCorr</label><input type="range" id="icpmc-v" min="0.1" max="3.0" step="0.05" value="1.0" data-unit=" m" data-precision="2"><span class="val" id="icpmc-vVal">1.00 m</span></div>
+    <div class="slider-row"><label>MaxTrans</label><input type="range" id="icpmt-v" min="0.5" max="5.0" step="0.1" value="2.0" data-unit=" m" data-precision="1"><span class="val" id="icpmt-vVal">2.0 m</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> ICP convergence quality. <code>Iterations</code> = passes through the optimizer. <code>VoxelSize</code> = downsample before ICP. <code>MaxCorrespondenceDistance</code> = how far apart two points can be to be considered a match. <code>MaxTranslation</code> = sanity cap.</div>
+    <div class="ex-up">↑ <b>Iterations 30+:</b> tighter convergence at the cost of CPU. <b>MaxCorr 2.0:</b> tolerates more odometry drift between scans (useful with mecanum).</div>
+    <div class="ex-down">↓ <b>VoxelSize 0.05:</b> denser ICP, slower but more accurate. <b>MaxCorr 0.3:</b> very strict matching; fails in fast motion.</div>
+    <div class="ex-deps">🔗 <b>Independent of</b> FAST-LIO's <code>filter_size_surf</code>. RTABMap's ICP runs on the registered cloud (output of FAST-LIO).</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-significant">significant</span> ICP iteration count × correspondence search. Both VoxelSize ↓ AND Iterations ↑ multiply CPU. Default 10 iter + 0.1 m voxel is the Orin Nano sweet spot.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic Iterations 5–20 · VoxelSize 0.05–0.20 m</span>
+      <span class="test-step">Drive a 5 m square loop. Compare returned-to-start pose error per setting. Iterations:5 may overshoot return position by 0.5 m. Iterations:20 may land within 0.1 m. CPU spikes proportionally.</span>
+    </div>
+    <div class="ex-cross">🔄 <b>Cross-device:</b> ICP is sensor-agnostic. Hesai Pandar40P's dense cloud may want VoxelSize 0.05 m; sparse Mid-360 stays at 0.10 m.</div>
+  </div>
+</div>
+
+<!-- RTABMap Card 2: keyframe triggers -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">RGBD/AngularUpdate · RGBD/LinearUpdate</span>
+    <span class="paramFile">launch/rtabmap.launch.py (RGBD/AngularUpdate, RGBD/LinearUpdate)</span>
+    <span class="paramDesc">Triggers for adding a new node to RTABMap's pose graph. Equivalent to slam_toolbox's <code>minimum_travel_distance</code> / <code>minimum_travel_heading</code>, but for RTABMap.</span>
+    <div class="modes"><span class="mode-chip mode-3d">3D stack only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>AngularUpd</label><input type="range" id="rau-v" min="0.01" max="1.0" step="0.01" value="0.05" data-unit=" rad" data-precision="2"><span class="val" id="rau-vVal">0.05 rad</span></div>
+    <div class="slider-row"><label>LinearUpd</label><input type="range" id="rlu-v" min="0.01" max="1.0" step="0.01" value="0.05" data-unit=" m" data-precision="2"><span class="val" id="rlu-vVal">0.05 m</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> spacing of nodes in RTABMap's database. Smaller = denser graph (more memory + better loop-closure odds); larger = sparser graph.</div>
+    <div class="ex-up">↑ <b>LinearUpd 0.3 m:</b> sparse graph, smaller .db file. Good for long traverses.</div>
+    <div class="ex-down">↓ <b>0.02 m:</b> very dense; database grows ~10× faster but loop closures are easier to find.</div>
+    <div class="ex-deps">🔗 <b>Independent of</b> FAST-LIO's odometry rate. RTABMap subscribes to <code>/Odometry</code>, applies its own keyframe trigger.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-moderate">moderate</span> Database write + visual feature extraction per node. Smaller updates = more frequent writes to <code>~/.ros/rtabmap.db</code>.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic 0.05–0.30 m / rad</span>
+      <span class="test-step">Drive a 10 m square. After mapping, check database with <code>rtabmap-databaseViewer ~/.ros/rtabmap.db</code> — count nodes. At LinearUpd 0.05 m: ~200 nodes; at 0.30 m: ~33.</span>
+      <span class="test-step">Check file size: <code>ls -lh ~/.ros/rtabmap.db</code>. Dense graphs grow to several GB in long sessions.</span>
+    </div>
+  </div>
+</div>
+
+<!-- RTABMap Card 3: loop closure local search -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">RGBD/LocalRadius · RGBD/LocalImmunizationRatio · RGBD/MaxLocalRetrieved · RGBD/OptimizeMaxError</span>
+    <span class="paramFile">launch/rtabmap.launch.py (RGBD/*)</span>
+    <span class="paramDesc">Local loop closure search params. <code>LocalRadius</code> = how far around the current pose to search. <code>OptimizeMaxError</code> = sigma threshold for rejecting bad closures.</span>
+    <div class="modes"><span class="mode-chip mode-3d">3D stack only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>LocalRadius</label><input type="range" id="lr-v" min="0.5" max="10" step="0.1" value="2.0" data-unit=" m" data-precision="1"><span class="val" id="lr-vVal">2.0 m</span></div>
+    <div class="slider-row"><label>MaxRetr</label><input type="range" id="mlr2-v" min="1" max="20" step="1" value="5" data-unit="" data-precision="0"><span class="val" id="mlr2-vVal">5</span></div>
+    <div class="slider-row"><label>OptMaxErr</label><input type="range" id="ome-v" min="1.0" max="20" step="0.5" value="5.0" data-unit=" σ" data-precision="1"><span class="val" id="ome-vVal">5.0 σ</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> how far and how aggressively RTABMap looks for loop closures. Lower OptMaxErr = stricter (fewer but more reliable closures).</div>
+    <div class="ex-up">↑ <b>LocalRadius 5 m:</b> catches more closures in big rooms. <b>MaxRetr 20:</b> evaluate more candidates per node.</div>
+    <div class="ex-down">↓ <b>OptMaxErr 1.0 σ:</b> very strict; rejects most candidates. Use in self-similar environments to prevent wrong closures.</div>
+    <div class="ex-deps">🔗 <b>Distinct from</b> slam_toolbox loop closure (which uses scan matching). RTABMap's loop closures use BOTH visual (Vis/*) AND lidar features.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-moderate">moderate</span> LocalRadius² × MaxRetr.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic LocalRadius 1.5–4.0 m</span>
+      <span class="test-step">Drive a 6×6 m loop and verify closure in <code>rtabmap-databaseViewer</code>. The closure is a green edge in the graph view.</span>
+    </div>
+  </div>
+</div>
+
+<!-- RTABMap Card 4: occupancy grid -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">Grid/CellSize · Grid/RangeMax · Grid/RangeMin · Grid/MaxObstacleHeight · Grid/MinClusterSize</span>
+    <span class="paramFile">launch/rtabmap.launch.py (Grid/*)</span>
+    <span class="paramDesc">RTABMap's 2D occupancy grid rasterization. Distinct from slam_toolbox's grid — this is the 3D-stack's projected 2D map.</span>
+    <div class="modes"><span class="mode-chip mode-3d">3D stack only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>CellSize</label><input type="range" id="gcs-v" min="0.02" max="0.5" step="0.01" value="0.1" data-unit=" m" data-precision="2"><span class="val" id="gcs-vVal">0.10 m</span></div>
+    <div class="slider-row"><label>RangeMax</label><input type="range" id="grm-v" min="2" max="100" step="1" value="30" data-unit=" m" data-precision="0"><span class="val" id="grm-vVal">30 m</span></div>
+    <div class="slider-row"><label>MaxObstHt</label><input type="range" id="gmoh-v" min="0.5" max="5.0" step="0.1" value="2.0" data-unit=" m" data-precision="1"><span class="val" id="gmoh-vVal">2.0 m</span></div>
+    <div class="slider-row"><label>MinCluster</label><input type="range" id="gmcs-v" min="1" max="30" step="1" value="5" data-unit="" data-precision="0"><span class="val" id="gmcs-vVal">5</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> the 2D occupancy grid rasterized from the 3D cloud. Cell size determines map sharpness; MaxObstacleHeight controls Z gate for what counts as an obstacle on the 2D grid; MinClusterSize filters lone returns.</div>
+    <div class="ex-up">↑ <b>MinClusterSize 15:</b> only large objects mark the grid; floor noise filtered out.</div>
+    <div class="ex-down">↓ <b>CellSize 0.05 m:</b> sharper map but quadruple memory. <b>MinClusterSize 1:</b> every single point marks a cell — noisy.</div>
+    <div class="ex-deps">🔗 <b>Independent of</b> Nav2's costmap resolution. RTABMap's grid is published on <code>/map</code> (or <code>/grid_map</code>); Nav2 may use this directly or use a separate slam_toolbox grid.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-moderate">moderate</span> Per-update rasterization of the registered cloud. Smaller CellSize = quadratically more cells.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic CellSize 0.05–0.10 m · MaxObstHt 0.5–2.0 m</span>
+      <span class="test-step">Compare /map output at CellSize 0.05 vs 0.10 vs 0.20 in Foxglove. Sharper edges visible at finer settings; database file size scales.</span>
+      <span class="test-step">Reduce MaxObstHt to 0.30 — only chair-leg returns mark the grid; tables and ceilings are excluded.</span>
+    </div>
+  </div>
+</div>
+
+<!-- RTABMap Card 5: visual features (loop closure) -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">Vis/MinInliers · Vis/MaxFeatures</span>
+    <span class="paramFile">launch/rtabmap.launch.py (Vis/*)</span>
+    <span class="paramDesc">RTABMap's visual loop closure uses image features (default: GFTT/BRIEF). <code>MinInliers</code> = minimum matched feature points to accept a closure. <code>MaxFeatures</code> = upper cap per image.</span>
+    <div class="modes"><span class="mode-chip mode-3d">3D stack only · requires D435</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>MinInliers</label><input type="range" id="vmi-v" min="5" max="100" step="1" value="15" data-unit="" data-precision="0"><span class="val" id="vmi-vVal">15</span></div>
+    <div class="slider-row"><label>MaxFeatures</label><input type="range" id="vmf-v" min="100" max="3000" step="50" value="1000" data-unit="" data-precision="0"><span class="val" id="vmf-vVal">1000</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> stringency of visual loop closure matching. More inliers required = fewer but more reliable closures.</div>
+    <div class="ex-up">↑ <b>MinInliers 40:</b> very strict; rare but high-quality closures. <b>MaxFeatures 2000:</b> dense feature extraction; helps in textured environments.</div>
+    <div class="ex-down">↓ <b>MinInliers 8:</b> aggressive; can produce wrong closures in similar-looking views. <b>MaxFeatures 200:</b> sparse, fast feature extraction.</div>
+    <div class="ex-deps">🔗 <b>Useless without RGB camera</b>. If D435 is off, RTABMap's visual loop closure is inactive and falls back to lidar-only closures.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-moderate">moderate</span> Feature extraction is O(MaxFeatures × image_size). Per-frame work.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic MinInliers 12–30 · MaxFeatures 500–1500</span>
+      <span class="test-step">Drive in a textured room (with posters, bookshelves), then a blank-walled corridor. Visual loop closures fire frequently in the textured room, never in the blank one (lidar-only fallback).</span>
+    </div>
+    <div class="ex-cross">🔄 <b>Cross-device:</b> works with any RGBD source — D435/D435i/D455/ZED/ZED Mini/OAK-D. Higher-res sensors (ZED at 2K) extract more features per frame; bump MaxFeatures accordingly.</div>
+  </div>
+</div>
+
+<!-- RTABMap Card 6: detection rate + memory -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">Rtabmap/DetectionRate · Rtabmap/MemoryThr · Rtabmap/TimeThr</span>
+    <span class="paramFile">launch/rtabmap.launch.py (Rtabmap/*)</span>
+    <span class="paramDesc">Top-level pacing. <code>DetectionRate</code> = Hz at which RTABMap checks for loop closures. <code>MemoryThr</code> = max nodes in working memory (0 = unlimited). <code>TimeThr</code> = max processing time per cycle (0 = unlimited).</span>
+    <div class="modes"><span class="mode-chip mode-3d">3D stack only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>DetectRate</label><input type="range" id="rdr-v" min="0.1" max="10" step="0.1" value="1.0" data-unit=" Hz" data-precision="1"><span class="val" id="rdr-vVal">1.0 Hz</span></div>
+    <div class="slider-row"><label>MemoryThr</label><input type="range" id="rmt-v" min="0" max="5000" step="50" value="0" data-unit="" data-precision="0"><span class="val" id="rmt-vVal">0</span></div>
+    <div class="slider-row"><label>TimeThr</label><input type="range" id="rtt-v" min="0" max="2000" step="50" value="0" data-unit=" ms" data-precision="0"><span class="val" id="rtt-vVal">0 ms</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> <code>DetectionRate</code> = how often RTABMap looks for loop closures (separate from node insertion). <code>MemoryThr/TimeThr</code> = memory management — when working memory is full, oldest nodes transfer to long-term storage on disk.</div>
+    <div class="ex-up">↑ <b>DetectRate 3 Hz:</b> faster closure detection at the cost of CPU. <b>MemoryThr 500:</b> caps RAM growth — older nodes evicted to disk.</div>
+    <div class="ex-down">↓ <b>DetectRate 0.2 Hz:</b> very lazy; closures missed if rover passes a landmark too fast. <b>TimeThr 200 ms:</b> hard cap on processing time per scan.</div>
+    <div class="ex-deps">🔗 <b>Pairs with</b> <code>Mem/IncrementalMemory</code> (true = grows on disk) and <code>Mem/InitWMWithAllNodes</code> (false = lazy load on startup, faster cold launch).</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-moderate">moderate</span> DetectionRate directly maps to CPU usage of the rtabmap process.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic DetectRate 0.5–2.0 Hz · MemoryThr 0 or 500–2000</span>
+      <span class="test-step">Drive a 15-min mapping session. Watch RAM usage of rtabmap process. With MemoryThr:0, RAM may grow to GBs. With 500, RAM stable but database file grows fast.</span>
+    </div>
+  </div>
+</div>
+
+<!-- RTABMap Card 7: mode flags -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">localization · force_3dof · delete_db_on_start</span>
+    <span class="paramFile">launch/rtabmap.launch.py:13–16</span>
+    <span class="paramDesc">Mode selectors. <code>localization</code> = use existing DB without writing; <code>force_3dof</code> = constrain pose to x/y/yaw (2D floor); <code>delete_db_on_start</code> = wipe the .db at launch.</span>
+    <div class="modes"><span class="mode-chip mode-3d">3D stack only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="toggle-row"><input type="checkbox" id="rl-v"><label for="rl-v">localization</label></div>
+    <div class="toggle-row"><input type="checkbox" id="rf3-v"><label for="rf3-v">force_3dof</label></div>
+    <div class="toggle-row"><input type="checkbox" id="rdb-v"><label for="rdb-v">delete_db_on_start</label></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> the runtime mode. <code>localization: true</code> = read-only relocalization on a prior map. <code>force_3dof: true</code> = zero out pitch/roll/z (you've decided floor is flat).</div>
+    <div class="ex-up">↑ <b>force_3dof: true</b> on flat-floor indoor maps cuts pose drift dramatically — the EKF can't drift into the ceiling.</div>
+    <div class="ex-down">↓ <b>delete_db_on_start: true</b> wipes work — only useful for testing fresh mapping.</div>
+    <div class="ex-deps">⚠ <b>If you flip from mapping to localization mode without saving a DB</b>, RTABMap starts empty and can't localize. Save first by running mapping mode to convergence, then re-launch with <code>localization:=true</code>.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-minor">minor</span> Localization mode is slightly cheaper than mapping (no DB writes).</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic: force_3dof=true indoor, false outdoor/multi-floor</span>
+      <span class="test-step">Map a room with force_3dof:false vs true. Compare pose trajectory in <code>rtabmap-databaseViewer</code>. With false, pitch wobble translates into Z drift; with true, all motion stays planar.</span>
+    </div>
+  </div>
+</div>
+
+<!-- RTABMap Card 8: database path -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">database_path</span>
+    <span class="paramFile">launch/rtabmap.launch.py:12</span>
+    <span class="paramDesc">Where RTABMap stores its persistent database (graph + features + clouds). Default: <code>~/.ros/rtabmap.db</code>.</span>
+    <div class="modes"><span class="mode-chip mode-3d">3D stack only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row" style="grid-template-columns: 80px 1fr 100px"><label>path</label><span style="color:#cbd5e1; font-family:'JetBrains Mono', monospace; font-size: 11px; padding: 4px 8px; background: rgba(30,41,59,0.6); border-radius: 4px;">~/.ros/rtabmap.db</span><span class="val">default</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> where the .db file is stored. Multi-map workflows can keep separate DBs per environment.</div>
+    <div class="ex-up">↑ <b>Use named DBs:</b> <code>~/maps/livingroom.db</code>, <code>~/maps/garage.db</code> — keeps maps separate.</div>
+    <div class="ex-down">↓ <b>Default path</b> is fine for single-environment use.</div>
+    <div class="ex-deps">🔗 <b>Pairs with</b> <code>delete_db_on_start</code>: <code>./start_slam.sh delete_db_on_start:=true</code> wipes the DB at this path. Be careful — accidentally wiping a 4 GB mapped DB is painful.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-none">none</span> Path string only; behavior is identical.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic: organize by environment</span>
+      <span class="test-step">Map two rooms separately to <code>~/maps/A.db</code> and <code>~/maps/B.db</code>. Relaunch in localization mode against each — RTABMap restores the correct map.</span>
+    </div>
+  </div>
+</div>
+
+</div><!-- /cards -->
+
 </div><!-- /wrap -->
 
 <script>
