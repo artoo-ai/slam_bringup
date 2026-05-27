@@ -636,6 +636,210 @@ h1 .sub { color: #67e8f9; }
   </div>
 </div>
 
+<!-- Card 6b: keyframe time/heading triggers -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">minimum_time_interval · minimum_travel_heading</span>
+    <span class="paramFile">config/slam_toolbox_2d.yaml:47, 49</span>
+    <span class="paramDesc">Companions to <code>minimum_travel_distance</code>: a new keyframe gets inserted when ANY of these is exceeded. Time-based catches "standing still and turning"; heading-based catches "turn in place." Pure-rotation surveys won't drop keyframes otherwise.</span>
+    <div class="modes"><span class="mode-chip mode-mapping">mapping only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>time (s)</label><input type="range" id="mti-v" min="0.05" max="2.0" step="0.05" value="0.2" data-unit=" s" data-precision="2"><span class="val" id="mti-vVal">0.20 s</span></div>
+    <div class="slider-row"><label>heading (rad)</label><input type="range" id="mth-v" min="0.02" max="1.0" step="0.01" value="0.1" data-unit=" rad" data-precision="2"><span class="val" id="mth-vVal">0.10 rad</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> when slam_toolbox stops accepting scans without recording them. Default <code>0.2 s / 0.1 rad</code> ≈ keyframes every ~5 Hz max while moving.</div>
+    <div class="ex-up">↑ <b>Larger time:</b> cheaper optimizer, fewer redundant keyframes when crawling slowly. Past 1.0 s on a moving rover and you risk missing turns.</div>
+    <div class="ex-down">↓ <b>Smaller heading:</b> sensitive to pure rotation — useful for in-place surveys. Past 0.02 rad you'll get keyframes from rover wobble.</div>
+    <div class="ex-deps">🔗 <b>Pairs with</b> <code>minimum_travel_distance</code> (0.1 m default). All three triggers OR'd — any one fires a keyframe.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-moderate">moderate</span> Same scaling as <code>minimum_travel_distance</code> — more keyframes = bigger graph.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic time 0.1–0.5 s · heading 0.05–0.2 rad</span>
+      <span class="test-step">Park rover in center of room, spin in place at ~0.5 rad/s for 30 s (3 full rotations). Count keyframes inserted.</span>
+      <span class="test-step">With heading 0.1 rad: ~30 keyframes (one per 0.1 rad of rotation). With 0.5 rad: ~6 keyframes — many fewer, may miss features behind specific yaw angles.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Card 6c: scan matcher tuning -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">link_match_minimum_response_fine · link_scan_maximum_distance · scan_buffer_size</span>
+    <span class="paramFile">config/slam_toolbox_2d.yaml:55–57</span>
+    <span class="paramDesc">Scan-to-graph matching thresholds. <code>link_match_minimum_response_fine</code> is the correlation quality required to ACCEPT a match; <code>link_scan_maximum_distance</code> is how far a scan can be from a graph keyframe to be considered; <code>scan_buffer_size</code> is how many recent scans are kept in working memory.</span>
+    <div class="modes"><span class="mode-chip mode-mapping">mapping</span><span class="mode-chip mode-loc">localization</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>resp_fine</label><input type="range" id="lmr-v" min="0.01" max="0.5" step="0.01" value="0.1" data-unit="" data-precision="2"><span class="val" id="lmr-vVal">0.10</span></div>
+    <div class="slider-row"><label>scan_dist (m)</label><input type="range" id="lsd-v" min="0.5" max="5.0" step="0.1" value="1.5" data-unit=" m" data-precision="1"><span class="val" id="lsd-vVal">1.5 m</span></div>
+    <div class="slider-row"><label>buf_size</label><input type="range" id="sbs-v" min="2" max="30" step="1" value="10" data-unit="" data-precision="0"><span class="val" id="sbs-vVal">10</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> how strict slam_toolbox is about accepting scan-to-graph matches (lower threshold = more matches but more false ones), how far it searches, and how much scan history is queryable.</div>
+    <div class="ex-up">↑ <b>resp_fine 0.3:</b> only accept very confident matches; map sharpens but loop closures are rarer. <b>scan_dist 3:</b> match against farther keyframes — slower but catches more.</div>
+    <div class="ex-down">↓ <b>resp_fine 0.05:</b> accept marginal matches; the map can warp in featureless rooms. <b>buf_size 3:</b> tiny memory footprint but no quick re-matches.</div>
+    <div class="ex-deps">🔗 <b>Pairs with</b> <code>loop_match_minimum_response_*</code> (loop-closure-specific thresholds; usually 3–5× tighter than the link match).</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-moderate">moderate</span> Larger buffer = more memory; larger scan_dist = more candidates per match.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic resp_fine 0.08–0.20</span>
+      <span class="test-step">Drive in a featureless room (blank walls). With resp_fine 0.05, slam_toolbox may produce a smeary, warped map. With 0.20, the map stays clean but trajectory may break (no matches → pose jumps).</span>
+      <span class="test-step">Compare map quality side-by-side at resp_fine 0.05, 0.10, 0.20, 0.30.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Card 6d: loop closure thresholds -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">loop_match_minimum_response_coarse · loop_match_minimum_response_fine · loop_match_minimum_chain_size</span>
+    <span class="paramFile">config/slam_toolbox_2d.yaml:62–63, 60</span>
+    <span class="paramDesc">Acceptance thresholds for a loop closure candidate. <code>coarse</code> = wide-search initial check; <code>fine</code> = post-refinement final check. <code>chain_size</code> = how many sequential keyframes must agree.</span>
+    <div class="modes"><span class="mode-chip mode-mapping">mapping only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>resp_coarse</label><input type="range" id="lrc-v" min="0.1" max="0.7" step="0.01" value="0.35" data-unit="" data-precision="2"><span class="val" id="lrc-vVal">0.35</span></div>
+    <div class="slider-row"><label>resp_fine</label><input type="range" id="lrf-v" min="0.1" max="0.8" step="0.01" value="0.45" data-unit="" data-precision="2"><span class="val" id="lrf-vVal">0.45</span></div>
+    <div class="slider-row"><label>chain_size</label><input type="range" id="lcs-v" min="2" max="30" step="1" value="10" data-unit="" data-precision="0"><span class="val" id="lcs-vVal">10</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> how confident slam_toolbox must be before declaring "I'm back where I was." Lower thresholds catch more closures (good) but also produce false ones (bad — map warps).</div>
+    <div class="ex-up">↑ <b>Higher resp_*</b>: fewer but more reliable closures. Safer in self-similar environments (corridors, warehouses with identical aisles).</div>
+    <div class="ex-down">↓ <b>Lower resp_*</b>: aggressive closure detection — necessary in feature-rich rooms but dangerous in repetitive ones.</div>
+    <div class="ex-deps">🔗 <b>Pairs with</b> <code>loop_search_maximum_distance</code> (where to look) and <code>loop_match_maximum_variance_coarse</code> (3.0 — variance ceiling for coarse match). <b>Order:</b> coarse < fine — a candidate must clear both, fine is stricter.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-minor">minor</span> Tighter thresholds short-circuit faster.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic resp_coarse 0.30–0.50 · resp_fine 0.40–0.60</span>
+      <span class="test-step">Set up a long corridor with two identical-looking doorways. Drive past one, around the corner, and back past the other. With resp_fine 0.30, slam_toolbox may produce a wrong closure between the doorways — map will fold over.</span>
+      <span class="test-step">Increase to 0.55 — wrong closure rejected, true closures slower to fire.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Card 6e: correlation search grids -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">correlation_search_space_dimension · resolution · smear_deviation</span>
+    <span class="paramFile">config/slam_toolbox_2d.yaml:67–69</span>
+    <span class="paramDesc">The local scan-matching grid: how big a search box around the predicted pose, how finely it's sampled, and how much the rasterized scan is "smeared" for robustness to noise.</span>
+    <div class="modes"><span class="mode-chip mode-mapping">mapping</span><span class="mode-chip mode-loc">localization</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>dimension</label><input type="range" id="csd-v" min="0.1" max="2.0" step="0.05" value="0.5" data-unit=" m" data-precision="2"><span class="val" id="csd-vVal">0.50 m</span></div>
+    <div class="slider-row"><label>resolution</label><input type="range" id="csr-v" min="0.005" max="0.05" step="0.001" value="0.01" data-unit=" m" data-precision="3"><span class="val" id="csr-vVal">0.010 m</span></div>
+    <div class="slider-row"><label>smear_dev</label><input type="range" id="css-v" min="0.01" max="0.5" step="0.01" value="0.1" data-unit=" m" data-precision="2"><span class="val" id="css-vVal">0.10 m</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> the local scan-to-graph match's working space. Larger dimension = bigger search box; finer resolution = more accurate match; smear smooths the rasterized scan for matching robustness.</div>
+    <div class="ex-up">↑ <b>Larger dimension</b> (1.0–2.0 m): tolerates large odometry errors — useful with mecanum slip. <b>Larger smear:</b> robust to scan noise.</div>
+    <div class="ex-down">↓ <b>Finer resolution</b> (0.005 m): more accurate match but cells grow as 1/r² — at 0.005 m and 1 m dim = 40k cells per scan. Past sensible point on Jetson.</div>
+    <div class="ex-deps">🔗 <b>Independent of</b> the map's <code>resolution</code> (occupancy grid) — these tune the matcher, not the output map.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-moderate">moderate</span> Cells scale as <code>(dimension/resolution)²</code>. Doubling dimension OR halving resolution = 4× cells.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic dim 0.3–1.0 m · res 0.01 m</span>
+      <span class="test-step">Force a sudden rover translation (give it a manual shove of 0.5 m). With dimension 0.3 m, slam_toolbox loses the pose (search box too small to find the new location). With 1.5 m, it recovers.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Card 6f: loop closure search grid -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">loop_search_space_dimension · resolution · smear_deviation</span>
+    <span class="paramFile">config/slam_toolbox_2d.yaml:72–74</span>
+    <span class="paramDesc">Same idea as correlation_search_space but used during loop-closure candidate detection. Bigger grid (default 8×8 m) because closures can be far from the current pose.</span>
+    <div class="modes"><span class="mode-chip mode-mapping">mapping only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>dimension</label><input type="range" id="lsd2-v" min="2.0" max="20.0" step="0.5" value="8.0" data-unit=" m" data-precision="1"><span class="val" id="lsd2-vVal">8.0 m</span></div>
+    <div class="slider-row"><label>resolution</label><input type="range" id="lsr-v" min="0.01" max="0.2" step="0.005" value="0.05" data-unit=" m" data-precision="3"><span class="val" id="lsr-vVal">0.050 m</span></div>
+    <div class="slider-row"><label>smear_dev</label><input type="range" id="lss-v" min="0.01" max="0.2" step="0.005" value="0.03" data-unit=" m" data-precision="3"><span class="val" id="lss-vVal">0.030 m</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> the rasterized scan grid used to evaluate loop closure candidates. Bigger grid + coarser resolution makes individual candidate evaluation cheap.</div>
+    <div class="ex-up">↑ <b>Larger dimension</b> for big spaces (warehouses). <b>Coarser resolution</b> if optimizer falls behind.</div>
+    <div class="ex-down">↓ <b>Finer resolution</b> for higher-quality loop matches. <b>Smaller dimension</b> in small rooms (saves memory).</div>
+    <div class="ex-deps">🔗 <b>Distinct from</b> the per-scan <code>correlation_search_space</code> — that's the local matcher; this is the loop-closure-specific grid.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-moderate">moderate</span> Cells = (dim/res)². 8/0.05 = 25600 cells; 16/0.05 = 102400. Each candidate evaluation walks the grid.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic dim 4–12 m · res 0.05 m</span>
+      <span class="test-step">In a 10×10 m room, drive a full perimeter loop. Verify the closure fires within 2 s of completing the loop.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Card 6g: optimizer penalty weights -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">distance_variance_penalty · angle_variance_penalty · minimum_distance_penalty · minimum_angle_penalty</span>
+    <span class="paramFile">config/slam_toolbox_2d.yaml:77–83</span>
+    <span class="paramDesc">Karto optimizer's penalty weights for translation and rotation errors. These bias the optimizer toward trusting scans more (low penalty) or trusting odometry more (high penalty).</span>
+    <div class="modes"><span class="mode-chip mode-mapping">mapping only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>dist_var</label><input type="range" id="dvp-v" min="0.05" max="2.0" step="0.05" value="0.5" data-unit="" data-precision="2"><span class="val" id="dvp-vVal">0.50</span></div>
+    <div class="slider-row"><label>angle_var</label><input type="range" id="avp-v" min="0.1" max="5.0" step="0.1" value="1.0" data-unit="" data-precision="1"><span class="val" id="avp-vVal">1.0</span></div>
+    <div class="slider-row"><label>min_dist</label><input type="range" id="mdp-v" min="0.1" max="2.0" step="0.05" value="0.5" data-unit="" data-precision="2"><span class="val" id="mdp-vVal">0.50</span></div>
+    <div class="slider-row"><label>min_angle</label><input type="range" id="map-v" min="0.1" max="3.0" step="0.05" value="0.9" data-unit="" data-precision="2"><span class="val" id="map-vVal">0.90</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> how the optimizer weighs different error sources during graph optimization. Higher = "this kind of error is expensive, trust the input more."</div>
+    <div class="ex-up">↑ <b>Higher angle_var:</b> optimizer assumes the rover's yaw odometry is precise — good with a calibrated IMU, bad with mecanum slip.</div>
+    <div class="ex-down">↓ <b>Lower dist_var:</b> trust scan matches over odometry — useful with bad wheel odometry (mecanum is your case).</div>
+    <div class="ex-deps">🔗 <b>Defaults are slam_toolbox's stock values</b> tuned for differential-drive robots. Mecanum + rf2o odometry on this stack uses these without adjustment; tune only if you see drift the matcher can't correct.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-none">none</span> Pure scalars in the cost function.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic: leave at defaults</span>
+      <span class="test-step">These are rarely tuned. To test: drive a known 5 m × 5 m square room and measure the resulting map's diagonal. Should be ~7.07 m. Adjust penalties only if there's persistent skew.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Card 6h: TF + map timing -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">transform_publish_period · map_update_interval · transform_timeout · tf_buffer_duration</span>
+    <span class="paramFile">config/slam_toolbox_2d.yaml:38–41</span>
+    <span class="paramDesc">Timing knobs. <code>transform_publish_period</code> = how often <code>map → odom</code> TF is published (Hz). <code>map_update_interval</code> = how often <code>/map</code> is re-rasterized + published. <code>transform_timeout</code> + <code>tf_buffer_duration</code> = TF buffer behavior.</span>
+    <div class="modes"><span class="mode-chip mode-mapping">mapping</span><span class="mode-chip mode-loc">localization</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>tf_period</label><input type="range" id="tpp-v" min="0.01" max="0.5" step="0.01" value="0.05" data-unit=" s" data-precision="2"><span class="val" id="tpp-vVal">0.05 s</span></div>
+    <div class="slider-row"><label>map_update</label><input type="range" id="mui-v" min="0.5" max="10" step="0.5" value="1.0" data-unit=" s" data-precision="1"><span class="val" id="mui-vVal">1.0 s</span></div>
+    <div class="slider-row"><label>tf_timeout</label><input type="range" id="ttm-v" min="0.05" max="1.0" step="0.05" value="0.2" data-unit=" s" data-precision="2"><span class="val" id="ttm-vVal">0.20 s</span></div>
+    <div class="slider-row"><label>buf_duration</label><input type="range" id="tbd-v" min="5" max="120" step="5" value="30" data-unit=" s" data-precision="0"><span class="val" id="tbd-vVal">30 s</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> <code>tf_period 0.05 s</code> = 20 Hz map→odom (smooth visualization). <code>map_update 1 s</code> = /map redraws once per second (Foxglove map refresh rate).</div>
+    <div class="ex-up">↑ <b>Slower tf_period</b> (0.2 s = 5 Hz) saves CPU but visualization stutters. <b>Larger map_update</b> (5 s): less frequent map publishes; Foxglove sees a stale map but CPU drops.</div>
+    <div class="ex-down">↓ <b>Faster tf_period</b> (0.02 s = 50 Hz): Nav2 controller sees fresher pose; useful for fast-moving rovers.</div>
+    <div class="ex-deps">🔗 <b>map_update_interval bumped to 3–5 s</b> on Jetson Orin Nano if the slam_toolbox process spikes during map rasterization.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-moderate">moderate</span> map_update_interval triggers a full grid rasterization — O(N_keyframes × scan_points). Larger interval = less frequent CPU spikes.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic tf_period 0.05–0.10 s · map_update 1–5 s</span>
+      <span class="test-step">Watch <code>ros2 topic hz /tf</code> with slam_toolbox running. Should match 1/tf_period.</span>
+      <span class="test-step">Watch <code>ros2 topic hz /map</code>. Should match 1/map_update_interval.</span>
+      <span class="test-step">Drag a 5 s vs 1 s test in Foxglove — the map appears to "freeze" with 5 s interval, much more responsive at 1 s.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Card 6i: max_laser_range -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">max_laser_range</span>
+    <span class="paramFile">config/slam_toolbox_2d.yaml:46</span>
+    <span class="paramDesc">Hard cap on which LaserScan ranges slam_toolbox processes. A second-level filter on top of <code>scan_range_max</code>: even if /scan reports a 30 m hit, slam_toolbox ignores it past this value.</span>
+    <div class="modes"><span class="mode-chip mode-mapping">mapping</span><span class="mode-chip mode-loc">localization</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>max_range</label><input type="range" id="mlr-v" min="2" max="40" step="0.5" value="20" data-unit=" m" data-precision="1"><span class="val" id="mlr-vVal">20.0 m</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> the maximum scan range slam_toolbox uses for the graph and the occupancy grid. Far returns past this are silently dropped.</div>
+    <div class="ex-up">↑ <b>Higher (25 m+):</b> long corridors visible in the map. Pairs with raising <code>scan_range_max</code>.</div>
+    <div class="ex-down">↓ <b>Lower (5–10 m):</b> faster matching, less noisy in large rooms. Pairs with dropping <code>scan_range_max</code>.</div>
+    <div class="ex-deps">🔗 <b>Must be ≥</b> <code>scan_range_max</code> in launch (otherwise scan_range_max is the effective limit anyway). Mid-360 ~70 m, but indoors anything past 15–20 m is noise.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-minor">minor</span> Per-scan filter, O(rays).</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic 10–25 m indoor</span>
+      <span class="test-step">In a hallway, set max_laser_range to 3 m, 10 m, 25 m. Watch the map's max extent. Below the hallway length, map cuts off mid-corridor; above, the wall at the far end is visible.</span>
+    </div>
+  </div>
+</div>
+
 </div><!-- /cards -->
 
 <!-- ============================================================ -->
