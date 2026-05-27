@@ -1,0 +1,1954 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>URDF Explorer — Make or Code</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Audiowide&family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --brand-pink:#ff3d7f;
+  --brand-blue:#00b8ff;
+  --brand-purple:#7a2dff;
+  --brand-bg:#0a0a14;
+  --brand-bg-2:#140820;
+  --font-display:'Audiowide',sans-serif;
+  --font-display-alt:'Orbitron',sans-serif;
+  --font-ui:'JetBrains Mono','Fira Mono',monospace;
+  --ink:#e2e8f0;
+  --ink-dim:#94a3b8;
+  --ink-faint:#64748b;
+  --line:rgba(122,45,255,0.25);
+  --card-bg:rgba(20,8,32,0.55);
+  --good:#34d399;
+  --warn:#fbbf24;
+  --bad:#f87171;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:radial-gradient(ellipse at top,var(--brand-bg-2) 0%,var(--brand-bg) 65%);
+  background-attachment:fixed;
+  color:var(--ink);
+  font-family:var(--font-ui);
+  font-size:14px;
+  line-height:1.55;
+  min-height:100vh;
+}
+.wrap{max-width:1400px;margin:0 auto;padding:48px 24px 96px}
+
+/* ----- masthead ----- */
+.mast{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:24px;margin-bottom:32px}
+.mast h1{
+  font-family:var(--font-display);
+  font-size:42px;
+  margin:0 0 8px;
+  color:var(--brand-pink);
+  letter-spacing:0.02em;
+  text-shadow:0 0 24px rgba(255,61,127,0.35);
+}
+.mast .tag{font-family:var(--font-display-alt);font-size:11px;letter-spacing:0.25em;color:var(--brand-blue);text-transform:uppercase}
+.mast p{margin:6px 0 0;max-width:780px;color:var(--ink-dim);font-size:14px;line-height:1.65}
+.mast .legend{font-size:11px;color:var(--ink-faint);text-align:right;line-height:1.7}
+.mast .legend b{color:var(--brand-blue)}
+.mast .legend code{color:var(--brand-pink);background:rgba(255,61,127,0.08);padding:1px 6px;border-radius:3px;font-size:10px}
+
+/* ----- sections ----- */
+.section{margin:48px 0 24px}
+.section-title{
+  font-family:var(--font-display-alt);
+  font-weight:700;
+  font-size:24px;
+  letter-spacing:0.06em;
+  color:#f1f5f9;
+  text-transform:uppercase;
+  margin:0 0 6px;
+  border-left:4px solid var(--brand-pink);
+  padding-left:14px;
+}
+.section-lede{color:var(--ink-dim);font-size:13px;line-height:1.65;margin:0 0 20px 18px;max-width:920px}
+.section-lede code{color:var(--brand-blue);background:rgba(0,184,255,0.08);padding:1px 6px;border-radius:3px;font-size:12px}
+.section-lede b{color:#f1f5f9}
+
+/* ----- card grid ----- */
+.cards{display:grid;gap:20px;grid-template-columns:repeat(auto-fill,minmax(560px,1fr))}
+.card{
+  background:var(--card-bg);
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:20px 22px;
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+  box-shadow:0 0 24px rgba(122,45,255,0.08) inset;
+}
+.card.span-2{grid-column:1 / -1}
+.card-head{display:flex;flex-direction:column;gap:6px}
+.card-head .row{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.paramName{font-family:var(--font-display-alt);font-weight:700;font-size:16px;color:var(--brand-blue);text-shadow:0 0 12px rgba(0,184,255,0.25)}
+.paramFile{font-size:11px;color:var(--ink-faint)}
+.paramDesc{color:var(--ink);font-size:14px;line-height:1.6}
+.paramDesc code{color:var(--brand-pink);background:rgba(255,61,127,0.08);padding:1px 5px;border-radius:3px;font-size:12px}
+.paramDesc b{color:#f1f5f9}
+
+/* chips */
+.chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.mode-chip{font-size:10px;letter-spacing:0.06em;padding:3px 8px;border-radius:3px;text-transform:uppercase;font-weight:600;border:1px solid}
+.mode-chip.fundamentals{color:#a5b4fc;border-color:rgba(165,180,252,0.4);background:rgba(165,180,252,0.06)}
+.mode-chip.xacro{color:#f9a8d4;border-color:rgba(249,168,212,0.4);background:rgba(249,168,212,0.06)}
+.mode-chip.platform{color:#86efac;border-color:rgba(134,239,172,0.4);background:rgba(134,239,172,0.06)}
+.mode-chip.runtime{color:#fcd34d;border-color:rgba(252,211,77,0.4);background:rgba(252,211,77,0.06)}
+.mode-chip.convention{color:var(--brand-blue);border-color:rgba(0,184,255,0.4);background:rgba(0,184,255,0.06)}
+
+.cost-chip{font-size:10px;padding:3px 8px;border-radius:3px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase}
+.cost-chip.beginner{background:rgba(52,211,153,0.12);color:var(--good);border:1px solid rgba(52,211,153,0.3)}
+.cost-chip.intermediate{background:rgba(252,211,77,0.12);color:var(--warn);border:1px solid rgba(252,211,77,0.3)}
+.cost-chip.advanced{background:rgba(248,113,113,0.12);color:var(--bad);border:1px solid rgba(248,113,113,0.3)}
+
+.range-pill{
+  font-size:11px;
+  color:var(--ink-dim);
+  background:rgba(0,184,255,0.06);
+  border:1px solid rgba(0,184,255,0.2);
+  padding:3px 9px;
+  border-radius:99px;
+  display:inline-block;
+}
+.range-pill b{color:var(--brand-blue);font-weight:700}
+
+/* canvas */
+canvas{
+  width:100%;
+  display:block;
+  border-radius:6px;
+  background:rgba(10,10,20,0.5);
+  border:1px solid rgba(122,45,255,0.18);
+}
+.canvas-wrap{position:relative}
+.stat{font-size:13px;color:#cbd5e1;line-height:1.7;margin-top:4px}
+.stat b{color:var(--brand-blue)}
+.stat .pink{color:var(--brand-pink)}
+.stat .purple{color:var(--brand-purple)}
+
+/* sliders */
+.controls{display:flex;flex-direction:column;gap:10px}
+.slider-row{display:grid;grid-template-columns:160px 1fr 90px;gap:12px;align-items:center;font-size:13px;color:var(--ink)}
+.slider-row label{color:var(--ink-dim);font-size:13px}
+.slider-row input[type=range]{
+  -webkit-appearance:none;appearance:none;
+  height:6px;background:linear-gradient(90deg,rgba(122,45,255,0.2),rgba(0,184,255,0.25));border-radius:3px;outline:none;
+}
+.slider-row input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;
+  background:var(--brand-pink);border:2px solid #fff;cursor:pointer;box-shadow:0 0 8px rgba(255,61,127,0.6);
+}
+.slider-row input[type=range]::-moz-range-thumb{
+  width:16px;height:16px;border-radius:50%;background:var(--brand-pink);border:2px solid #fff;cursor:pointer;
+}
+.slider-row .val{font-family:var(--font-ui);color:var(--brand-blue);text-align:right;font-weight:600;font-size:13px}
+.toggle-row{display:flex;gap:8px;flex-wrap:wrap;font-size:13px}
+.toggle-row button{
+  background:rgba(122,45,255,0.12);
+  color:var(--ink);
+  border:1px solid rgba(122,45,255,0.35);
+  padding:5px 12px;
+  font-family:var(--font-ui);
+  font-size:12px;
+  border-radius:4px;
+  cursor:pointer;
+  transition:all 0.15s;
+}
+.toggle-row button:hover{background:rgba(122,45,255,0.25);border-color:var(--brand-purple)}
+.toggle-row button.active{background:var(--brand-pink);color:#fff;border-color:var(--brand-pink);box-shadow:0 0 12px rgba(255,61,127,0.5)}
+
+.reset-btn{
+  background:rgba(122,45,255,0.15);
+  color:#e2e8f0;
+  border:1px solid var(--brand-purple);
+  padding:4px 10px;
+  font-family:var(--font-ui);
+  font-size:11px;
+  border-radius:3px;
+  cursor:pointer;
+}
+.reset-btn:hover{background:var(--brand-purple);color:#fff}
+
+/* explanations */
+.card-explain{
+  display:flex;flex-direction:column;gap:8px;
+  padding-top:12px;border-top:1px dashed rgba(122,45,255,0.25);
+  font-size:13px;line-height:1.65;color:var(--ink);
+}
+.card-explain code{
+  color:var(--brand-pink);
+  background:rgba(255,61,127,0.08);
+  padding:1px 6px;border-radius:3px;font-size:12px;
+}
+.card-explain b{color:#f1f5f9}
+.ex-deps,.ex-cost,.ex-cross,.ex-test{
+  border-left:3px solid;
+  padding:8px 10px;
+  background:rgba(10,10,20,0.4);
+  border-radius:0 4px 4px 0;
+  font-size:13px;
+}
+.ex-deps{border-left-color:var(--brand-purple)}
+.ex-cost{border-left-color:var(--warn)}
+.ex-cross{border-left-color:var(--brand-blue)}
+.ex-test{border-left-color:var(--brand-pink)}
+.ex-deps b,.ex-cost b,.ex-cross b,.ex-test b{font-family:var(--font-display-alt);font-size:11px;letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:4px}
+.ex-deps b{color:var(--brand-purple)}
+.ex-cost b{color:var(--warn)}
+.ex-cross b{color:var(--brand-blue)}
+.ex-test b{color:var(--brand-pink)}
+.ex-cross .device-tag{
+  display:inline-block;font-size:11px;
+  background:rgba(0,184,255,0.1);color:var(--brand-blue);
+  border:1px solid rgba(0,184,255,0.3);
+  padding:2px 7px;border-radius:3px;margin:2px 3px 2px 0;
+}
+.card-explain code.block{
+  display:block;
+  padding:8px 10px;
+  margin:4px 0;
+  background:rgba(10,10,20,0.7);
+  border:1px solid rgba(122,45,255,0.2);
+  white-space:pre;
+  overflow-x:auto;
+  color:#cbd5e1;
+  font-size:12px;
+  line-height:1.5;
+}
+.card-explain code.block .k{color:var(--brand-pink)}
+.card-explain code.block .v{color:var(--brand-blue)}
+.card-explain code.block .c{color:var(--ink-faint);font-style:italic}
+
+.lede{font-size:14px;color:var(--ink);line-height:1.7}
+.lede code{color:var(--brand-blue);background:rgba(0,184,255,0.08);padding:1px 6px;border-radius:3px;font-size:12px}
+.lede b{color:#f1f5f9}
+
+.kbd{background:rgba(122,45,255,0.18);border:1px solid var(--brand-purple);border-radius:3px;padding:1px 6px;color:#fff;font-size:11px}
+
+/* footer */
+.foot{margin-top:64px;padding-top:24px;border-top:1px solid var(--line);color:var(--ink-faint);font-size:12px;text-align:center}
+.foot b{color:var(--brand-blue);font-family:var(--font-display-alt)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="mast">
+  <div>
+    <div class="tag">Make or Code · SLAM</div>
+    <h1>URDF Explorer</h1>
+    <p>Every URDF/xacro knob in this repo — link/joint/origin/geometry, REP-103 conventions, the bench-fixture stack-up, sensor mounting, and the body↔base_link bridge that hands the URDF off to FAST-LIO2. Slide a value, watch the geometry move. Use this when you're modifying a mount, adding a sensor, or porting the rig to a new chassis.</p>
+  </div>
+  <div class="legend">
+    <div><b>Sources</b></div>
+    <div><code>urdf/sensors_common.urdf.xacro</code></div>
+    <div><code>urdf/bench_fixture.urdf.xacro</code></div>
+    <div><code>urdf/mecanum.urdf.xacro</code></div>
+    <div><code>launch/slam.launch.py</code></div>
+    <div><code>launch/perception.launch.py</code></div>
+  </div>
+</header>
+
+<!-- ============== SECTION 1: URDF FUNDAMENTALS ============== -->
+<section class="section">
+  <h2 class="section-title">1 · URDF Fundamentals</h2>
+  <p class="section-lede">A URDF is a tree of <b>links</b> (rigid bodies) connected by <b>joints</b> (relationships between bodies). Every link can have <code>&lt;visual&gt;</code>, <code>&lt;collision&gt;</code>, and <code>&lt;inertial&gt;</code> children. Joints have an <code>&lt;origin&gt;</code> (where the child sits in the parent's frame) and a type (<code>fixed</code>, <code>revolute</code>, <code>continuous</code>, <code>prismatic</code>, <code>planar</code>, <code>floating</code>). Start here if you've never written XML for a robot.</p>
+
+  <div class="cards">
+
+    <!-- Card: <robot> root tag -->
+    <article class="card">
+      <div class="card-head">
+        <div class="row"><span class="paramName">&lt;robot name=…&gt;</span><span class="paramFile">root tag · *.urdf.xacro</span></div>
+        <div class="chips">
+          <span class="mode-chip fundamentals">fundamentals</span>
+          <span class="cost-chip beginner">beginner</span>
+          <span class="range-pill">name: <b>kebab-case-string</b></span>
+        </div>
+        <div class="paramDesc">The outermost wrapper. <code>name</code> is the robot's identifier — used by <code>robot_state_publisher</code> as a TF prefix in some setups, but mostly cosmetic. The <code>xmlns:xacro</code> attribute is required only if you use xacro features.</div>
+      </div>
+      <div class="card-explain">
+        <code class="block"><span class="k">&lt;robot</span> xmlns:xacro=<span class="v">"http://www.ros.org/wiki/xacro"</span> name=<span class="v">"mecanum_x3"</span><span class="k">&gt;</span>
+  <span class="c">&lt;!-- everything else goes inside --&gt;</span>
+<span class="k">&lt;/robot&gt;</span></code>
+        <div class="ex-deps"><b>Where used</b>This file's <code>name="mecanum_x3"</code>, <code>name="bench_fixture"</code>, <code>name="sensor_rig"</code>. Each platform xacro has a unique name so they don't collide if loaded together.</div>
+        <div class="ex-test"><b>Quick check</b><code>xacro urdf/mecanum.urdf.xacro | head -5</code> — confirm the root tag expands without error. The fastest sanity check that a xacro file is syntactically valid.</div>
+      </div>
+    </article>
+
+    <!-- Card: <link> -->
+    <article class="card">
+      <div class="card-head">
+        <div class="row"><span class="paramName">&lt;link name=…&gt;</span><span class="paramFile">core element</span></div>
+        <div class="chips">
+          <span class="mode-chip fundamentals">fundamentals</span>
+          <span class="cost-chip beginner">beginner</span>
+          <span class="range-pill">unique within robot</span>
+        </div>
+        <div class="paramDesc">A rigid body. Can be <b>empty</b> (just a coordinate frame — used heavily in this repo for sensor reference points like <code>livox_frame</code>, <code>imu_link</code>) or carry <code>&lt;visual&gt;</code> + <code>&lt;collision&gt;</code> + <code>&lt;inertial&gt;</code> children.</div>
+      </div>
+      <div class="card-explain">
+        <code class="block"><span class="c">&lt;!-- pure frame: TF node only, nothing drawn --&gt;</span>
+<span class="k">&lt;link</span> name=<span class="v">"livox_frame"</span><span class="k">/&gt;</span>
+
+<span class="c">&lt;!-- frame with a visual box --&gt;</span>
+<span class="k">&lt;link</span> name=<span class="v">"base_link"</span><span class="k">&gt;</span>
+  <span class="k">&lt;visual&gt;</span>…<span class="k">&lt;/visual&gt;</span>
+<span class="k">&lt;/link&gt;</span></code>
+        <div class="ex-deps"><b>Why empty links exist</b>Every sensor in this repo needs a TF frame so ROS nodes (FAST-LIO2, realsense, witmotion) can publish data tagged with the correct <code>frame_id</code>. The frame doesn't need a mesh — the link element just declares "this name is a valid TF node."</div>
+        <div class="ex-test"><b>Test plan</b>Load the URDF in RViz with <code>RobotModel</code> display + <code>TF</code> display. Toggle individual link visibility. Confirm every sensor topic's <code>frame_id</code> matches a link defined here (<code>ros2 topic echo /scan --once</code>).</div>
+      </div>
+    </article>
+
+    <!-- Card: <joint> -->
+    <article class="card">
+      <div class="card-head">
+        <div class="row"><span class="paramName">&lt;joint name=… type=…&gt;</span><span class="paramFile">core element</span></div>
+        <div class="chips">
+          <span class="mode-chip fundamentals">fundamentals</span>
+          <span class="cost-chip beginner">beginner</span>
+          <span class="range-pill">parent ≠ child, no cycles</span>
+        </div>
+        <div class="paramDesc">Defines the spatial relationship between two links. Has a <b>parent</b> and a <b>child</b>; the child sits at the joint's <code>&lt;origin&gt;</code> in the parent's frame. The URDF tree is a DAG — every link except the root has exactly one parent.</div>
+      </div>
+      <div class="card-explain">
+        <code class="block"><span class="k">&lt;joint</span> name=<span class="v">"base_link_to_sensor_plate"</span> type=<span class="v">"fixed"</span><span class="k">&gt;</span>
+  <span class="k">&lt;parent</span> link=<span class="v">"base_link"</span><span class="k">/&gt;</span>
+  <span class="k">&lt;child</span>  link=<span class="v">"sensor_plate"</span><span class="k">/&gt;</span>
+  <span class="k">&lt;origin</span> xyz=<span class="v">"0 0 0.207670"</span> rpy=<span class="v">"0 0 0"</span><span class="k">/&gt;</span>
+<span class="k">&lt;/joint&gt;</span></code>
+        <div class="ex-deps"><b>Tree constraint</b>If you try to make link A the child of link B AND link B the child of link A, <code>robot_state_publisher</code> will refuse to launch. Same if you forget to give a non-root link a parent — it becomes orphan and won't appear in TF.</div>
+      </div>
+    </article>
+
+    <!-- Card: joint types -->
+    <article class="card">
+      <div class="card-head">
+        <div class="row"><span class="paramName">joint type=…</span><span class="paramFile">joint attribute</span></div>
+        <div class="chips">
+          <span class="mode-chip fundamentals">fundamentals</span>
+          <span class="cost-chip intermediate">intermediate</span>
+          <span class="range-pill">6 valid values</span>
+        </div>
+        <div class="paramDesc">Picks the kinematic relationship. This repo uses <b>only <code>fixed</code></b> because every sensor is rigidly bolted to the plate. The other types matter the moment you add wheels, a gripper, or a pan-tilt.</div>
+      </div>
+      <div class="canvas-wrap"><canvas id="cv-joint-types" width="540" height="240"></canvas></div>
+      <div class="toggle-row" id="joint-type-toggles">
+        <button data-jt="fixed" class="active">fixed</button>
+        <button data-jt="revolute">revolute</button>
+        <button data-jt="continuous">continuous</button>
+        <button data-jt="prismatic">prismatic</button>
+        <button data-jt="planar">planar</button>
+        <button data-jt="floating">floating</button>
+      </div>
+      <div class="card-explain">
+        <div class="ex-deps"><b>Cheat sheet</b>
+          <code>fixed</code> = bolted (no motion) ·
+          <code>revolute</code> = hinge with limits ·
+          <code>continuous</code> = wheel (unbounded rotation) ·
+          <code>prismatic</code> = linear slide with limits ·
+          <code>planar</code> = 2-DOF translation in a plane ·
+          <code>floating</code> = full 6-DOF (rarely used).
+        </div>
+        <div class="ex-test"><b>Test plan</b>When you mount a Yahboom chassis and want wheels to spin in RViz: add <code>continuous</code> joints with <code>axis xyz="0 1 0"</code> (rotation around Y) and publish wheel positions via <code>joint_state_publisher</code>. With <code>fixed</code> joints, RViz wheels stay glued.</div>
+      </div>
+    </article>
+
+    <!-- Card: <origin> xyz/rpy -->
+    <article class="card">
+      <div class="card-head">
+        <div class="row"><span class="paramName">&lt;origin xyz="…" rpy="…"/&gt;</span><span class="paramFile">joint / visual / collision / inertial child</span></div>
+        <div class="chips">
+          <span class="mode-chip fundamentals">fundamentals</span>
+          <span class="mode-chip convention">REP-103</span>
+          <span class="cost-chip beginner">beginner</span>
+          <span class="range-pill">meters · radians · ZYX intrinsic</span>
+        </div>
+        <div class="paramDesc">The <b>transform</b> from the parent frame to the child frame. <code>xyz</code> = translation in meters (always). <code>rpy</code> = roll/pitch/yaw in <b>radians</b> (always), applied in <b>ZYX intrinsic</b> order (yaw first, then pitch around the new Y, then roll around the new X). Trip wire: many people assume degrees — URDF never accepts degrees.</div>
+      </div>
+      <div class="canvas-wrap"><canvas id="cv-origin" width="540" height="280"></canvas></div>
+      <div class="controls">
+        <div class="slider-row"><label>xyz.x (m)</label><input type="range" id="o-x" min="-0.3" max="0.3" step="0.005" value="0.05"/><span class="val" id="o-x-v"></span></div>
+        <div class="slider-row"><label>xyz.y (m)</label><input type="range" id="o-y" min="-0.3" max="0.3" step="0.005" value="0.0"/><span class="val" id="o-y-v"></span></div>
+        <div class="slider-row"><label>xyz.z (m)</label><input type="range" id="o-z" min="-0.3" max="0.3" step="0.005" value="0.1"/><span class="val" id="o-z-v"></span></div>
+        <div class="slider-row"><label>rpy.roll (rad)</label><input type="range" id="o-r" min="-1.57" max="1.57" step="0.01" value="0"/><span class="val" id="o-r-v"></span></div>
+        <div class="slider-row"><label>rpy.pitch (rad)</label><input type="range" id="o-p" min="-1.57" max="1.57" step="0.01" value="0"/><span class="val" id="o-p-v"></span></div>
+        <div class="slider-row"><label>rpy.yaw (rad)</label><input type="range" id="o-yw" min="-3.14" max="3.14" step="0.01" value="0"/><span class="val" id="o-yw-v"></span></div>
+      </div>
+      <div class="stat" id="origin-stat"></div>
+      <div class="card-explain">
+        <div class="ex-deps"><b>Order matters</b>URDF rpy is ZYX intrinsic: rotate yaw around Z, then pitch around the rotated Y, then roll around the doubly-rotated X. If you write <code>rpy="1.57 0 1.57"</code> and <code>rpy="0 0 1.57"</code> then <code>rpy="1.57 0 0"</code>, you get the SAME final orientation. But mid-computation the rotation axes differ — important when composing transforms manually.</div>
+        <div class="ex-cost"><b>Common bug</b>Writing pitch in <b>degrees</b>. <code>rpy="0 10 0"</code> means 10 radians = ~573°. Always convert: <code>10° × π/180 = 0.1745</code>. The D435 mount in this repo uses <code>0.176136</code> which encodes exactly 10.09° nose-down.</div>
+      </div>
+    </article>
+
+    <!-- Card: <geometry> -->
+    <article class="card">
+      <div class="card-head">
+        <div class="row"><span class="paramName">&lt;geometry&gt; primitives</span><span class="paramFile">visual / collision child</span></div>
+        <div class="chips">
+          <span class="mode-chip fundamentals">fundamentals</span>
+          <span class="cost-chip beginner">beginner</span>
+          <span class="range-pill">box · cylinder · sphere · mesh</span>
+        </div>
+        <div class="paramDesc">What shape to render. <code>box size="L W H"</code> (meters, axis-aligned, centered on origin). <code>cylinder radius=… length=…</code> (axis along +Z by default). <code>sphere radius=…</code>. <code>mesh filename="package://pkg/path/to/file.stl"</code> for STL/Collada meshes.</div>
+      </div>
+      <div class="card-explain">
+        <code class="block"><span class="k">&lt;geometry&gt;</span>
+  <span class="k">&lt;box</span> size=<span class="v">"0.280 0.230 0.090"</span><span class="k">/&gt;</span>
+<span class="k">&lt;/geometry&gt;</span></code>
+        <div class="ex-deps"><b>Visual vs collision</b>Use detailed meshes for <code>&lt;visual&gt;</code> (eye candy in RViz), simplified primitives for <code>&lt;collision&gt;</code> (physics + Nav2 footprint). This repo only has <code>&lt;visual&gt;</code> boxes — collision footprints come from Nav2's <code>robot_radius</code>, not from URDF collision elements.</div>
+        <div class="ex-test"><b>Test plan</b>To swap the bench-fixture wireframe for a real STL: download an extrusion CAD, save as <code>cad/2040_segment.stl</code>, replace <code>&lt;box&gt;</code> with <code>&lt;mesh filename="package://slam_bringup/cad/2040_segment.stl"/&gt;</code>, rebuild + reload RViz. Geometry is now photoreal but SLAM math is unchanged.</div>
+      </div>
+    </article>
+
+    <!-- Card: <visual> + <material> -->
+    <article class="card">
+      <div class="card-head">
+        <div class="row"><span class="paramName">&lt;visual&gt; + &lt;material&gt;</span><span class="paramFile">cosmetic render</span></div>
+        <div class="chips">
+          <span class="mode-chip fundamentals">fundamentals</span>
+          <span class="cost-chip beginner">beginner</span>
+          <span class="range-pill">rgba 0..1 · ≤1 visual per material name</span>
+        </div>
+        <div class="paramDesc">What RViz draws for this link. Has its own <code>&lt;origin&gt;</code> (where the visual sits relative to the link's frame) and <code>&lt;material&gt;</code> (color or texture). <b>RViz only shows visual</b>; it ignores collision elements unless you toggle the collision display.</div>
+      </div>
+      <div class="card-explain">
+        <code class="block"><span class="k">&lt;visual&gt;</span>
+  <span class="k">&lt;origin</span> xyz=<span class="v">"0 0 0.045"</span> rpy=<span class="v">"0 0 0"</span><span class="k">/&gt;</span>
+  <span class="k">&lt;geometry&gt;&lt;box</span> size=<span class="v">"0.28 0.23 0.09"</span><span class="k">/&gt;&lt;/geometry&gt;</span>
+  <span class="k">&lt;material</span> name=<span class="v">"chassis_x3"</span><span class="k">&gt;</span>
+    <span class="k">&lt;color</span> rgba=<span class="v">"0.15 0.15 0.18 0.6"</span><span class="k">/&gt;</span>
+  <span class="k">&lt;/material&gt;</span>
+<span class="k">&lt;/visual&gt;</span></code>
+        <div class="ex-deps"><b>Alpha is your friend</b>Set <code>rgba "… … … 0.3"</code> on extrusion boxes so you can see sensor positions through the chassis. This repo's <code>bench_fixture.urdf.xacro</code> uses 0.15–0.3 alpha for exactly this reason.</div>
+      </div>
+    </article>
+
+    <!-- Card: <collision> -->
+    <article class="card">
+      <div class="card-head">
+        <div class="row"><span class="paramName">&lt;collision&gt;</span><span class="paramFile">physics / contact</span></div>
+        <div class="chips">
+          <span class="mode-chip fundamentals">fundamentals</span>
+          <span class="cost-chip intermediate">intermediate</span>
+          <span class="range-pill">used by Gazebo · ignored by Nav2 footprint</span>
+        </div>
+        <div class="paramDesc">Geometry used for physics simulation and contact detection (Gazebo, MoveIt). For Nav2 navigation this repo bypasses URDF collision entirely — the footprint comes from Nav2's <code>robot_radius</code> param (see <code>nav2_params_2d.yaml</code>). If you're not simulating in Gazebo, skip collision elements entirely. They cost nothing to leave out.</div>
+      </div>
+      <div class="card-explain">
+        <div class="ex-deps"><b>Why this repo omits collision</b>Nav2 reads its footprint from <code>nav2_params_2d.yaml::robot_radius: 0.22</code>, not from URDF. Simulation isn't part of the SLAM workflow on this rig — physical robot only. Adding collision elements does nothing here. If you ever spin up Gazebo for regression testing, that's when you wire them in.</div>
+      </div>
+    </article>
+
+    <!-- Card: <inertial> -->
+    <article class="card">
+      <div class="card-head">
+        <div class="row"><span class="paramName">&lt;inertial&gt; mass / inertia</span><span class="paramFile">physics sim only</span></div>
+        <div class="chips">
+          <span class="mode-chip fundamentals">fundamentals</span>
+          <span class="cost-chip advanced">advanced</span>
+          <span class="range-pill">kg · kg·m² · symmetric tensor</span>
+        </div>
+        <div class="paramDesc">Mass + inertia tensor for dynamics. Required by Gazebo to simulate forces; ignored by <code>robot_state_publisher</code> and RViz. <code>&lt;mass value="…"/&gt;</code> in kg. <code>&lt;inertia ixx iyy izz ixy ixz iyz/&gt;</code> in kg·m² — symmetric, so off-diagonals share signs.</div>
+      </div>
+      <div class="card-explain">
+        <code class="block"><span class="k">&lt;inertial&gt;</span>
+  <span class="k">&lt;mass</span> value=<span class="v">"1.2"</span><span class="k">/&gt;</span>
+  <span class="k">&lt;inertia</span> ixx=<span class="v">"0.005"</span> iyy=<span class="v">"0.012"</span> izz=<span class="v">"0.014"</span>
+           ixy=<span class="v">"0"</span> ixz=<span class="v">"0"</span> iyz=<span class="v">"0"</span><span class="k">/&gt;</span>
+<span class="k">&lt;/inertial&gt;</span></code>
+        <div class="ex-cost"><b>Estimating inertia</b>For a box of mass m and dims (L, W, H): ixx = m/12 (W² + H²), iyy = m/12 (L² + H²), izz = m/12 (L² + W²). For a cylinder of mass m, radius r, length L (axis = Z): ixx = iyy = m/12 (3r² + L²), izz = m/2 · r². For meshes — load STL into Fusion 360 or MeshLab, set material density, export the computed inertia tensor.</div>
+        <div class="ex-test"><b>Skip unless</b>You're running Gazebo. Otherwise leave inertial blocks out — they're noise in the file and the SLAM stack ignores them.</div>
+      </div>
+    </article>
+
+  </div>
+</section>
+
+<!-- ============== SECTION 2: REP-103 CONVENTIONS ============== -->
+<section class="section">
+  <h2 class="section-title">2 · Coordinate Conventions (REP-103)</h2>
+  <p class="section-lede">ROS standardizes axes: <b>+X = forward</b>, <b>+Y = left</b>, <b>+Z = up</b>. RPY follows the <b>right-hand rule</b>, so positive pitch (around +Y) tilts +X toward -Z — which means <b>positive pitch = nose-down</b> in URDF (NOT aerospace convention). Getting this wrong is the most common URDF bug.</p>
+
+  <div class="cards">
+
+    <!-- Card: body axes -->
+    <article class="card">
+      <div class="card-head">
+        <div class="row"><span class="paramName">REP-103 body axes</span><span class="paramFile">convention</span></div>
+        <div class="chips">
+          <span class="mode-chip convention">REP-103</span>
+          <span class="cost-chip beginner">beginner</span>
+          <span class="range-pill"><b>+X fwd · +Y left · +Z up</b></span>
+        </div>
+        <div class="paramDesc">The body frame is defined relative to the robot's "front" — in this repo, the direction the D435 camera looks. <b>+X is forward</b>, <b>+Y is left</b>, <b>+Z is up</b>. Visualize with the right hand: thumb = +X, index = +Y, middle = +Z. This is the same convention as REP-105 for the <code>base_link</code> frame.</div>
+      </div>
+      <div class="canvas-wrap"><canvas id="cv-axes" width="540" height="280"></canvas></div>
+      <div class="stat">Drag the canvas to rotate. <b>Red = +X (forward)</b>. <span class="pink">Green = +Y (left)</span>. <span style="color:var(--brand-blue)">Blue = +Z (up)</span>.</div>
+      <div class="card-explain">
+        <div class="ex-deps"><b>Why this matters</b>The Mid-360 cable port, the D435 lens, and the WT901 X-axis sticker all have to point the SAME physical direction as URDF +X. If the cable port faces backward, every map will be mirrored. Confirmation step in this repo: <code>sensors_common.urdf.xacro</code> §"Sensor axes confirmed (2026-04-25)".</div>
+      </div>
+    </article>
+
+    <!-- Card: rpy sign convention -->
+    <article class="card">
+      <div class="card-head">
+        <div class="row"><span class="paramName">rpy sign convention</span><span class="paramFile">right-hand rule</span></div>
+        <div class="chips">
+          <span class="mode-chip convention">REP-103</span>
+          <span class="cost-chip intermediate">intermediate</span>
+          <span class="range-pill"><b>+pitch = nose-DOWN</b> in URDF</span>
+        </div>
+        <div class="paramDesc">URDF rpy follows the right-hand rule, not aerospace. <b>+roll</b> = right side dips down. <b>+pitch</b> = nose dips down (because R_y(+θ) takes +X toward -Z). <b>+yaw</b> = robot rotates counter-clockwise viewed from above. Slide the pitch slider — see how the camera FOV tilts.</div>
+      </div>
+      <div class="canvas-wrap"><canvas id="cv-pitch" width="540" height="260"></canvas></div>
+      <div class="controls">
+        <div class="slider-row"><label>pitch (rad)</label><input type="range" id="p-pitch" min="-0.6" max="0.6" step="0.005" value="0.176136"/><span class="val" id="p-pitch-v"></span></div>
+        <div class="slider-row"><label>pitch (deg)</label><input type="range" id="p-pitch-deg" min="-35" max="35" step="0.25" value="10.09"/><span class="val" id="p-pitch-deg-v"></span></div>
+        <button class="reset-btn" id="p-reset" style="align-self:flex-start">↺ D435 default (10.09° nose-down)</button>
+      </div>
+      <div class="stat" id="pitch-stat"></div>
+      <div class="card-explain">
+        <div class="ex-cost"><b>Aerospace mismatch</b>Pilots write "+10° pitch up." URDF math says: <code>R_y(+0.176)</code> takes +X (forward) toward -Z (down) → camera looks at the floor → "nose-down." Same number, opposite intuition. The D435 mount is angled at <code>+0.176136 rad = +10.09°</code> which in URDF terms means nose-down.</div>
+        <div class="ex-test"><b>Test plan</b>Run <code>scripts/measure_d435_pitch.py</code> with rig on a level floor. Inlier fraction ≥ 99% means the plane fit is reliable. Compare reported angle to <code>d435_front_rpy</code> in sensors_common.urdf.xacro. If they differ by more than ~0.5°, re-tighten the camera mount and remeasure — the foam-mount drift is real.</div>
+      </div>
+    </article>
+
+    <!-- Card: deg vs rad -->
+    <article class="card">
+      <div class="card-head">
+        <div class="row"><span class="paramName">deg ↔ rad conversion</span><span class="paramFile">utility</span></div>
+        <div class="chips">
+          <span class="mode-chip convention">REP-103</span>
+          <span class="cost-chip beginner">beginner</span>
+          <span class="range-pill">URDF rpy is ALWAYS radians</span>
+        </div>
+        <div class="paramDesc">Slide a degree value, get the radian value you need to paste into URDF. Common reference points: 90° = π/2 ≈ 1.5708, 180° = π ≈ 3.14159, 10° ≈ 0.1745. This repo's D435 mount measured at 10.09° lives in URDF as 0.176136.</div>
+      </div>
+      <div class="controls">
+        <div class="slider-row"><label>degrees</label><input type="range" id="d2r" min="-180" max="180" step="0.5" value="10.09"/><span class="val" id="d2r-v"></span></div>
+      </div>
+      <div class="stat" id="d2r-stat"></div>
+      <div class="card-explain">
+        <code class="block"><span class="c"># Python helpers</span>
+<span class="v">import math</span>
+math.radians(10.09)  <span class="c"># → 0.17611</span>
+math.degrees(0.176136)  <span class="c"># → 10.09</span></code>
+      </div>
+    </article>
+
+    <!-- Card: CAD frame vs body frame -->
+    <article class="card span-2">
+      <div class="card-head">
+        <div class="row"><span class="paramName">CAD frame vs body frame</span><span class="paramFile">sensors_common.urdf.xacro · cad/make_livox_mid360_plate.py</span></div>
+        <div class="chips">
+          <span class="mode-chip convention">REP-103</span>
+          <span class="mode-chip platform">platform</span>
+          <span class="cost-chip advanced">advanced</span>
+          <span class="range-pill">180° yaw mismatch</span>
+        </div>
+        <div class="paramDesc">The lidar plate's CAD file uses a different axis convention than the URDF body frame. In CAD: <b>+Y runs from WT901 → cable port</b>. In URDF body: <b>+X = D435 forward</b>. They're rotated <b>180° in yaw</b>. So <code>plate -Y</code> → <code>body +X</code>, <code>plate +X</code> → <code>body +Y</code>. Every xyz in <code>sensors_common.urdf.xacro</code> is pre-rotated into body convention so you can read them as "forward / left / up" directly.</div>
+      </div>
+      <div class="canvas-wrap"><canvas id="cv-cad" width="800" height="280"></canvas></div>
+      <div class="toggle-row" id="cad-toggle">
+        <button data-cad="body" class="active">body frame (URDF)</button>
+        <button data-cad="cad">CAD frame (plate)</button>
+        <button data-cad="overlay">overlay both</button>
+      </div>
+      <div class="card-explain">
+        <div class="ex-deps"><b>The conversion table</b>
+          <code>plate +X → body +Y</code> (left) ·
+          <code>plate -X → body -Y</code> (right) ·
+          <code>plate +Y → body -X</code> (back) ·
+          <code>plate -Y → body +X</code> (forward) ·
+          <code>plate +Z → body +Z</code> (up, unchanged).
+        </div>
+        <div class="ex-cost"><b>Trap to avoid</b>When you add a new sensor, do NOT copy its coordinate from the CAD file directly. Either (a) re-derive in body frame from the start, or (b) note the CAD coordinate as a comment and write the body coordinate as the actual xacro property. The current xacros use option (b) — see comments in <code>sensors_common.urdf.xacro</code> for each sensor.</div>
+      </div>
+    </article>
+
+  </div>
+</section>
+
+<!-- ============== SECTION 3: XACRO ============== -->
+<section class="section">
+  <h2 class="section-title">3 · xacro — Macros &amp; Includes</h2>
+  <p class="section-lede">URDF is pure XML, which means no variables, no math, no reuse. <b>xacro</b> is a preprocessor that adds <code>${expressions}</code>, <code>xacro:property</code> (named constants), <code>xacro:include</code> (file composition), and <code>xacro:macro</code> (reusable templates). Run <code>xacro file.urdf.xacro</code> at launch time → emit pure URDF → feed to <code>robot_state_publisher</code>.</p>
+
+  <div class="cards">
+
+    <!-- Card: xacro:property -->
+    <article class="card">
+      <div class="card-head">
+        <div class="row"><span class="paramName">xacro:property</span><span class="paramFile">named constants</span></div>
+        <div class="chips">
+          <span class="mode-chip xacro">xacro</span>
+          <span class="cost-chip beginner">beginner</span>
+          <span class="range-pill">scalar · scope: file or include</span>
+        </div>
+        <div class="paramDesc">A named constant. Use it for any value that appears more than once or that has physical meaning. Reference it with <code>${name}</code>. Math works inside <code>${…}</code>: <code>${a + b}</code>, <code>${plate_thickness/2}</code>, <code>${pi/4}</code>.</div>
+      </div>
+      <div class="card-explain">
+        <code class="block"><span class="k">&lt;xacro:property</span> name=<span class="v">"plate_thickness"</span>   value=<span class="v">"0.007"</span><span class="k">/&gt;</span>
+<span class="k">&lt;xacro:property</span> name=<span class="v">"rubber_compressed"</span> value=<span class="v">"0.022987"</span><span class="k">/&gt;</span>
+
+<span class="c">&lt;!-- compose: plate top - thickness/2 puts plate visual below origin --&gt;</span>
+<span class="k">&lt;origin</span> xyz=<span class="v">"0 0 ${-plate_thickness/2}"</span><span class="k">/&gt;</span></code>
+        <div class="ex-deps"><b>Single source of truth</b>This repo uses <code>plate_thickness=0.007</code> in <code>sensors_common.urdf.xacro</code>. If you remill the plate to 5 mm, change one number and every derived xyz/origin updates. Same pattern for <code>rubber_compressed</code>, <code>extrusion_2040_height</code>, etc.</div>
+        <div class="ex-test"><b>Test plan</b>Open <code>bench_fixture.urdf.xacro</code>. Add <code>&lt;xacro:property name="extrusion_2040_height" value="0.050"/&gt;</code> (override). Re-run <code>xacro</code> + reload RViz. The whole stack-up grows 20 mm and base_link → sensor_plate auto-recomputes.</div>
+      </div>
+    </article>
+
+    <!-- Card: xacro:include -->
+    <article class="card">
+      <div class="card-head">
+        <div class="row"><span class="paramName">xacro:include</span><span class="paramFile">file composition</span></div>
+        <div class="chips">
+          <span class="mode-chip xacro">xacro</span>
+          <span class="cost-chip beginner">beginner</span>
+          <span class="range-pill">$(find pkg) path · 1 robot per file</span>
+        </div>
+        <div class="paramDesc">Pulls another xacro file's contents inline. This repo uses it to share <code>sensors_common.urdf.xacro</code> (sensor mounting geometry) across every platform. The platform xacro defines <code>base_link</code> + chassis; the include adds the sensor plate + sensors on top.</div>
+      </div>
+      <div class="card-explain">
+        <code class="block"><span class="c">&lt;!-- bench_fixture.urdf.xacro --&gt;</span>
+<span class="k">&lt;xacro:include</span> filename=<span class="v">"$(find slam_bringup)/urdf/sensors_common.urdf.xacro"</span><span class="k">/&gt;</span>
+
+<span class="c">&lt;!-- now plate_thickness, sensor_plate link, livox_frame, imu_link, --&gt;</span>
+<span class="c">&lt;!-- d435_front_link are all available in this file --&gt;</span></code>
+        <div class="ex-deps"><b>$(find pkg) resolution</b>The <code>$(find slam_bringup)</code> substitution is evaluated by xacro at parse time. It expands to the absolute path of the <code>slam_bringup</code> ROS package's share directory. As long as the package is in <code>AMENT_PREFIX_PATH</code> (true after <code>source install/setup.bash</code>), the include works from any working directory.</div>
+        <div class="ex-test"><b>Test plan</b>Run <code>xacro urdf/mecanum.urdf.xacro</code> from a directory that hasn't sourced the workspace — expect "Cannot locate package 'slam_bringup'." Then <code>source install/setup.bash</code> and rerun — clean expansion.</div>
+      </div>
+    </article>
+
+    <!-- Card: xacro:macro -->
+    <article class="card">
+      <div class="card-head">
+        <div class="row"><span class="paramName">xacro:macro</span><span class="paramFile">parameterized templates</span></div>
+        <div class="chips">
+          <span class="mode-chip xacro">xacro</span>
+          <span class="cost-chip intermediate">intermediate</span>
+          <span class="range-pill">named params · ${param} inside body</span>
+        </div>
+        <div class="paramDesc">A reusable parameterized sub-tree. Define once, call N times with different arguments. <b>This repo doesn't currently use macros</b> (only 3 sensors, all single-instance), but you'd reach for one the moment you add 4 wheels or N camera mounts.</div>
+      </div>
+      <div class="card-explain">
+        <code class="block"><span class="k">&lt;xacro:macro</span> name=<span class="v">"wheel"</span> params=<span class="v">"prefix x y"</span><span class="k">&gt;</span>
+  <span class="k">&lt;link</span> name=<span class="v">"${prefix}_wheel"</span><span class="k">&gt;</span>…<span class="k">&lt;/link&gt;</span>
+  <span class="k">&lt;joint</span> name=<span class="v">"${prefix}_wheel_joint"</span> type=<span class="v">"continuous"</span><span class="k">&gt;</span>
+    <span class="k">&lt;parent</span> link=<span class="v">"base_link"</span><span class="k">/&gt;</span>
+    <span class="k">&lt;child</span>  link=<span class="v">"${prefix}_wheel"</span><span class="k">/&gt;</span>
+    <span class="k">&lt;origin</span> xyz=<span class="v">"${x} ${y} 0"</span> rpy=<span class="v">"0 0 0"</span><span class="k">/&gt;</span>
+    <span class="k">&lt;axis</span> xyz=<span class="v">"0 1 0"</span><span class="k">/&gt;</span>
+  <span class="k">&lt;/joint&gt;</span>
+<span class="k">&lt;/xacro:macro&gt;</span>
+
+<span class="k">&lt;xacro:wheel</span> prefix=<span class="v">"front_left"</span>  x=<span class="v">"0.14"</span> y=<span class="v">"0.115"</span><span class="k">/&gt;</span>
+<span class="k">&lt;xacro:wheel</span> prefix=<span class="v">"front_right"</span> x=<span class="v">"0.14"</span> y=<span class="v">"-0.115"</span><span class="k">/&gt;</span>
+<span class="k">&lt;xacro:wheel</span> prefix=<span class="v">"rear_left"</span>   x=<span class="v">"-0.14"</span> y=<span class="v">"0.115"</span><span class="k">/&gt;</span>
+<span class="k">&lt;xacro:wheel</span> prefix=<span class="v">"rear_right"</span>  x=<span class="v">"-0.14"</span> y=<span class="v">"-0.115"</span><span class="k">/&gt;</span></code>
+        <div class="ex-deps"><b>When to add macros</b>≥3 repetitions of similar geometry. <code>mecanum.urdf.xacro</code> will need one as soon as you add wheels for animated joint_states.</div>
+      </div>
+    </article>
+
+    <!-- Card: xacro:if -->
+    <article class="card">
+      <div class="card-head">
+        <div class="row"><span class="paramName">xacro:if / xacro:unless</span><span class="paramFile">conditional inclusion</span></div>
+        <div class="chips">
+          <span class="mode-chip xacro">xacro</span>
+          <span class="cost-chip intermediate">intermediate</span>
+          <span class="range-pill">boolean expression</span>
+        </div>
+        <div class="paramDesc">Conditionally include a block of XML based on a property or argument. Useful for "feature flags" inside a URDF — e.g. include a second D435 mount only on platforms that have one, or swap visual styles for sim vs real.</div>
+      </div>
+      <div class="card-explain">
+        <code class="block"><span class="k">&lt;xacro:arg</span> name=<span class="v">"with_rear_camera"</span> default=<span class="v">"false"</span><span class="k">/&gt;</span>
+<span class="k">&lt;xacro:property</span> name=<span class="v">"with_rear"</span> value=<span class="v">"$(arg with_rear_camera)"</span><span class="k">/&gt;</span>
+
+<span class="k">&lt;xacro:if</span> value=<span class="v">"${with_rear}"</span><span class="k">&gt;</span>
+  <span class="k">&lt;link</span> name=<span class="v">"d435_rear_link"</span><span class="k">/&gt;</span>
+  <span class="k">&lt;joint</span> name=<span class="v">"sensor_plate_to_d435_rear_link"</span> type=<span class="v">"fixed"</span><span class="k">&gt;</span>…<span class="k">&lt;/joint&gt;</span>
+<span class="k">&lt;/xacro:if&gt;</span></code>
+        <div class="ex-test"><b>Test plan</b>Launch with <code>xacro urdf/mecanum.urdf.xacro with_rear_camera:=true</code>. Verify the rear link appears in <code>ros2 run tf2_ros tf2_echo sensor_plate d435_rear_link</code>. Set false → same command returns "did not find transform."</div>
+      </div>
+    </article>
+
+  </div>
+</section>
+
+<!-- ============== SECTION 4: TF TREE ============== -->
+<section class="section">
+  <h2 class="section-title">4 · Frame Hierarchy &amp; TF Tree</h2>
+  <p class="section-lede">A URDF produces a <b>tree of TF frames</b>. The platform xacro defines <code>base_link</code> (the root). The shared <code>sensors_common.urdf.xacro</code> adds <code>sensor_plate</code> as a child, and <code>livox_frame</code>/<code>imu_link</code>/<code>d435_front_link</code> as grandchildren. At runtime FAST-LIO2 publishes <code>camera_init → body</code> separately; a static bridge connects <code>body</code> to <code>base_link</code> so the URDF tree and the SLAM tree merge into one connected graph.</p>
+
+  <div class="cards">
+
+    <article class="card span-2">
+      <div class="card-head">
+        <div class="row"><span class="paramName">Full TF tree (mecanum + FAST-LIO2)</span><span class="paramFile">urdf/* + launch/slam.launch.py</span></div>
+        <div class="chips">
+          <span class="mode-chip platform">platform</span>
+          <span class="mode-chip runtime">runtime</span>
+          <span class="cost-chip intermediate">intermediate</span>
+          <span class="range-pill">map → camera_init → body → base_link → sensor_plate → sensors</span>
+        </div>
+        <div class="paramDesc">Toggle the layers to see how the URDF tree (from xacro) and the SLAM tree (from FAST-LIO2 + the static body↔base_link bridge) connect. Every frame is either authored in URDF (purple), published by SLAM (blue), or a static bridge (pink).</div>
+      </div>
+      <div class="canvas-wrap"><canvas id="cv-tftree" width="800" height="380"></canvas></div>
+      <div class="toggle-row" id="tf-toggle">
+        <button data-tf="urdf" class="active">URDF only</button>
+        <button data-tf="runtime">+ runtime (SLAM)</button>
+        <button data-tf="all">+ Nav2 frames</button>
+      </div>
+      <div class="card-explain">
+        <div class="ex-deps"><b>Color key</b>
+          <span style="color:var(--brand-purple)">■</span> purple = defined in URDF /xacro ·
+          <span style="color:var(--brand-blue)">■</span> blue = published by a runtime node (FAST-LIO2, realsense2_camera, witmotion_driver) ·
+          <span style="color:var(--brand-pink)">■</span> pink = static_transform_publisher bridge.
+        </div>
+        <div class="ex-test"><b>Test plan</b><code>ros2 run tf2_tools view_frames.py</code> dumps a PDF of the actual live tree. Compare it to this diagram. If anything's missing → the corresponding launch include didn't fire. If anything's a cycle → you have duplicate publishers fighting each other.</div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-head">
+        <div class="row"><span class="paramName">REP-105 standard frames</span><span class="paramFile">convention</span></div>
+        <div class="chips">
+          <span class="mode-chip convention">REP-105</span>
+          <span class="cost-chip intermediate">intermediate</span>
+          <span class="range-pill">map → odom → base_link → base_footprint</span>
+        </div>
+        <div class="paramDesc">ROS standardizes four mobile-robot frames: <code>map</code> (global, drift-free, may jump at loop closure), <code>odom</code> (local, smooth, drifts over time), <code>base_link</code> (rigidly attached to the robot's body), <code>base_footprint</code> (projection of base_link onto the ground plane — Z=0). This repo uses the first three; <code>base_footprint</code> is only added on the mecanum platform if you wire it in for Nav2.</div>
+      </div>
+      <div class="card-explain">
+        <div class="ex-deps"><b>Who publishes what</b><code>map → odom</code>: slam_toolbox (mapping) OR localization (loc mode). <code>odom → base_link</code>: rf2o / FAST-LIO2 (via the body bridge). <code>base_link → *</code>: robot_state_publisher reads URDF and emits all static joints. Each transform has exactly one publisher — duplicates cause TF jitter.</div>
+        <div class="ex-cross"><b>When to add base_footprint</b><span class="device-tag">Nav2 footprint</span> If the chassis isn't level (Go2 standing height varies), <code>base_footprint</code> stays at Z=0 while <code>base_link</code> rides up and down. Nav2's costmap reads <code>base_footprint</code> by default; without it on a quadruped, costmap clears below the dog.</div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-head">
+        <div class="row"><span class="paramName">parent ≠ child (tree constraint)</span><span class="paramFile">URDF spec</span></div>
+        <div class="chips">
+          <span class="mode-chip fundamentals">fundamentals</span>
+          <span class="cost-chip beginner">beginner</span>
+          <span class="range-pill">no cycles · 1 parent per link</span>
+        </div>
+        <div class="paramDesc">URDF is a directed acyclic graph rooted at <code>base_link</code> (or whatever link you don't list as a child anywhere). Every other link must be the child of <b>exactly one</b> joint. Trying to give a link two parents fails xacro expansion. Trying to make a cycle (A → B → A) fails <code>robot_state_publisher</code> startup.</div>
+      </div>
+      <div class="card-explain">
+        <div class="ex-deps"><b>"Closed loop" workaround</b>Real robots with closed kinematic chains (four-bar linkages, parallel manipulators) can't be expressed in URDF. You need <b>SDF</b> (Gazebo's format) or <b>MJCF</b> (MuJoCo). For this rig — purely tree-shaped — URDF is fine.</div>
+      </div>
+    </article>
+
+  </div>
+</section>
+
+<!-- ============== SECTION 5: STACK-UP ============== -->
+<section class="section">
+  <h2 class="section-title">5 · Bench-Fixture Stack-Up</h2>
+  <p class="section-lede">The bench fixture is a 207.670 mm vertical column built from 2040/2020 extrusion + rubber + ASA lidar plate. Each segment is a separate xacro property in <code>bench_fixture.urdf.xacro</code>, and the top-level <code>base_link_to_plate_top</code> is the sum. Re-measure any segment and the whole chain auto-updates. <b>The mecanum platform has a PLACEHOLDER 107.670 mm</b> — measure your rover before trusting the map z-axis.</p>
+
+  <div class="cards">
+
+    <article class="card span-2">
+      <div class="card-head">
+        <div class="row"><span class="paramName">stack-up builder (live)</span><span class="paramFile">bench_fixture.urdf.xacro</span></div>
+        <div class="chips">
+          <span class="mode-chip platform">platform</span>
+          <span class="cost-chip intermediate">intermediate</span>
+          <span class="range-pill"><b>total = lower_2040 + cavity + upper_2040 + rubber + plate</b></span>
+        </div>
+        <div class="paramDesc">Slide each segment to see <code>base_link_to_plate_top</code> recompute. The default values match the actual measured fixture (8.176" total). If you reprint the plate thicker or swap a 2040 for a 2080, change the number here and every downstream sensor position auto-corrects.</div>
+      </div>
+      <div class="canvas-wrap"><canvas id="cv-stack" width="800" height="320"></canvas></div>
+      <div class="controls">
+        <div class="slider-row"><label>lower 2040 (m)</label><input type="range" id="st-2040a" min="0.020" max="0.100" step="0.005" value="0.040"/><span class="val" id="st-2040a-v"></span></div>
+        <div class="slider-row"><label>2020 cavity (m)</label><input type="range" id="st-cav" min="0.040" max="0.200" step="0.001" value="0.097683"/><span class="val" id="st-cav-v"></span></div>
+        <div class="slider-row"><label>upper 2040 (m)</label><input type="range" id="st-2040b" min="0.020" max="0.100" step="0.005" value="0.040"/><span class="val" id="st-2040b-v"></span></div>
+        <div class="slider-row"><label>rubber pads (m)</label><input type="range" id="st-rub" min="0.005" max="0.060" step="0.001" value="0.022987"/><span class="val" id="st-rub-v"></span></div>
+        <div class="slider-row"><label>ASA plate (m)</label><input type="range" id="st-plate" min="0.003" max="0.020" step="0.0005" value="0.007"/><span class="val" id="st-plate-v"></span></div>
+        <button class="reset-btn" id="st-reset">↺ defaults (8.176" / 207.670 mm)</button>
+      </div>
+      <div class="stat" id="stack-stat"></div>
+      <div class="card-explain">
+        <div class="ex-deps"><b>Downstream impact</b>Anything that reads <code>sensor_plate</code> moves with this stack. The Mid-360 optical center, the WT901 housing, and the D435 front glass are all expressed relative to <code>sensor_plate</code>'s top — so if the stack grows 10 mm, all three sensors rise 10 mm in the global map. The Z component of <code>PLATFORM_BRIDGES['bench_fixture']</code> in <code>slam.launch.py</code> MUST be updated to match (currently <code>-0.244280</code> = plate_top 0.207670 + livox Z 0.036610).</div>
+        <div class="ex-test"><b>Test plan</b>Print a 5 mm spacer, slip it between the upper 2040 and the rubber pads. Re-measure with calipers from base to plate-top. Update <code>extrusion_2040_height</code> or add a new property <code>spacer=0.005</code>. Re-run SLAM, place the rig on the same spot, confirm the map's reported Z of a known wall landmark shifted by exactly 5 mm.</div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-head">
+        <div class="row"><span class="paramName">mecanum platform placeholder</span><span class="paramFile">mecanum.urdf.xacro</span></div>
+        <div class="chips">
+          <span class="mode-chip platform">platform</span>
+          <span class="cost-chip advanced">advanced</span>
+          <span class="range-pill"><b>0.107670 m placeholder</b> — measure before trusting</span>
+        </div>
+        <div class="paramDesc"><code>mecanum.urdf.xacro</code> currently sets <code>base_link_to_plate_top = 0.107670</code> as a back-derived guess: bench_fixture stack (0.207670) minus an estimated 100 mm chassis height. The map's z-axis will be wrong by exactly the measurement error until you put calipers on the rover and update.</div>
+      </div>
+      <div class="card-explain">
+        <code class="block"><span class="c">&lt;!-- mecanum.urdf.xacro --&gt;</span>
+<span class="k">&lt;xacro:property</span> name=<span class="v">"base_link_to_plate_top"</span> value=<span class="v">"0.107670"</span><span class="k">/&gt;</span></code>
+        <div class="ex-deps"><b>Two places to update</b>(1) this property AND (2) <code>PLATFORM_BRIDGES['mecanum']</code> Z in <code>slam.launch.py</code> (currently <code>-0.144280</code>). The bridge value = <code>-(base_link_to_plate_top + 0.036610)</code> where 0.036610 is the Livox plate-top → optical-center Z. They must agree.</div>
+        <div class="ex-test"><b>How to measure</b>Set rover on a level floor. Drop a plumb-bob from the sensor plate's top corner. Measure floor-to-plate vertical distance with a caliper. Set both numbers. Re-run SLAM staring at a known wall, confirm map Z = real wall height.</div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-head">
+        <div class="row"><span class="paramName">chassis box (cosmetic visual)</span><span class="paramFile">mecanum.urdf.xacro</span></div>
+        <div class="chips">
+          <span class="mode-chip platform">platform</span>
+          <span class="cost-chip beginner">beginner</span>
+          <span class="range-pill">L × W × H — visual only, ignored by Nav2</span>
+        </div>
+        <div class="paramDesc">The Yahboom X3 chassis box (<code>chassis_length × chassis_width × chassis_height</code>) is drawn in RViz so you can see roughly where the robot is. It does NOT affect SLAM math, Nav2 footprint, or sensor positioning — only the picture. Approximate values are fine; you can refine later if you want a photorealistic preview.</div>
+      </div>
+      <div class="card-explain">
+        <code class="block"><span class="k">&lt;xacro:property</span> name=<span class="v">"chassis_length"</span> value=<span class="v">"0.280"</span><span class="k">/&gt;</span>
+<span class="k">&lt;xacro:property</span> name=<span class="v">"chassis_width"</span>  value=<span class="v">"0.230"</span><span class="k">/&gt;</span>
+<span class="k">&lt;xacro:property</span> name=<span class="v">"chassis_height"</span> value=<span class="v">"0.090"</span><span class="k">/&gt;</span></code>
+        <div class="ex-deps"><b>What it doesn't drive</b>Nav2's <code>robot_radius</code> (in <code>nav2_params_2d.yaml</code>) is what determines the lethal-zone footprint for path planning. Changing the chassis box here doesn't widen the planner's no-go zone — you have to update <code>robot_radius</code> separately.</div>
+      </div>
+    </article>
+
+  </div>
+</section>
+
+<!-- ============== SECTION 6: SENSOR MOUNTING ============== -->
+<section class="section">
+  <h2 class="section-title">6 · Sensor Mounting (sensor_plate frame)</h2>
+  <p class="section-lede">Every sensor's pose is expressed as an <code>&lt;origin xyz="…" rpy="…"/&gt;</code> relative to <code>sensor_plate</code> (top surface of the lidar plate, in body convention: +X = forward, +Y = left, +Z = up). Move a slider, see the sensor reposition in the side view. <b>Don't approximate</b> — sensor offsets directly shift the global map. A 5 mm error in the Mid-360 Y becomes a 5 mm bias in every wall position the SLAM stack reports.</p>
+
+  <div class="cards">
+
+    <!-- Card: Mid-360 position -->
+    <article class="card span-2">
+      <div class="card-head">
+        <div class="row"><span class="paramName">Mid-360 (livox_frame)</span><span class="paramFile">sensors_common.urdf.xacro · livox_xyz / livox_rpy</span></div>
+        <div class="chips">
+          <span class="mode-chip platform">platform</span>
+          <span class="cost-chip intermediate">intermediate</span>
+          <span class="range-pill">x: <b>-0.025</b> · y: <b>0.0</b> · z: <b>+0.03661</b> · rpy: <b>0 0 0</b></span>
+        </div>
+        <div class="paramDesc">Body shifted 25 mm BACK (-X) to make room for the WT901 in front. Optical center sits 36.61 mm above the plate top per the Livox datasheet. Pure translation — no rotation needed because the Mid-360 was mounted with its +X aligned with body +X. Mid-360 publishes a 360° azimuth × ~59° elevation cloud, so a small body offset doesn't lose coverage.</div>
+      </div>
+      <div class="canvas-wrap"><canvas id="cv-livox" width="800" height="280"></canvas></div>
+      <div class="controls">
+        <div class="slider-row"><label>livox.x (m)</label><input type="range" id="lx-x" min="-0.10" max="0.10" step="0.001" value="-0.025"/><span class="val" id="lx-x-v"></span></div>
+        <div class="slider-row"><label>livox.y (m)</label><input type="range" id="lx-y" min="-0.08" max="0.08" step="0.001" value="0.0"/><span class="val" id="lx-y-v"></span></div>
+        <div class="slider-row"><label>livox.z (m above plate)</label><input type="range" id="lx-z" min="0.005" max="0.10" step="0.001" value="0.03661"/><span class="val" id="lx-z-v"></span></div>
+        <button class="reset-btn" id="lx-reset">↺ defaults</button>
+      </div>
+      <div class="stat" id="livox-stat"></div>
+      <div class="card-explain">
+        <div class="ex-deps"><b>0.03661 m is from the datasheet, not measured</b>The Livox Mid-360 product manual specifies 36.61 mm from the mounting flange to the optical center. If you 3D-print a riser to lift the sensor higher, ADD the riser height to this value — don't replace it.</div>
+        <div class="ex-cross"><b>Other lidars</b>
+          <span class="device-tag">Velodyne VLP-16: ~0.0717 m optical center above base</span>
+          <span class="device-tag">Hesai Pandar40P: ~0.105 m</span>
+          <span class="device-tag">RPLidar C1M1: ~0.040 m</span>
+          <span class="device-tag">Unitree L1: ~0.027 m</span>
+          Each datasheet has the flange-to-optical-center number. Swap the sensor → swap this Z.
+        </div>
+        <div class="ex-test"><b>Test plan</b>Place a 1 m vertical ruler against a wall, scan with rover stationary. In RViz, click a point on the ruler at the 0.5 m tick. Reported Z should be 0.5 m above floor (within ±5 mm). If it's off, this Z is wrong.</div>
+      </div>
+    </article>
+
+    <!-- Card: WT901 IMU -->
+    <article class="card">
+      <div class="card-head">
+        <div class="row"><span class="paramName">WT901 IMU (imu_link)</span><span class="paramFile">sensors_common.urdf.xacro · imu_xyz / imu_rpy</span></div>
+        <div class="chips">
+          <span class="mode-chip platform">platform</span>
+          <span class="cost-chip intermediate">intermediate</span>
+          <span class="range-pill">x: <b>0.060</b> · z: <b>+0.009</b> · rpy: <b>0 0 0</b></span>
+        </div>
+        <div class="paramDesc">Plate-Y -60 mm in CAD frame → body +X 60 mm (toward D435). Z = 9 mm above plate top (3 mm flange + half of 12 mm housing-above-flange = housing center). Backup IMU only — FAST-LIO2 uses the Mid-360's onboard ICM40609. WT901 X-sticker physically points body-forward; no yaw correction needed.</div>
+      </div>
+      <div class="controls">
+        <div class="slider-row"><label>imu.x (m)</label><input type="range" id="imu-x" min="-0.05" max="0.10" step="0.001" value="0.060"/><span class="val" id="imu-x-v"></span></div>
+        <div class="slider-row"><label>imu.z (m above plate)</label><input type="range" id="imu-z" min="0.003" max="0.040" step="0.001" value="0.009"/><span class="val" id="imu-z-v"></span></div>
+        <button class="reset-btn" id="imu-reset">↺ defaults</button>
+      </div>
+      <div class="stat" id="imu-stat"></div>
+      <div class="card-explain">
+        <div class="ex-deps"><b>If you rotate the WT901 housing</b>The X-axis sticker MUST stay aligned with body +X. If the housing is mounted sideways (sticker pointing left), set <code>imu_rpy = "0 0 1.5708"</code> to undo the 90° physical rotation. Otherwise the IMU reports yaw/pitch about the wrong axes and FAST-LIO2 diverges.</div>
+        <div class="ex-cross"><b>Other IMUs</b>
+          <span class="device-tag">BNO086: similar 3 mm flange, ~10 mm housing</span>
+          <span class="device-tag">BNO055: 4 mm flange, ~9 mm housing</span>
+          <span class="device-tag">ICM-40609 (Mid-360 onboard): factory extrinsic <code>[-0.011, -0.02329, 0.04412]</code> from optical center, see <code>fast_lio_mid360.yaml</code></span>
+        </div>
+        <div class="ex-test"><b>Test plan</b>Run <code>ros2 topic echo /imu/data</code> while gently tilting rover nose-up. Pitch (Euler angle) should go POSITIVE per REP-103. If it goes negative, the WT901 is mounted upside-down or rotated — fix the rpy here, don't fix it downstream.</div>
+      </div>
+    </article>
+
+    <!-- Card: D435 front -->
+    <article class="card">
+      <div class="card-head">
+        <div class="row"><span class="paramName">D435 front (d435_front_link)</span><span class="paramFile">sensors_common.urdf.xacro · d435_front_xyz/rpy</span></div>
+        <div class="chips">
+          <span class="mode-chip platform">platform</span>
+          <span class="cost-chip advanced">advanced</span>
+          <span class="range-pill">x: <b>+0.147</b> · z: <b>-0.029</b> · pitch: <b>+0.176</b> rad (10.09° nose-down)</span>
+        </div>
+        <div class="paramDesc">Front-glass plane is the URDF reference; realsense2_camera adds internal optical-center offsets at runtime. Sticking out 146.761 mm forward of plate center, 28.502 mm BELOW plate top (the mount drops it). Pitched <b>+10.09° nose-down</b> by design so depth FOV covers the floor ahead, not the horizon.</div>
+      </div>
+      <div class="canvas-wrap"><canvas id="cv-d435" width="540" height="240"></canvas></div>
+      <div class="controls">
+        <div class="slider-row"><label>d435.x (m)</label><input type="range" id="d4-x" min="0.05" max="0.25" step="0.001" value="0.146761"/><span class="val" id="d4-x-v"></span></div>
+        <div class="slider-row"><label>d435.z (m vs plate)</label><input type="range" id="d4-z" min="-0.10" max="0.05" step="0.001" value="-0.028502"/><span class="val" id="d4-z-v"></span></div>
+        <div class="slider-row"><label>pitch (rad)</label><input type="range" id="d4-p" min="-0.35" max="0.6" step="0.005" value="0.176136"/><span class="val" id="d4-p-v"></span></div>
+        <button class="reset-btn" id="d4-reset">↺ defaults</button>
+      </div>
+      <div class="stat" id="d4-stat"></div>
+      <div class="card-explain">
+        <div class="ex-deps"><b>Don't trust the housing top</b>The D435 case rounds toward the lens, so resting an inclinometer on the top reads ~5° more pitch than the optical axis actually has. Use <code>scripts/measure_d435_pitch.py</code> — fits the floor plane in the depth cloud → reads the actual optical-axis tilt. The 10.09° in URDF came from a 99.8%-inlier floor fit on 2026-04-26.</div>
+        <div class="ex-cost"><b>How much pitch is "too much"</b>At >25° nose-down, the D435 stops seeing the horizon entirely — usable for floor mapping but useless for obstacle avoidance at standing height. At <5° nose-down, depth coverage of the floor in front of the rover collapses to a thin band 2 m+ away; close-range floor obstacles get clipped by the lower FOV edge.</div>
+        <div class="ex-cross"><b>Other depth cameras</b>
+          <span class="device-tag">D435i: same body as D435 + onboard IMU (publish to /imu/data)</span>
+          <span class="device-tag">D455: wider baseline, ~95° FOV vs D435's 87° — re-derive pitch for similar floor coverage</span>
+          <span class="device-tag">ZED Mini: 90° FOV — similar pitch</span>
+          <span class="device-tag">OAK-D Pro: 80° FOV — needs MORE pitch (~15°) for same floor coverage</span>
+        </div>
+      </div>
+    </article>
+
+    <!-- Card: d435_rear_link platform-specific -->
+    <article class="card">
+      <div class="card-head">
+        <div class="row"><span class="paramName">d435_rear_link (platform-specific)</span><span class="paramFile">per-platform xacro · NOT in sensors_common</span></div>
+        <div class="chips">
+          <span class="mode-chip platform">platform</span>
+          <span class="cost-chip intermediate">intermediate</span>
+          <span class="range-pill">define in platform xacro · use <code>xacro:if</code> to gate</span>
+        </div>
+        <div class="paramDesc">A rear camera isn't part of the shared sensor rig — different platforms place it differently (bench fixture has none; mecanum could mount one above the back of the chassis; Go2 carries it on the saddle). Each platform xacro adds <code>d435_rear_link</code> at its own offset when the camera is physically present.</div>
+      </div>
+      <div class="card-explain">
+        <code class="block"><span class="c">&lt;!-- in mecanum.urdf.xacro, AFTER the include of sensors_common --&gt;</span>
+<span class="k">&lt;link</span> name=<span class="v">"d435_rear_link"</span><span class="k">/&gt;</span>
+<span class="k">&lt;joint</span> name=<span class="v">"sensor_plate_to_d435_rear_link"</span> type=<span class="v">"fixed"</span><span class="k">&gt;</span>
+  <span class="k">&lt;parent</span> link=<span class="v">"sensor_plate"</span><span class="k">/&gt;</span>
+  <span class="k">&lt;child</span>  link=<span class="v">"d435_rear_link"</span><span class="k">/&gt;</span>
+  <span class="c">&lt;!-- yaw 180° so the rear cam looks at -X --&gt;</span>
+  <span class="k">&lt;origin</span> xyz=<span class="v">"-0.10 0 -0.03"</span> rpy=<span class="v">"0 0.18 3.14159"</span><span class="k">/&gt;</span>
+<span class="k">&lt;/joint&gt;</span></code>
+        <div class="ex-deps"><b>realsense launch must match</b>Launch the rear camera with <code>camera_name:=d435_rear</code> so its published frames (<code>d435_rear_color_optical_frame</code>, etc.) start with the right prefix and attach correctly to <code>d435_rear_link</code>.</div>
+      </div>
+    </article>
+
+  </div>
+</section>
+
+<!-- ============== SECTION 7: BRIDGES ============== -->
+<section class="section">
+  <h2 class="section-title">7 · PLATFORM_BRIDGES — body ↔ base_link</h2>
+  <p class="section-lede">FAST-LIO2 publishes the transform <code>camera_init → body</code> at runtime, where <code>body</code> is the Mid-360 IMU body frame. The URDF tree's root is <code>base_link</code>. These two trees need to merge into one TF graph, which is the job of a single <code>static_transform_publisher</code> per platform — configured by the <code>PLATFORM_BRIDGES</code> dict in <code>launch/slam.launch.py</code>. <b>This bridge is the most error-prone glue in the whole stack.</b></p>
+
+  <div class="cards">
+
+    <article class="card span-2">
+      <div class="card-head">
+        <div class="row"><span class="paramName">body → base_link offset</span><span class="paramFile">launch/slam.launch.py · PLATFORM_BRIDGES</span></div>
+        <div class="chips">
+          <span class="mode-chip runtime">runtime</span>
+          <span class="mode-chip platform">platform</span>
+          <span class="cost-chip advanced">advanced</span>
+          <span class="range-pill">bench_fixture: <b>(0, 0, -0.244280)</b> · mecanum: <b>(0, 0, -0.144280)</b></span>
+        </div>
+        <div class="paramDesc">For the bench fixture: <code>base_link → plate_top = +0.207670</code>, <code>plate_top → livox_frame Z = +0.036610</code>, so <code>body</code> sits <code>0.244280 m ABOVE base_link</code>. The bridge transform goes body → base_link → so its Z translation is <b>negative 0.244280</b>. Get the sign wrong and the map appears inverted; get the magnitude wrong and the floor drifts up/down by exactly that error.</div>
+      </div>
+      <div class="canvas-wrap"><canvas id="cv-bridge" width="800" height="280"></canvas></div>
+      <div class="controls">
+        <div class="slider-row"><label>plate Z (m)</label><input type="range" id="br-plate" min="0.05" max="0.30" step="0.001" value="0.207670"/><span class="val" id="br-plate-v"></span></div>
+        <div class="slider-row"><label>livox Z (m, above plate)</label><input type="range" id="br-livox" min="0.020" max="0.080" step="0.001" value="0.036610"/><span class="val" id="br-livox-v"></span></div>
+      </div>
+      <div class="stat" id="bridge-stat"></div>
+      <div class="card-explain">
+        <code class="block"><span class="c"># launch/slam.launch.py</span>
+PLATFORM_BRIDGES = {
+    <span class="v">'bench_fixture'</span>: (<span class="k">0.0, 0.0, -0.244280</span>, 0.0, 0.0, 0.0),
+    <span class="v">'mecanum'</span>:       (<span class="k">0.0, 0.0, -0.144280</span>, 0.0, 0.0, 0.0),
+    <span class="c"># 'go2':       …  ← fill in once measured</span>
+    <span class="c"># 'r2d2':      …</span>
+    <span class="c"># 'roboscout': …</span>
+}</code>
+        <div class="ex-deps"><b>The two-place update rule</b>If you change <code>base_link_to_plate_top</code> in the platform xacro, you MUST change the Z in <code>PLATFORM_BRIDGES[platform]</code> in <code>slam.launch.py</code> too. Bridge Z = <code>-(plate_top + livox_z_above_plate)</code>. Forgetting one of them leaves the URDF tree and the SLAM tree disagreeing by your mistake.</div>
+        <div class="ex-test"><b>Test plan</b>After any stack-up change: place rover on level floor next to a known landmark (corner of a desk). Start mapping. In RViz, click the floor point in the map. <code>z</code> should be 0.0 m ± 5 mm. Click the desk's top edge — z should equal your desk's measured height. If the offset is constant, you forgot the bridge update.</div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-head">
+        <div class="row"><span class="paramName">Yaw mismatch (mecanum)</span><span class="paramFile">launch/slam.launch.py · yahboom_bridge_node</span></div>
+        <div class="chips">
+          <span class="mode-chip runtime">runtime</span>
+          <span class="mode-chip platform">platform</span>
+          <span class="cost-chip advanced">advanced</span>
+          <span class="range-pill">FIX in bridge, NOT by rotating base_link</span>
+        </div>
+        <div class="paramDesc">The YB-ERF01 firmware's +X is OPPOSITE the sensor "front" (D435 direction). The temptation is to add yaw=π to the URDF base_link to reconcile. <b>Don't.</b> That flips the Nav2 costmap, footprint orientation, and /scan frame 180° and breaks navigation. Instead the velocity-command inversion happens inside <code>yahboom_bridge_node</code> via <code>invert_vx</code>/<code>invert_vy</code> parameters.</div>
+      </div>
+      <div class="card-explain">
+        <div class="ex-deps"><b>The correct fix lives in</b><code>config/yahboom_bridge.yaml</code>: <code>invert_vx: true</code>, <code>invert_vy: true</code>. The URDF stays in body convention (D435 = +X). The bridge node sees /cmd_vel in body frame and writes the inverted command to the firmware. Result: Nav2's world view is consistent, the rover obeys correctly.</div>
+        <div class="ex-cost"><b>Why rotating base_link breaks things</b>Nav2's costmap origin tracks base_link. Rotating base_link 180° rotates the costmap 180°. Then "in front of the rover" in Nav2's frame is behind the rover physically. The local planner picks paths going backward to reach forward goals. Inflation zone appears mirrored. Everything downstream is wrong by π.</div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-head">
+        <div class="row"><span class="paramName">camera_name prefix (D435)</span><span class="paramFile">launch/d435.launch.py</span></div>
+        <div class="chips">
+          <span class="mode-chip runtime">runtime</span>
+          <span class="cost-chip intermediate">intermediate</span>
+          <span class="range-pill">camera_name: <b>d435_front</b> | <b>d435_rear</b></span>
+        </div>
+        <div class="paramDesc">realsense2_camera publishes a sub-tree of optical frames under whatever you set <code>camera_name</code> to. To make <code>d435_front_color_optical_frame</code> attach to <code>d435_front_link</code> (defined in URDF), set <code>camera_name:=d435_front</code> when launching. Mismatch the prefix and the frames float free — RViz shows two disconnected trees.</div>
+      </div>
+      <div class="card-explain">
+        <code class="block"><span class="c"># launch/d435.launch.py</span>
+realsense_node = Node(
+    package=<span class="v">'realsense2_camera'</span>,
+    parameters=[{
+        <span class="v">'camera_name'</span>: <span class="v">'d435_front'</span>,  <span class="c"># MUST match the URDF link prefix</span>
+        ...
+    }]
+)</code>
+        <div class="ex-test"><b>Test plan</b><code>ros2 run tf2_tools view_frames.py</code> after launch. Verify <code>d435_front_link → d435_front_color_optical_frame</code> exists. If <code>camera_color_optical_frame</code> appears instead (no prefix), the camera_name parameter didn't propagate — check the launch include.</div>
+      </div>
+    </article>
+
+  </div>
+</section>
+
+<!-- ============== SECTION 8: ADDING A NEW PLATFORM ============== -->
+<section class="section">
+  <h2 class="section-title">8 · Adding a New Platform</h2>
+  <p class="section-lede">Porting the rig to a Go2, R2D2, Roboscout, or any new chassis follows the same recipe: write a platform xacro that defines <code>base_link</code> + chassis visual + the joint to <code>sensor_plate</code>, include <code>sensors_common.urdf.xacro</code>, measure the plate offset, add a <code>PLATFORM_BRIDGES</code> entry. Six concrete steps below.</p>
+
+  <div class="cards">
+
+    <article class="card span-2">
+      <div class="card-head">
+        <div class="row"><span class="paramName">new-platform checklist</span><span class="paramFile">urdf/&lt;platform&gt;.urdf.xacro + launch/slam.launch.py</span></div>
+        <div class="chips">
+          <span class="mode-chip platform">platform</span>
+          <span class="cost-chip advanced">advanced</span>
+          <span class="range-pill">6 files to touch · 1 measurement to make</span>
+        </div>
+        <div class="paramDesc">Concrete recipe for adding (say) Go2 support. Each step is a single small action; the order matters because later steps test earlier ones.</div>
+      </div>
+      <div class="card-explain">
+        <code class="block"><span class="c"># 1. Copy mecanum.urdf.xacro to urdf/go2.urdf.xacro</span>
+cp urdf/mecanum.urdf.xacro urdf/go2.urdf.xacro
+
+<span class="c"># 2. In go2.urdf.xacro:</span>
+<span class="c">#    - change &lt;robot name="mecanum_x3"&gt; → &lt;robot name="go2"&gt;</span>
+<span class="c">#    - measure base_link → sensor_plate top with rover standing</span>
+<span class="c">#    - update xacro:property base_link_to_plate_top</span>
+<span class="c">#    - replace chassis box dims with Go2 dimensions (or load a mesh)</span>
+
+<span class="c"># 3. Add PLATFORM_BRIDGES entry in launch/slam.launch.py:</span>
+<span class="v">'go2'</span>: (0.0, 0.0, -(BASE_TO_PLATE + 0.036610), 0.0, 0.0, 0.0),
+
+<span class="c"># 4. Sanity check: xacro urdf/go2.urdf.xacro &gt; /tmp/go2.urdf</span>
+<span class="c">#    (should emit clean XML, no errors)</span>
+
+<span class="c"># 5. Launch: ros2 launch slam_bringup perception.launch.py platform:=go2</span>
+<span class="c">#    Open RViz, add RobotModel + TF. Confirm all frames present.</span>
+
+<span class="c"># 6. Launch SLAM: ros2 launch slam_bringup slam.launch.py platform:=go2</span>
+<span class="c">#    Map a 5 m hallway. Click floor in RViz — Z must be 0 m ± 5 mm.</span></code>
+        <div class="ex-deps"><b>If step 5 shows missing frames</b><code>ros2 run tf2_tools view_frames.py</code> → open the PDF → check for orphans. Most common: forgot <code>xacro:include sensors_common.urdf.xacro</code>, or the platform xacro's <code>joint base_link_to_sensor_plate</code> has wrong parent/child names.</div>
+        <div class="ex-cost"><b>If step 6 shows wrong Z</b>Bridge Z and <code>base_link_to_plate_top</code> disagree (the two-place update rule). Or you measured the plate offset with the rover crouched but launched while standing (Go2 height varies).</div>
+        <div class="ex-test"><b>Test plan</b>Park rover next to known wall, mark a tape arrow on the floor pointing the rover's "forward" direction. Drive 1 m forward via joystick. In RViz the rover icon should also move +1 m in +X. If it moves in +Y or -X, your URDF rpy is wrong (most likely yaw); fix in URDF, not in the bridge unless the cmd_vel sign is the actual issue (see the mecanum card).</div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-head">
+        <div class="row"><span class="paramName">verify the URDF expanded</span><span class="paramFile">command-line sanity check</span></div>
+        <div class="chips">
+          <span class="mode-chip platform">platform</span>
+          <span class="cost-chip beginner">beginner</span>
+          <span class="range-pill">one command · zero RViz</span>
+        </div>
+        <div class="paramDesc">Before launching anything, confirm the xacro expands cleanly to URDF. Catches typos, broken <code>$(find pkg)</code>, missing <code>xacro:property</code>, mismatched tags — without needing the full ROS stack up.</div>
+      </div>
+      <div class="card-explain">
+        <code class="block"><span class="c"># From the workspace root, with workspace sourced</span>
+xacro urdf/mecanum.urdf.xacro &gt; /tmp/mecanum.urdf
+
+<span class="c"># Count links and joints — sanity</span>
+grep -c '&lt;link' /tmp/mecanum.urdf      <span class="c"># expect ~5</span>
+grep -c '&lt;joint' /tmp/mecanum.urdf     <span class="c"># expect ~4</span>
+
+<span class="c"># Validate with check_urdf if installed</span>
+check_urdf /tmp/mecanum.urdf            <span class="c"># reports the tree</span></code>
+        <div class="ex-test"><b>What success looks like</b><code>check_urdf</code> prints a tree starting at <code>base_link</code> → sensor_plate → (livox_frame, imu_link, d435_front_link). Any "orphan" link means a joint is missing or has a typo'd parent/child name.</div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-head">
+        <div class="row"><span class="paramName">visualize without launching SLAM</span><span class="paramFile">RViz + robot_state_publisher</span></div>
+        <div class="chips">
+          <span class="mode-chip platform">platform</span>
+          <span class="cost-chip beginner">beginner</span>
+          <span class="range-pill">no sensors needed · no robot needed</span>
+        </div>
+        <div class="paramDesc">Fast feedback loop: open RViz with just <code>robot_state_publisher</code>, no sensors. Iterate on URDF geometry, alpha, sensor positions, mounting pitch — reload, see the change in <2 seconds. Saves you from running the full SLAM stack just to confirm a 10 mm tweak.</div>
+      </div>
+      <div class="card-explain">
+        <code class="block"><span class="c"># Terminal 1</span>
+ros2 launch slam_bringup perception.launch.py platform:=mecanum
+
+<span class="c"># Terminal 2</span>
+rviz2 -d rviz/slam.rviz
+<span class="c"># Add: RobotModel (Description Topic: /robot_description), TF</span>
+
+<span class="c"># Iterate: edit URDF → Ctrl+C terminal 1 → rerun → RViz auto-reloads</span></code>
+        <div class="ex-test"><b>What to look for</b>Translucent chassis box appears at base_link. Sensor links visible as small RGB axis triads on top. If you toggle <code>Show Links → livox_frame</code>, RViz draws a label at the optical center — that's where the lidar's Z value should match the datasheet.</div>
+      </div>
+    </article>
+
+  </div>
+</section>
+
+<footer class="foot">
+  <b>URDF Explorer · Make or Code</b> · Pair with
+  <code style="color:var(--brand-pink)">slam_config_explorer.html</code> for parameter tuning,
+  <code style="color:var(--brand-pink)">slam_2d_vs_3d.html</code> for the projection pipeline.
+</footer>
+
+</div>
+
+<script>
+// ============================================================
+// helpers
+// ============================================================
+function fitDPR(c){
+  const dpr=window.devicePixelRatio||1;
+  const rect=c.getBoundingClientRect();
+  c.width=rect.width*dpr;
+  c.height=(c.getAttribute('height')||rect.height)*dpr;
+  const ctx=c.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return ctx;
+}
+function w(c){return c.getBoundingClientRect().width}
+function h(c){return parseInt(c.getAttribute('height'))||c.getBoundingClientRect().height}
+
+const BR={pink:'#ff3d7f',blue:'#00b8ff',purple:'#7a2dff',bg:'#0a0a14',ink:'#e2e8f0',dim:'#94a3b8',faint:'#64748b'};
+
+function bindSlider(id,fn,opts={}){
+  const el=document.getElementById(id);
+  const out=document.getElementById(id+'-v');
+  const unit=opts.unit||'';
+  const prec=opts.prec!==undefined?opts.prec:3;
+  function update(){
+    const v=parseFloat(el.value);
+    if(out)out.textContent=v.toFixed(prec)+unit;
+    fn(v);
+  }
+  el.addEventListener('input',update);
+  update();
+  return el;
+}
+function fmt(v,p=3){return v.toFixed(p)}
+
+// arrow helper
+function arrow(ctx,x1,y1,x2,y2,col,head=8){
+  ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  const ang=Math.atan2(y2-y1,x2-x1);
+  ctx.beginPath();
+  ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-head*Math.cos(ang-0.4),y2-head*Math.sin(ang-0.4));
+  ctx.lineTo(x2-head*Math.cos(ang+0.4),y2-head*Math.sin(ang+0.4));
+  ctx.closePath();ctx.fill();
+}
+
+// ============================================================
+// joint types
+// ============================================================
+(()=>{
+  const c=document.getElementById('cv-joint-types');
+  const ctx=fitDPR(c);
+  let t=0,jt='fixed';
+  const W=()=>w(c),H=()=>h(c);
+  document.querySelectorAll('#joint-type-toggles button').forEach(b=>{
+    b.addEventListener('click',()=>{
+      document.querySelectorAll('#joint-type-toggles button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      jt=b.dataset.jt;
+    });
+  });
+  function draw(){
+    ctx.clearRect(0,0,W(),H());
+    const cx=W()/2,cy=H()/2;
+    // parent
+    ctx.fillStyle='rgba(122,45,255,0.25)';ctx.strokeStyle=BR.purple;ctx.lineWidth=2;
+    ctx.fillRect(cx-160,cy-30,90,60);
+    ctx.strokeRect(cx-160,cy-30,90,60);
+    ctx.fillStyle=BR.purple;ctx.font='12px "JetBrains Mono"';ctx.textAlign='center';
+    ctx.fillText('parent',cx-115,cy+4);
+    // joint
+    const phase=Math.sin(t/40);
+    let cxr=cx+30,cyr=cy,rot=0;
+    if(jt==='revolute'){rot=Math.sin(t/40)*0.6;}
+    if(jt==='continuous'){rot=t/30;}
+    if(jt==='prismatic'){cxr=cx+30+phase*30;}
+    if(jt==='planar'){cxr=cx+30+Math.cos(t/40)*25;cyr=cy+Math.sin(t/40)*25;}
+    if(jt==='floating'){cxr=cx+30+Math.cos(t/40)*20;cyr=cy+Math.sin(t/40)*15;rot=Math.sin(t/40)*0.5;}
+    // joint line
+    ctx.strokeStyle=BR.pink;ctx.lineWidth=3;
+    ctx.beginPath();ctx.moveTo(cx-70,cy);ctx.lineTo(cxr,cyr);ctx.stroke();
+    // joint dot
+    ctx.fillStyle=BR.pink;ctx.beginPath();ctx.arc(cx-70,cy,5,0,Math.PI*2);ctx.fill();
+    // child
+    ctx.save();
+    ctx.translate(cxr,cyr);
+    ctx.rotate(rot);
+    ctx.fillStyle='rgba(0,184,255,0.25)';ctx.strokeStyle=BR.blue;ctx.lineWidth=2;
+    ctx.fillRect(0,-30,90,60);
+    ctx.strokeRect(0,-30,90,60);
+    ctx.fillStyle=BR.blue;ctx.font='12px "JetBrains Mono"';ctx.textAlign='center';
+    ctx.fillText('child',45,4);
+    ctx.restore();
+    // label
+    ctx.fillStyle=BR.ink;ctx.font='bold 14px "Orbitron"';ctx.textAlign='center';
+    const labels={
+      fixed:'fixed — bolted, no motion',
+      revolute:'revolute — hinge with limits',
+      continuous:'continuous — wheel, unbounded',
+      prismatic:'prismatic — linear slide',
+      planar:'planar — 2-DOF in plane',
+      floating:'floating — full 6-DOF'
+    };
+    ctx.fillText(labels[jt],W()/2,H()-12);
+    t++;requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ============================================================
+// origin xyz/rpy visualizer
+// ============================================================
+(()=>{
+  const c=document.getElementById('cv-origin');
+  const ctx=fitDPR(c);
+  let x=0.05,y=0,z=0.1,r=0,p=0,yw=0;
+  const W=()=>w(c),H=()=>h(c);
+  bindSlider('o-x',v=>{x=v;draw()},{unit:' m',prec:3});
+  bindSlider('o-y',v=>{y=v;draw()},{unit:' m',prec:3});
+  bindSlider('o-z',v=>{z=v;draw()},{unit:' m',prec:3});
+  bindSlider('o-r',v=>{r=v;draw()},{unit:' rad',prec:2});
+  bindSlider('o-p',v=>{p=v;draw()},{unit:' rad',prec:2});
+  bindSlider('o-yw',v=>{yw=v;draw()},{unit:' rad',prec:2});
+
+  function rotMat(rl,pt,yw){
+    // ZYX intrinsic: R = Rz(yw) Ry(pt) Rx(rl)
+    const cr=Math.cos(rl),sr=Math.sin(rl);
+    const cp=Math.cos(pt),sp=Math.sin(pt);
+    const cy=Math.cos(yw),sy=Math.sin(yw);
+    return [
+      [cy*cp, cy*sp*sr - sy*cr, cy*sp*cr + sy*sr],
+      [sy*cp, sy*sp*sr + cy*cr, sy*sp*cr - cy*sr],
+      [-sp,   cp*sr,            cp*cr]
+    ];
+  }
+  function project(X,Y,Z){
+    // simple isometric-ish
+    const sx=W()/2 + (X-Y)*0.7*120;
+    const sy=H()/2 + 60 + (X+Y)*0.4*60 - Z*180;
+    return [sx,sy];
+  }
+  function drawFrame(px,py,pz,R,len,labels,opacity=1){
+    const [sx,sy]=project(px,py,pz);
+    // axis tips
+    const tips=[
+      [px+R[0][0]*len, py+R[1][0]*len, pz+R[2][0]*len, BR.pink,labels[0]],
+      [px+R[0][1]*len, py+R[1][1]*len, pz+R[2][1]*len, '#34d399',labels[1]],
+      [px+R[0][2]*len, py+R[1][2]*len, pz+R[2][2]*len, BR.blue,labels[2]]
+    ];
+    ctx.globalAlpha=opacity;
+    tips.forEach(t=>{
+      const [tx,ty]=project(t[0],t[1],t[2]);
+      arrow(ctx,sx,sy,tx,ty,t[3],8);
+      ctx.fillStyle=t[3];ctx.font='bold 11px "JetBrains Mono"';
+      ctx.fillText(t[4],tx+5,ty-3);
+    });
+    ctx.globalAlpha=1;
+  }
+  function draw(){
+    ctx.clearRect(0,0,W(),H());
+    // ground grid (light)
+    ctx.strokeStyle='rgba(122,45,255,0.08)';ctx.lineWidth=1;
+    for(let gx=-0.4;gx<=0.4;gx+=0.1){
+      const a=project(gx,-0.4,0),b=project(gx,0.4,0);
+      ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();
+      const c2=project(-0.4,gx,0),d=project(0.4,gx,0);
+      ctx.beginPath();ctx.moveTo(c2[0],c2[1]);ctx.lineTo(d[0],d[1]);ctx.stroke();
+    }
+    // parent at origin (identity)
+    const I=[[1,0,0],[0,1,0],[0,0,1]];
+    drawFrame(0,0,0,I,0.12,['+X','+Y','+Z'],0.4);
+    // child at (x,y,z) with rotation
+    const R=rotMat(r,p,yw);
+    drawFrame(x,y,z,R,0.10,['x','y','z']);
+    // translation arrow
+    const o=project(0,0,0),c2=project(x,y,z);
+    ctx.strokeStyle='rgba(255,61,127,0.4)';ctx.setLineDash([4,3]);ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(o[0],o[1]);ctx.lineTo(c2[0],c2[1]);ctx.stroke();
+    ctx.setLineDash([]);
+    // labels
+    ctx.fillStyle=BR.dim;ctx.font='11px "JetBrains Mono"';ctx.textAlign='left';
+    ctx.fillText('parent frame (origin)',12,H()-32);
+    ctx.fillText('child frame (xyz + rpy)',12,H()-16);
+    document.getElementById('origin-stat').innerHTML=
+      `<b>xyz</b> (${fmt(x)}, ${fmt(y)}, ${fmt(z)}) m · <b>rpy</b> (${fmt(r,2)}, ${fmt(p,2)}, ${fmt(yw,2)}) rad`;
+  }
+  draw();
+})();
+
+// ============================================================
+// REP-103 axes
+// ============================================================
+(()=>{
+  const c=document.getElementById('cv-axes');
+  const ctx=fitDPR(c);
+  let ry=0.6,rx=0.3,dragging=false,lx=0,ly=0;
+  const W=()=>w(c),H=()=>h(c);
+  c.addEventListener('mousedown',e=>{dragging=true;lx=e.clientX;ly=e.clientY});
+  window.addEventListener('mouseup',()=>{dragging=false});
+  c.addEventListener('mousemove',e=>{
+    if(!dragging)return;
+    ry+=(e.clientX-lx)*0.01;
+    rx+=(e.clientY-ly)*0.01;
+    rx=Math.max(-1.2,Math.min(1.2,rx));
+    lx=e.clientX;ly=e.clientY;
+  });
+  function rot(p,rx,ry){
+    let [X,Y,Z]=p;
+    // rx around X
+    let Y2=Y*Math.cos(rx)-Z*Math.sin(rx);
+    let Z2=Y*Math.sin(rx)+Z*Math.cos(rx);
+    Y=Y2;Z=Z2;
+    // ry around Y
+    let X2=X*Math.cos(ry)+Z*Math.sin(ry);
+    Z2=-X*Math.sin(ry)+Z*Math.cos(ry);
+    X=X2;Z=Z2;
+    return [X,Y,Z];
+  }
+  function project(p){
+    return [W()/2+p[0]*120, H()/2+30-p[2]*120 + p[1]*30];
+  }
+  function draw(){
+    ctx.clearRect(0,0,W(),H());
+    // grid (XY plane)
+    ctx.strokeStyle='rgba(122,45,255,0.15)';
+    for(let i=-1;i<=1;i+=0.25){
+      const a=project(rot([i,-1,0],rx,ry)),b=project(rot([i,1,0],rx,ry));
+      ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();
+      const c2=project(rot([-1,i,0],rx,ry)),d=project(rot([1,i,0],rx,ry));
+      ctx.beginPath();ctx.moveTo(c2[0],c2[1]);ctx.lineTo(d[0],d[1]);ctx.stroke();
+    }
+    // axes
+    const o=project(rot([0,0,0],rx,ry));
+    const X=project(rot([1.0,0,0],rx,ry));
+    const Y=project(rot([0,1.0,0],rx,ry));
+    const Z=project(rot([0,0,1.0],rx,ry));
+    arrow(ctx,o[0],o[1],X[0],X[1],BR.pink,12);
+    arrow(ctx,o[0],o[1],Y[0],Y[1],'#34d399',12);
+    arrow(ctx,o[0],o[1],Z[0],Z[1],BR.blue,12);
+    ctx.fillStyle=BR.pink;ctx.font='bold 16px "Audiowide"';ctx.fillText('+X forward',X[0]+10,X[1]);
+    ctx.fillStyle='#34d399';ctx.fillText('+Y left',Y[0]+10,Y[1]);
+    ctx.fillStyle=BR.blue;ctx.fillText('+Z up',Z[0]+10,Z[1]);
+    // robot icon at origin
+    ctx.fillStyle='rgba(255,61,127,0.3)';
+    ctx.beginPath();ctx.arc(o[0],o[1],8,0,Math.PI*2);ctx.fill();
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ============================================================
+// pitch demo
+// ============================================================
+(()=>{
+  const c=document.getElementById('cv-pitch');
+  const ctx=fitDPR(c);
+  let pitch=0.176136;
+  const slider=document.getElementById('p-pitch');
+  const sliderDeg=document.getElementById('p-pitch-deg');
+  function sync(src){
+    if(src==='rad'){
+      pitch=parseFloat(slider.value);
+      sliderDeg.value=(pitch*180/Math.PI).toFixed(2);
+    }else{
+      const deg=parseFloat(sliderDeg.value);
+      pitch=deg*Math.PI/180;
+      slider.value=pitch.toFixed(4);
+    }
+    document.getElementById('p-pitch-v').textContent=pitch.toFixed(3)+' rad';
+    document.getElementById('p-pitch-deg-v').textContent=(pitch*180/Math.PI).toFixed(2)+'°';
+    draw();
+  }
+  slider.addEventListener('input',()=>sync('rad'));
+  sliderDeg.addEventListener('input',()=>sync('deg'));
+  document.getElementById('p-reset').addEventListener('click',()=>{
+    slider.value=0.176136;sync('rad');
+  });
+  const W=()=>w(c),H=()=>h(c);
+  function draw(){
+    ctx.clearRect(0,0,W(),H());
+    const cx=140,cy=H()/2;
+    // floor
+    ctx.strokeStyle='rgba(122,45,255,0.3)';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(0,H()-30);ctx.lineTo(W(),H()-30);ctx.stroke();
+    ctx.fillStyle=BR.faint;ctx.font='11px "JetBrains Mono"';ctx.fillText('floor',W()-40,H()-15);
+    // robot body
+    ctx.fillStyle='rgba(122,45,255,0.3)';ctx.strokeStyle=BR.purple;ctx.lineWidth=2;
+    ctx.fillRect(cx-50,cy-15,80,30);
+    ctx.strokeRect(cx-50,cy-15,80,30);
+    ctx.fillStyle=BR.purple;ctx.font='11px "JetBrains Mono"';ctx.fillText('base',cx-45,cy+5);
+    // camera mount (rotates by pitch)
+    ctx.save();
+    ctx.translate(cx+30,cy);
+    ctx.rotate(pitch); // +pitch tilts the camera CW in screen (nose down toward floor since +X = right, +Z = up)
+    ctx.fillStyle='rgba(0,184,255,0.4)';ctx.strokeStyle=BR.blue;ctx.lineWidth=2;
+    ctx.fillRect(0,-12,40,24);
+    ctx.strokeRect(0,-12,40,24);
+    // FOV cone
+    const fov=Math.PI/3; // 60° rendered FOV (real D435 = 87°, shortened for clarity)
+    ctx.fillStyle='rgba(0,184,255,0.12)';
+    ctx.beginPath();
+    ctx.moveTo(40,0);
+    const D=240;
+    ctx.lineTo(40+D*Math.cos(fov/2), D*Math.sin(fov/2));
+    ctx.lineTo(40+D*Math.cos(-fov/2),-D*Math.sin(fov/2));
+    ctx.closePath();ctx.fill();
+    // optical axis
+    ctx.strokeStyle=BR.pink;ctx.lineWidth=1.5;ctx.setLineDash([4,3]);
+    ctx.beginPath();ctx.moveTo(40,0);ctx.lineTo(40+D,0);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+    // angle arc
+    ctx.strokeStyle=BR.pink;ctx.lineWidth=1.5;
+    ctx.beginPath();
+    ctx.arc(cx+30,cy,30,0,pitch,pitch<0);
+    ctx.stroke();
+    ctx.fillStyle=BR.pink;ctx.font='bold 12px "JetBrains Mono"';
+    ctx.fillText((pitch*180/Math.PI).toFixed(1)+'°',cx+70,cy+(pitch>0?20:-10));
+    // label
+    ctx.fillStyle=BR.ink;ctx.font='13px "JetBrains Mono"';
+    if(pitch>0.02){
+      ctx.fillStyle=BR.pink;
+      ctx.fillText('+pitch → nose-DOWN',W()-200,30);
+    }else if(pitch<-0.02){
+      ctx.fillStyle=BR.blue;
+      ctx.fillText('-pitch → nose-UP',W()-200,30);
+    }else{
+      ctx.fillStyle=BR.dim;
+      ctx.fillText('pitch = 0 (horizontal)',W()-200,30);
+    }
+    const stat=document.getElementById('pitch-stat');
+    // floor coverage
+    // camera at z = some height above floor; we drew it at cy. Approx where lower edge hits floor:
+    let coverage='no floor coverage';
+    if(pitch>0){
+      const camZ = (H()-30-cy); // pixels above floor
+      // lower edge angle = pitch + fov/2
+      const ang=pitch+Math.PI/6;
+      if(ang>0 && ang<Math.PI/2){
+        const reach=camZ/Math.tan(ang);
+        coverage=`floor hit at ~${(reach/200).toFixed(2)} m (illustrative)`;
+      }
+    }
+    stat.innerHTML=`<b>pitch</b> = ${pitch.toFixed(4)} rad = ${(pitch*180/Math.PI).toFixed(2)}° · ${coverage}`;
+  }
+  draw();
+})();
+
+// ============================================================
+// deg ↔ rad
+// ============================================================
+(()=>{
+  bindSlider('d2r',v=>{
+    const rad=v*Math.PI/180;
+    document.getElementById('d2r-stat').innerHTML=
+      `<b>${v.toFixed(2)}°</b> = <span class="pink">${rad.toFixed(6)} rad</span> · paste into URDF rpy as <code>${rad.toFixed(4)}</code>`;
+  },{unit:'°',prec:2});
+})();
+
+// ============================================================
+// CAD vs body frame
+// ============================================================
+(()=>{
+  const c=document.getElementById('cv-cad');
+  const ctx=fitDPR(c);
+  let mode='body';
+  document.querySelectorAll('#cad-toggle button').forEach(b=>{
+    b.addEventListener('click',()=>{
+      document.querySelectorAll('#cad-toggle button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      mode=b.dataset.cad;
+      draw();
+    });
+  });
+  const W=()=>w(c),H=()=>h(c);
+  function drawPlate(cx,cy,scale,axes,col,label){
+    // plate
+    ctx.save();
+    ctx.translate(cx,cy);
+    ctx.strokeStyle=col;ctx.fillStyle=col+'33';
+    ctx.lineWidth=2;
+    const pl=216*scale, pw=140*scale;
+    ctx.fillRect(-pl/2,-pw/2,pl,pw);
+    ctx.strokeRect(-pl/2,-pw/2,pl,pw);
+    // axes
+    arrow(ctx,0,0,axes.x[0],axes.x[1],BR.pink,8);
+    arrow(ctx,0,0,axes.y[0],axes.y[1],'#34d399',8);
+    ctx.fillStyle=BR.pink;ctx.font='bold 13px "Audiowide"';
+    ctx.fillText(axes.x[2],axes.x[0]+5,axes.x[1]);
+    ctx.fillStyle='#34d399';ctx.fillText(axes.y[2],axes.y[0]+5,axes.y[1]);
+    // sensors
+    const sensors=axes.sensors;
+    sensors.forEach(s=>{
+      ctx.fillStyle=s.color;
+      ctx.beginPath();ctx.arc(s.x*scale*100,s.y*scale*100,6,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle=BR.ink;ctx.font='11px "JetBrains Mono"';
+      ctx.fillText(s.name,s.x*scale*100+8,s.y*scale*100-3);
+    });
+    ctx.fillStyle=col;ctx.font='bold 14px "Orbitron"';ctx.textAlign='center';
+    ctx.fillText(label,0,-pw/2-12);
+    ctx.textAlign='left';
+    ctx.restore();
+  }
+  function draw(){
+    ctx.clearRect(0,0,W(),H());
+    // BODY: +X forward (right), +Y left (up on screen)
+    const bodyAxes={
+      x:[80,0,'+X (forward)'],
+      y:[0,-80,'+Y (left)'],
+      sensors:[
+        {name:'D435',x:1.47,y:0,color:BR.blue},   // forward
+        {name:'WT901',x:0.60,y:0,color:BR.pink},  // forward-ish
+        {name:'Mid-360',x:-0.25,y:0,color:BR.purple} // back
+      ]
+    };
+    // CAD: +X right on plate, +Y from WT901 → cable port (i.e. forward-in-CAD)
+    const cadAxes={
+      x:[80,0,'+X (CAD)'],
+      y:[0,-80,'+Y (CAD)'],
+      sensors:[
+        {name:'D435',x:0,y:1.47,color:BR.blue},  // +Y in cad-frame
+        {name:'WT901',x:0,y:-0.60,color:BR.pink}, // -Y
+        {name:'Mid-360',x:0,y:0.25,color:BR.purple}
+      ]
+    };
+    if(mode==='body'){
+      drawPlate(W()/2,H()/2+10,1,bodyAxes,BR.blue,'Body frame (URDF)');
+    }else if(mode==='cad'){
+      drawPlate(W()/2,H()/2+10,1,cadAxes,BR.pink,'CAD frame (plate)');
+    }else{
+      drawPlate(W()/3,H()/2+10,0.7,bodyAxes,BR.blue,'Body (URDF)');
+      drawPlate(2*W()/3,H()/2+10,0.7,cadAxes,BR.pink,'CAD (plate)');
+      // arrow between
+      ctx.strokeStyle=BR.purple;ctx.lineWidth=2;ctx.setLineDash([4,3]);
+      ctx.beginPath();ctx.moveTo(W()/3+150,H()/2+10);ctx.lineTo(2*W()/3-150,H()/2+10);ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle=BR.purple;ctx.font='bold 12px "Orbitron"';ctx.textAlign='center';
+      ctx.fillText('180° yaw',W()/2,H()/2);
+      ctx.textAlign='left';
+    }
+  }
+  draw();
+})();
+
+// ============================================================
+// TF tree visualization
+// ============================================================
+(()=>{
+  const c=document.getElementById('cv-tftree');
+  const ctx=fitDPR(c);
+  let mode='urdf';
+  document.querySelectorAll('#tf-toggle button').forEach(b=>{
+    b.addEventListener('click',()=>{
+      document.querySelectorAll('#tf-toggle button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      mode=b.dataset.tf;
+      draw();
+    });
+  });
+  const W=()=>w(c),H=()=>h(c);
+  function box(x,y,name,color,wid=140){
+    ctx.fillStyle=color+'22';
+    ctx.strokeStyle=color;ctx.lineWidth=2;
+    ctx.fillRect(x-wid/2,y-16,wid,32);
+    ctx.strokeRect(x-wid/2,y-16,wid,32);
+    ctx.fillStyle=color;ctx.font='bold 12px "JetBrains Mono"';ctx.textAlign='center';
+    ctx.fillText(name,x,y+5);
+    ctx.textAlign='left';
+  }
+  function line(x1,y1,x2,y2,col,dashed=false){
+    ctx.strokeStyle=col;ctx.lineWidth=1.5;
+    if(dashed)ctx.setLineDash([4,3]);
+    ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  function draw(){
+    ctx.clearRect(0,0,W(),H());
+    const cx=W()/2;
+    // Always: URDF tree
+    // base_link at row 2
+    // sensor_plate row 3
+    // livox, imu, d435 row 4
+    const rowY=[40,110,180,250,320];
+    if(mode==='runtime'||mode==='all'){
+      // map → camera_init → body → base_link
+      box(cx-200,rowY[0],'map',BR.pink);
+      box(cx-50,rowY[0],'camera_init',BR.blue);
+      box(cx+150,rowY[0],'body',BR.blue);
+      line(cx-130,rowY[0],cx-120,rowY[0],BR.faint);
+      line(cx+20,rowY[0],cx+80,rowY[0],BR.faint);
+      // map → odom (slam_toolbox) — show only in 'all'
+      if(mode==='all'){
+        box(cx-200,rowY[1]-40,'odom',BR.pink);
+        line(cx-200,rowY[0]+16,cx-200,rowY[1]-56,BR.pink,true);
+      }
+      // body → base_link bridge (pink, static)
+      line(cx+150,rowY[0]+16,cx,rowY[1]-16,BR.pink,true);
+      ctx.fillStyle=BR.pink;ctx.font='10px "JetBrains Mono"';
+      ctx.fillText('static bridge',cx+30,rowY[0]+50);
+    }
+    // base_link (URDF root)
+    box(cx,rowY[1],'base_link',BR.purple);
+    // sensor_plate
+    box(cx,rowY[2],'sensor_plate',BR.purple);
+    line(cx,rowY[1]+16,cx,rowY[2]-16,BR.purple);
+    // three sensors
+    box(cx-220,rowY[3],'livox_frame',BR.purple);
+    box(cx,rowY[3],'imu_link',BR.purple);
+    box(cx+220,rowY[3],'d435_front_link',BR.purple);
+    line(cx,rowY[2]+16,cx-220,rowY[3]-16,BR.purple);
+    line(cx,rowY[2]+16,cx,rowY[3]-16,BR.purple);
+    line(cx,rowY[2]+16,cx+220,rowY[3]-16,BR.purple);
+    // realsense sub-frames (under d435)
+    if(mode==='runtime'||mode==='all'){
+      box(cx+220,rowY[4],'d435_front_color_optical_frame',BR.blue,220);
+      line(cx+220,rowY[3]+16,cx+220,rowY[4]-16,BR.blue,true);
+    }
+    // legend
+    ctx.font='11px "JetBrains Mono"';
+    ctx.fillStyle=BR.purple;ctx.fillText('■ URDF',12,H()-32);
+    ctx.fillStyle=BR.blue;ctx.fillText('■ runtime',12,H()-16);
+    ctx.fillStyle=BR.pink;ctx.fillText('■ static bridge',95,H()-16);
+  }
+  draw();
+})();
+
+// ============================================================
+// stack-up builder
+// ============================================================
+(()=>{
+  const c=document.getElementById('cv-stack');
+  const ctx=fitDPR(c);
+  const defs={a:0.040,cav:0.097683,b:0.040,rub:0.022987,plate:0.007};
+  const v={...defs};
+  function set(id,key,prec,unit='m'){
+    bindSlider(id,val=>{v[key]=val;draw()},{unit:' '+unit,prec});
+  }
+  set('st-2040a','a',3);
+  set('st-cav','cav',6);
+  set('st-2040b','b',3);
+  set('st-rub','rub',6);
+  set('st-plate','plate',4);
+  document.getElementById('st-reset').addEventListener('click',()=>{
+    document.getElementById('st-2040a').value=defs.a;
+    document.getElementById('st-cav').value=defs.cav;
+    document.getElementById('st-2040b').value=defs.b;
+    document.getElementById('st-rub').value=defs.rub;
+    document.getElementById('st-plate').value=defs.plate;
+    document.querySelectorAll('#cv-stack ~ .controls input').forEach(el=>el.dispatchEvent(new Event('input')));
+    Object.assign(v,defs);draw();
+  });
+  const W=()=>w(c),H=()=>h(c);
+  function draw(){
+    ctx.clearRect(0,0,W(),H());
+    const total=v.a+v.cav+v.b+v.rub+v.plate;
+    const baseX=60,baseY=H()-40;
+    const scale=(H()-80)/Math.max(total,0.21);
+    const segs=[
+      {h:v.a,c:'rgba(122,45,255,0.5)',l:'lower 2040',col:BR.purple},
+      {h:v.cav,c:'rgba(122,45,255,0.25)',l:'2020 cavity (Jetson)',col:BR.purple},
+      {h:v.b,c:'rgba(122,45,255,0.5)',l:'upper 2040',col:BR.purple},
+      {h:v.rub,c:'rgba(0,184,255,0.35)',l:'rubber pads',col:BR.blue},
+      {h:v.plate,c:'rgba(255,61,127,0.4)',l:'ASA plate',col:BR.pink}
+    ];
+    let y=baseY;
+    const colWidth=200;
+    segs.forEach(s=>{
+      const segH=s.h*scale;
+      ctx.fillStyle=s.c;ctx.strokeStyle=s.col;ctx.lineWidth=2;
+      ctx.fillRect(baseX,y-segH,colWidth,segH);
+      ctx.strokeRect(baseX,y-segH,colWidth,segH);
+      ctx.fillStyle=s.col;ctx.font='12px "JetBrains Mono"';
+      if(segH>14){
+        ctx.fillText(s.l,baseX+10,y-segH/2+4);
+        ctx.fillStyle=BR.ink;ctx.font='11px "JetBrains Mono"';
+        ctx.fillText((s.h*1000).toFixed(2)+' mm',baseX+colWidth-65,y-segH/2+4);
+      }
+      y-=segH;
+    });
+    // base_link
+    ctx.fillStyle=BR.pink;ctx.font='bold 12px "Orbitron"';
+    ctx.fillText('base_link',baseX+colWidth+20,baseY+5);
+    ctx.fillStyle=BR.blue;
+    ctx.fillText('sensor_plate (top)',baseX+colWidth+20,y+5);
+    // total bracket
+    ctx.strokeStyle=BR.pink;ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(baseX-15,baseY);ctx.lineTo(baseX-25,baseY);
+    ctx.lineTo(baseX-25,y);ctx.lineTo(baseX-15,y);ctx.stroke();
+    ctx.fillStyle=BR.pink;ctx.font='bold 13px "JetBrains Mono"';
+    ctx.save();ctx.translate(baseX-32,(baseY+y)/2);ctx.rotate(-Math.PI/2);ctx.textAlign='center';
+    ctx.fillText('total = '+(total*1000).toFixed(2)+' mm',0,0);
+    ctx.restore();ctx.textAlign='left';
+    // bridge value
+    const bridge=-(total + 0.036610);
+    document.getElementById('stack-stat').innerHTML=
+      `<b>base_link_to_plate_top</b> = ${total.toFixed(6)} m (${(total*1000).toFixed(2)} mm)
+       · <span class="pink">PLATFORM_BRIDGES Z</span> = ${bridge.toFixed(6)} m
+       · drift from default <b>${defs.a===v.a&&defs.cav===v.cav&&defs.b===v.b&&defs.rub===v.rub&&defs.plate===v.plate?'0.000 mm':((total-0.207670)*1000).toFixed(2)+' mm'}</b>`;
+  }
+  draw();
+})();
+
+// ============================================================
+// livox position
+// ============================================================
+(()=>{
+  const c=document.getElementById('cv-livox');
+  const ctx=fitDPR(c);
+  const defs={x:-0.025,y:0,z:0.03661};
+  const v={...defs};
+  bindSlider('lx-x',val=>{v.x=val;draw()},{unit:' m',prec:3});
+  bindSlider('lx-y',val=>{v.y=val;draw()},{unit:' m',prec:3});
+  bindSlider('lx-z',val=>{v.z=val;draw()},{unit:' m',prec:4});
+  document.getElementById('lx-reset').addEventListener('click',()=>{
+    document.getElementById('lx-x').value=defs.x;
+    document.getElementById('lx-y').value=defs.y;
+    document.getElementById('lx-z').value=defs.z;
+    ['lx-x','lx-y','lx-z'].forEach(id=>document.getElementById(id).dispatchEvent(new Event('input')));
+  });
+  const W=()=>w(c),H=()=>h(c);
+  function draw(){
+    ctx.clearRect(0,0,W(),H());
+    // SIDE VIEW (X-Z): left = -X (back), right = +X (front), up = +Z
+    // Plate at center, 216 mm long, 7 mm thick
+    const cx=W()/2,baseY=H()-60;
+    const scale=600; // pixels per meter
+    // floor (just label)
+    ctx.fillStyle=BR.faint;ctx.font='11px "JetBrains Mono"';ctx.fillText('side view: looking from +Y (left side)',12,20);
+    // sensor_plate (top surface at Z=0)
+    const plateLen=0.216*scale, plateThick=0.007*scale;
+    ctx.fillStyle='rgba(255,61,127,0.25)';ctx.strokeStyle=BR.pink;ctx.lineWidth=2;
+    ctx.fillRect(cx-plateLen/2,baseY,plateLen,plateThick);
+    ctx.strokeRect(cx-plateLen/2,baseY,plateLen,plateThick);
+    ctx.fillStyle=BR.pink;ctx.font='11px "JetBrains Mono"';
+    ctx.fillText('sensor_plate (top = Z 0)',cx-plateLen/2,baseY-3);
+    // Mid-360 visual: ~60 mm × 70 mm box
+    const lx=cx+v.x*scale, lz=baseY-v.z*scale;
+    ctx.fillStyle='rgba(122,45,255,0.35)';ctx.strokeStyle=BR.purple;ctx.lineWidth=2;
+    const bw=0.060*scale, bh=0.040*scale;
+    ctx.fillRect(lx-bw/2,lz-bh,bw,bh);
+    ctx.strokeRect(lx-bw/2,lz-bh,bw,bh);
+    // optical center marker
+    ctx.fillStyle=BR.blue;
+    ctx.beginPath();ctx.arc(lx,lz,4,0,Math.PI*2);ctx.fill();
+    ctx.font='11px "JetBrains Mono"';
+    ctx.fillText('Mid-360 optical',lx+8,lz-bh+4);
+    ctx.fillText('center',lx+8,lz-bh+18);
+    // axes at plate origin
+    arrow(ctx,cx,baseY+plateThick/2,cx+50,baseY+plateThick/2,BR.pink,7);
+    arrow(ctx,cx,baseY+plateThick/2,cx,baseY+plateThick/2-50,BR.blue,7);
+    ctx.fillStyle=BR.pink;ctx.font='bold 11px "Audiowide"';ctx.fillText('+X',cx+55,baseY+plateThick/2+5);
+    ctx.fillStyle=BR.blue;ctx.fillText('+Z',cx-10,baseY+plateThick/2-55);
+    // origin
+    ctx.fillStyle=BR.ink;ctx.beginPath();ctx.arc(cx,baseY,4,0,Math.PI*2);ctx.fill();
+    // delta lines
+    ctx.strokeStyle=BR.dim;ctx.setLineDash([3,3]);ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(cx,baseY);ctx.lineTo(lx,baseY);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(lx,baseY);ctx.lineTo(lx,lz);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle=BR.dim;ctx.font='10px "JetBrains Mono"';
+    ctx.fillText('Δx='+(v.x*1000).toFixed(0)+'mm',(cx+lx)/2-25,baseY+14);
+    ctx.fillText('Δz='+(v.z*1000).toFixed(1)+'mm',lx+5,(baseY+lz)/2);
+    document.getElementById('livox-stat').innerHTML=
+      `<b>livox_xyz</b> = "${fmt(v.x)} ${fmt(v.y)} ${fmt(v.z,5)}" ·
+       Z above base_link = <b>${(0.207670+v.z).toFixed(5)} m</b> (bench fixture)`;
+  }
+  draw();
+})();
+
+// ============================================================
+// imu position
+// ============================================================
+(()=>{
+  const defs={x:0.060,z:0.009};
+  const v={...defs};
+  function update(){
+    document.getElementById('imu-stat').innerHTML=
+      `<b>imu_xyz</b> = "${fmt(v.x)} 0.0 ${fmt(v.z,4)}" · IMU center Z above base_link = <b>${(0.207670+v.z).toFixed(4)} m</b>`;
+  }
+  bindSlider('imu-x',val=>{v.x=val;update()},{unit:' m',prec:3});
+  bindSlider('imu-z',val=>{v.z=val;update()},{unit:' m',prec:4});
+  document.getElementById('imu-reset').addEventListener('click',()=>{
+    document.getElementById('imu-x').value=defs.x;
+    document.getElementById('imu-z').value=defs.z;
+    ['imu-x','imu-z'].forEach(id=>document.getElementById(id).dispatchEvent(new Event('input')));
+  });
+  update();
+})();
+
+// ============================================================
+// d435 position + pitch
+// ============================================================
+(()=>{
+  const c=document.getElementById('cv-d435');
+  const ctx=fitDPR(c);
+  const defs={x:0.146761,z:-0.028502,p:0.176136};
+  const v={...defs};
+  bindSlider('d4-x',val=>{v.x=val;draw()},{unit:' m',prec:3});
+  bindSlider('d4-z',val=>{v.z=val;draw()},{unit:' m',prec:3});
+  bindSlider('d4-p',val=>{v.p=val;draw()},{unit:' rad',prec:3});
+  document.getElementById('d4-reset').addEventListener('click',()=>{
+    document.getElementById('d4-x').value=defs.x;
+    document.getElementById('d4-z').value=defs.z;
+    document.getElementById('d4-p').value=defs.p;
+    ['d4-x','d4-z','d4-p'].forEach(id=>document.getElementById(id).dispatchEvent(new Event('input')));
+  });
+  const W=()=>w(c),H=()=>h(c);
+  function draw(){
+    ctx.clearRect(0,0,W(),H());
+    const cx=120,baseY=H()-80,scale=700;
+    // floor
+    ctx.strokeStyle='rgba(122,45,255,0.4)';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(0,H()-20);ctx.lineTo(W(),H()-20);ctx.stroke();
+    ctx.fillStyle=BR.faint;ctx.font='11px "JetBrains Mono"';
+    ctx.fillText('floor (base_link rests here, Z=0)',W()-220,H()-7);
+    // plate at base + plate_top (0.207670 m on bench fixture)
+    const plateY=H()-20-0.207670*scale;
+    ctx.fillStyle='rgba(255,61,127,0.25)';ctx.strokeStyle=BR.pink;ctx.lineWidth=2;
+    ctx.fillRect(cx-30,plateY,180,5);
+    ctx.fillStyle=BR.pink;ctx.font='11px "JetBrains Mono"';
+    ctx.fillText('sensor_plate',cx-25,plateY-4);
+    // D435 position
+    const dx=cx+v.x*scale, dz=plateY+(-v.z*scale);
+    ctx.save();
+    ctx.translate(dx,dz);
+    ctx.rotate(v.p);
+    ctx.fillStyle='rgba(0,184,255,0.4)';ctx.strokeStyle=BR.blue;ctx.lineWidth=2;
+    ctx.fillRect(-25,-12,50,24);
+    ctx.strokeRect(-25,-12,50,24);
+    // FOV
+    const fov=Math.PI/3;
+    ctx.fillStyle='rgba(0,184,255,0.12)';
+    ctx.beginPath();
+    ctx.moveTo(25,0);
+    const D=160;
+    ctx.lineTo(25+D*Math.cos(fov/2), D*Math.sin(fov/2));
+    ctx.lineTo(25+D*Math.cos(-fov/2),-D*Math.sin(fov/2));
+    ctx.closePath();ctx.fill();
+    ctx.restore();
+    // labels
+    ctx.fillStyle=BR.blue;ctx.font='bold 11px "JetBrains Mono"';
+    ctx.fillText('D435 front',dx+30,dz-15);
+    // pitch arc
+    ctx.strokeStyle=BR.pink;ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.arc(dx,dz,30,0,v.p,v.p<0);ctx.stroke();
+    ctx.fillStyle=BR.pink;ctx.font='11px "JetBrains Mono"';
+    ctx.fillText((v.p*180/Math.PI).toFixed(1)+'°',dx+35,dz+(v.p>0?18:-8));
+    document.getElementById('d4-stat').innerHTML=
+      `<b>d435_front_xyz</b> = "${fmt(v.x)} 0.0 ${fmt(v.z)}" · <b>rpy</b> = "0.0 ${fmt(v.p)} 0.0" (${(v.p*180/Math.PI).toFixed(2)}° ${v.p>0?'nose-down':v.p<0?'nose-up':'level'})`;
+  }
+  draw();
+})();
+
+// ============================================================
+// bridge visualizer
+// ============================================================
+(()=>{
+  const c=document.getElementById('cv-bridge');
+  const ctx=fitDPR(c);
+  let plate=0.207670, livox=0.036610;
+  bindSlider('br-plate',v=>{plate=v;draw()},{unit:' m',prec:4});
+  bindSlider('br-livox',v=>{livox=v;draw()},{unit:' m',prec:4});
+  const W=()=>w(c),H=()=>h(c);
+  function draw(){
+    ctx.clearRect(0,0,W(),H());
+    const scale=700;
+    const baseY=H()-40;
+    const cx=W()/2;
+    // floor
+    ctx.strokeStyle='rgba(122,45,255,0.3)';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(0,baseY);ctx.lineTo(W(),baseY);ctx.stroke();
+    // base_link at floor
+    ctx.fillStyle=BR.purple;ctx.font='bold 12px "Orbitron"';
+    ctx.fillText('base_link (Z=0)',cx-200,baseY-3);
+    ctx.beginPath();ctx.arc(cx,baseY,5,0,Math.PI*2);ctx.fill();
+    // plate top
+    const py=baseY-plate*scale;
+    ctx.strokeStyle=BR.pink;ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(cx-80,py);ctx.lineTo(cx+80,py);ctx.stroke();
+    ctx.fillStyle=BR.pink;ctx.font='11px "JetBrains Mono"';
+    ctx.fillText(`sensor_plate top (Z=${plate.toFixed(3)})`,cx+90,py+4);
+    // body (= livox optical) Z = plate + livox
+    const by=baseY-(plate+livox)*scale;
+    ctx.fillStyle=BR.blue;
+    ctx.beginPath();ctx.arc(cx,by,7,0,Math.PI*2);ctx.fill();
+    ctx.font='bold 12px "Orbitron"';
+    ctx.fillText('body (FAST-LIO2)',cx+15,by+4);
+    // vertical brackets
+    ctx.strokeStyle=BR.purple;ctx.setLineDash([3,3]);
+    ctx.beginPath();ctx.moveTo(cx-160,baseY);ctx.lineTo(cx-160,py);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle=BR.purple;ctx.font='11px "JetBrains Mono"';
+    ctx.save();ctx.translate(cx-170,(baseY+py)/2);ctx.rotate(-Math.PI/2);ctx.textAlign='center';
+    ctx.fillText('plate_top = '+(plate*1000).toFixed(1)+' mm',0,0);
+    ctx.restore();ctx.textAlign='left';
+    ctx.strokeStyle=BR.blue;ctx.setLineDash([3,3]);
+    ctx.beginPath();ctx.moveTo(cx+160,py);ctx.lineTo(cx+160,by);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle=BR.blue;
+    ctx.save();ctx.translate(cx+175,(py+by)/2);ctx.rotate(-Math.PI/2);ctx.textAlign='center';
+    ctx.fillText('livox Z = '+(livox*1000).toFixed(2)+' mm',0,0);
+    ctx.restore();ctx.textAlign='left';
+    // bridge arrow (body → base_link)
+    ctx.strokeStyle=BR.pink;ctx.lineWidth=2.5;ctx.setLineDash([6,4]);
+    arrow(ctx,cx-30,by,cx-30,baseY,BR.pink,10);
+    ctx.setLineDash([]);
+    ctx.fillStyle=BR.pink;ctx.font='bold 12px "JetBrains Mono"';
+    ctx.fillText('static bridge',cx-130,(by+baseY)/2);
+    ctx.fillText(`Z = -${(plate+livox).toFixed(4)} m`,cx-130,(by+baseY)/2+15);
+    document.getElementById('bridge-stat').innerHTML=
+      `<b>PLATFORM_BRIDGES Z</b> = ${(-(plate+livox)).toFixed(6)} m
+       · body is <b>${((plate+livox)*1000).toFixed(2)} mm ABOVE</b> base_link
+       · update <code>PLATFORM_BRIDGES</code> in <code>slam.launch.py</code> AND <code>base_link_to_plate_top</code> in the platform xacro together`;
+  }
+  draw();
+})();
+</script>
+</body>
+</html>

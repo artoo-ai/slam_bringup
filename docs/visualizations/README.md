@@ -62,6 +62,22 @@ Designed for video documentation of parameter testing — each card's
 realistic range pill and test plan tell you what physical setup to film
 and what to expect at each end of the slider.
 
+### `urdf_explorer.html`
+**Every URDF/xacro knob in this repo.** 30+ cards across 8 sections
+covering: URDF fundamentals (link/joint/origin/geometry/material/
+visual/collision/inertial), joint types (fixed/revolute/continuous/
+prismatic/planar/floating), REP-103 conventions (+X forward, RPY sign,
+deg↔rad converter), xacro features (property/include/macro/if),
+the TF tree (URDF + runtime + Nav2 layers toggleable), the bench-
+fixture stack-up (live slider builder for plate/rubber/2040/2020/
+cavity → recomputes `base_link_to_plate_top`), sensor mounting
+(Mid-360, WT901, D435 with interactive xyz/pitch), the body↔
+base_link bridge (visualizes the `PLATFORM_BRIDGES` Z), and a
+6-step checklist for porting to a new platform.
+
+Use this when you're modifying a mount, adding a sensor, or porting
+the rig to a Go2 / R2D2 / Roboscout / other chassis.
+
 ### `slam_2d_vs_3d.html`
 **Why 2D SLAM works where the 3D stack stalled.** Side-by-side comparison
 of FAST-LIO2 + RTABMap (15-state estimator, full cloud) vs.
