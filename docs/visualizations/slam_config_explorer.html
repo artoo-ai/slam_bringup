@@ -138,6 +138,29 @@ h1 .sub { color: #67e8f9; }
 .cost-moderate    { background: rgba(120, 53, 15, 0.3);  color: #fcd34d; border-color: #b45309; }
 .cost-significant { background: rgba(127, 29, 29, 0.3);  color: #fca5a5; border-color: #991b1b; }
 
+/* Cross-device generalization — for parameters that apply across multiple sensors */
+.ex-cross {
+    color: #cbd5e1;
+    padding: 6px 10px;
+    margin-top: 4px;
+    border-left: 2px solid #14b8a6;
+    background: rgba(20, 184, 166, 0.06);
+    border-radius: 4px;
+}
+.ex-cross b { color: #5eead4; }
+.ex-cross code { font-size: 10px; }
+.device-tag {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    background: rgba(20, 184, 166, 0.18);
+    border: 1px solid #14b8a6;
+    color: #99f6e4;
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin: 1px 2px;
+}
+
 /* Real-world test plan — for video-documented parameter testing */
 .ex-test {
     color: #cbd5e1;
@@ -406,6 +429,19 @@ h1 .sub { color: #67e8f9; }
       <span class="test-step"><b>Defaults</b> 0.15/0.45: chair legs hit, tabletop above band (invisible). <b>0.00/0.10</b> (floor-skim): scan picks up floor speckle, cables; map gets noisy. <b>0.40/1.20</b> (countertop): tabletop visible, chair legs disappear. <b>0.00/2.50</b>: ceiling fan in the map ⇒ slam_toolbox sees spurious obstacles.</span>
       <span class="test-step">Document: number of <code>/scan</code> rays with a hit, map cleanliness, doorway visibility.</span>
     </div>
+    <div class="ex-cross">🔄 <b>Cross-device:</b> Applies to ANY 3D source feeding <code>pointcloud_to_laserscan</code>. Same parameter, different sensor mounting heights.
+      <div style="margin-top:4px">
+        <span class="device-tag">Livox Mid-360</span>
+        <span class="device-tag">Velodyne VLP-16</span>
+        <span class="device-tag">Hesai Pandar40P</span>
+        <span class="device-tag">Unitree L1</span>
+        <span class="device-tag">D435 / D435i / D455</span>
+        <span class="device-tag">ZED / ZED Mini</span>
+        <span class="device-tag">OAK-D Pro</span>
+      </div>
+      <span class="test-step" style="margin-top:6px">N/A for native 2D lidars (RPLidar C1M1, Neato XV-11, TF Mini-Plus) — they already produce a flat <code>LaserScan</code>.</span>
+      <span class="test-step"><b>Re-tune per sensor:</b> band is in <code>base_link</code>, so the value depends on where each sensor mounts. A high-mounted Velodyne might need <code>0.40–0.70</code> band for chair-leg height while a low-mounted D435 might need <code>0.10–0.40</code>.</span>
+    </div>
   </div>
 </div>
 
@@ -438,6 +474,18 @@ h1 .sub { color: #67e8f9; }
       <span class="test-step"><b>range_min sweep:</b> 0.05 (sees rover bumper as phantom obstacle) → 0.20 (default, bumper hidden) → 0.40 (loses anything within arm's reach). Capture the closest visible obstacle in the scan after each step.</span>
       <span class="test-step"><b>range_max sweep:</b> 5 (loses far wall) → 10 → 20. In a long hallway, walk the rover backwards and capture which wall returns disappear first.</span>
       <span class="test-step">Document: minimum/maximum detected obstacle distances; any phantom obstacles from rover body.</span>
+    </div>
+    <div class="ex-cross">🔄 <b>Cross-device:</b> Universal concept; the parameter name differs per driver.
+      <div style="margin-top:4px">
+        <span class="device-tag">Livox <code>range_min/max</code></span>
+        <span class="device-tag">Velodyne <code>min/max_range</code></span>
+        <span class="device-tag">Hesai <code>range_filter</code></span>
+        <span class="device-tag">RPLidar <code>scan_mode</code> ranges</span>
+        <span class="device-tag">Realsense <code>depth_range</code></span>
+        <span class="device-tag">ZED <code>depth_min/max</code></span>
+        <span class="device-tag">TF Mini-Plus <code>min/max</code></span>
+      </div>
+      <span class="test-step" style="margin-top:6px"><b>range_min</b> depends on rover bumper geometry, NOT sensor — same value works across all sensors on the same rover. <b>range_max</b> is capped by each sensor's spec sheet: VLP-16 ~100 m, Pandar40P ~200 m, Mid-360 ~70 m, D435 ~10 m, ZED ~20 m, TF Mini-Plus ~12 m.</span>
     </div>
   </div>
 </div>
@@ -472,6 +520,17 @@ h1 .sub { color: #67e8f9; }
       <span class="test-step"><b>5°/bin</b> (72 rays): broomstick missing if it falls between two bins; nearby wall completely fills its bin.</span>
       <span class="test-step"><b>30°/bin</b> (extreme): scan looks like 12 chunky rays. Drive into a chair — record where the rover thinks it hits.</span>
       <span class="test-step">Document: broomstick detectability, slam_toolbox CPU usage from <code>top</code>, scan rate via <code>ros2 topic hz /scan</code>.</span>
+    </div>
+    <div class="ex-cross">🔄 <b>Cross-device:</b> applies to any <code>LaserScan</code> source, but the meaningful resolution is sensor-capped.
+      <div style="margin-top:4px">
+        <span class="device-tag">Velodyne VLP-16 ~0.4°</span>
+        <span class="device-tag">Hesai Pandar40P ~0.2°</span>
+        <span class="device-tag">Mid-360 ~0.3°</span>
+        <span class="device-tag">RPLidar C1M1 ~1°</span>
+        <span class="device-tag">Neato XV-11 ~1°</span>
+        <span class="device-tag">Unitree L1 ~0.5°</span>
+      </div>
+      <span class="test-step" style="margin-top:6px">Native 2D lidars (RPLidar, Neato, Unitree L1) have their own intrinsic <code>angle_increment</code> baked into the driver's LaserScan output — typically can't go finer than the hardware. For 3D-→-2D projected scans (Mid-360, Velodyne, Hesai), <code>pointcloud_to_laserscan</code> sets this independently of the 3D sensor's resolution.</span>
     </div>
   </div>
 </div>
@@ -834,6 +893,17 @@ h1 .sub { color: #67e8f9; }
       <span class="test-step">Move a real chair to 0.30 m from rover. At blind:0.50, chair leg should still be visible (it's at 0.30 from the rover, but the lidar is on top — measure from lidar mount).</span>
       <span class="test-step">Document: closest visible point in each setting; presence of fixture self-hits.</span>
     </div>
+    <div class="ex-cross">🔄 <b>Cross-device:</b> every lidar driver has a near-range cutoff; the parameter name and default differ.
+      <div style="margin-top:4px">
+        <span class="device-tag">FAST-LIO <code>blind</code></span>
+        <span class="device-tag">Velodyne <code>min_range</code></span>
+        <span class="device-tag">Hesai <code>min_distance</code></span>
+        <span class="device-tag">Mid-360 driver <code>filter_radius</code></span>
+        <span class="device-tag">RPLidar <code>range_min</code></span>
+        <span class="device-tag">D435 <code>depth_min</code></span>
+      </div>
+      <span class="test-step" style="margin-top:6px">Sensor hardware floors: Velodyne VLP-16 ~0.4 m (mechanical), Mid-360 ~0.1 m, Hesai Pandar40P ~0.3 m, RPLidar C1M1 ~0.05 m, D435 ~0.10 m. Setting <code>blind</code> below the sensor's hardware floor has no effect; setting it above adds extra exclusion (fixture self-hits).</span>
+    </div>
   </div>
 </div>
 
@@ -864,6 +934,17 @@ h1 .sub { color: #67e8f9; }
       <span class="test-step"><b>filter_size_surf: 0.05</b>: dense, beautiful map; fastlio_mapping pegs at 100%+ CPU on Orin Nano; pose updates lag. <b>0.30</b> (default): smooth map building, CPU around 40–60%. <b>0.60</b>: sparse map; fastlio prints "No Effective Points!" sporadically; pose starts to drift. <b>1.0</b>: pose drifts severely.</span>
       <span class="test-step">Capture: <code>ros2 topic hz /Odometry</code> — should stay around 10 Hz at default; drops below 5 Hz when ICP is overloaded.</span>
       <span class="test-step">Document: CPU%, /Odometry rate, map detail (Foxglove screenshots), error messages in fastlio log.</span>
+    </div>
+    <div class="ex-cross">🔄 <b>Cross-device:</b> voxel downsampling is universal to 3D-cloud SLAM; the optimal value scales <b>inversely with lidar point density</b>.
+      <div style="margin-top:4px">
+        <span class="device-tag">Mid-360 ~0.30 m</span>
+        <span class="device-tag">Velodyne VLP-16 ~0.20 m</span>
+        <span class="device-tag">Hesai Pandar40P ~0.15 m</span>
+        <span class="device-tag">Unitree L1 ~0.25 m</span>
+        <span class="device-tag">D435/D455 cloud ~0.05 m</span>
+        <span class="device-tag">ZED depth ~0.05 m</span>
+      </div>
+      <span class="test-step" style="margin-top:6px"><b>Denser sensors get smaller voxels:</b> Hesai's 40 lines per sweep means 0.15 m voxels still have enough points for ICP. Mid-360's sparse non-repetitive pattern needs 0.30 m or ICP starves. <b>Cameras (D435, ZED, OAK-D)</b> produce extremely dense clouds — they want fine voxels (0.05 m) BUT the depth noise floor sets a hard lower limit (D435 ~5 mm RMS at 1 m).</span>
     </div>
   </div>
 </div>
@@ -897,6 +978,16 @@ h1 .sub { color: #67e8f9; }
       <span class="test-step"><b>gyr_cov: 0.01</b>: smooth attitude through brief sensor occlusion (someone walks past the lidar). <b>1.0</b>: yaw bounces with every scan.</span>
       <span class="test-step">Document: pose smoothness via Foxglove path width; lag estimate by sudden start/stop test (move rover by hand, see how fast /Odometry catches up).</span>
     </div>
+    <div class="ex-cross">🔄 <b>Cross-device — RE-TUNE PER IMU.</b> These covariances are noise floors and they differ wildly between IMUs.
+      <div style="margin-top:4px">
+        <span class="device-tag">Mid-360 ICM40609 (current)</span>
+        <span class="device-tag">WitMotion WT901</span>
+        <span class="device-tag">Bosch BNO086</span>
+        <span class="device-tag">Bosch BNO055</span>
+      </div>
+      <span class="test-step" style="margin-top:6px"><b>Approximate starting points</b> per IMU (rule of thumb — verify with bench test): Mid-360 ICM40609: <code>acc_cov 0.5 · gyr_cov 0.1</code> (this YAML). WT901 (consumer-grade, noisier): <code>acc_cov 1.0 · gyr_cov 0.3</code>. BNO086 (built-in fusion): <code>acc_cov 0.2 · gyr_cov 0.05</code> if using fused output, <code>1.0 · 0.3</code> for raw. BNO055 (older, hardware fusion): similar to BNO086 but ~2× noisier.</span>
+      <span class="test-step"><b>Allan variance test</b>: park IMU stationary for 30 min, log <code>/imu/data_raw</code>, compute Allan deviation — gives precise noise density (units: m/s²/√Hz for acc, rad/s/√Hz for gyro). Square that × sample-rate ≈ covariance to use.</span>
+    </div>
   </div>
 </div>
 
@@ -926,6 +1017,19 @@ h1 .sub { color: #67e8f9; }
       <span class="test-step"><b>det_range: 2</b>: map shows only a 2 m bubble around the rover. Drive forward — far walls never appear. <b>10</b>: typical room coverage; doorways visible. <b>100</b> (default): no practical limit indoors. <b>200</b>: outdoor scene gets distant cars, trees.</span>
       <span class="test-step">Cross-check sensor capability with <code>ros2 topic echo /livox/lidar --field point_data --max-print=0</code> and look for max-range hits. The Mid-360 caps at ~70 m @ 80% reflectivity; setting det_range past sensor capability is wasted.</span>
       <span class="test-step">Document: <code>ros2 topic bw /Laser_map</code> bandwidth at each setting; map extent in Foxglove; memory usage from <code>top</code> over 5 min.</span>
+    </div>
+    <div class="ex-cross">🔄 <b>Cross-device:</b> the cap of useful values is the sensor's spec sheet.
+      <div style="margin-top:4px">
+        <span class="device-tag">Mid-360 ~70 m</span>
+        <span class="device-tag">Velodyne VLP-16 ~100 m</span>
+        <span class="device-tag">Hesai Pandar40P ~200 m</span>
+        <span class="device-tag">Unitree L1 ~30 m</span>
+        <span class="device-tag">RPLidar C1M1 ~12 m</span>
+        <span class="device-tag">TF Mini-Plus ~12 m (1D)</span>
+        <span class="device-tag">D435 ~10 m</span>
+        <span class="device-tag">ZED ~20 m</span>
+      </div>
+      <span class="test-step" style="margin-top:6px">Setting <code>det_range</code> past the sensor capability is wasted CPU — the sensor never produces returns there. Outdoor surveys with Pandar40P warrant 100–150 m; indoor mapping with any sensor is capped by room geometry at ~10 m.</span>
     </div>
   </div>
 </div>
