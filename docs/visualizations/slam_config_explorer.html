@@ -137,6 +137,51 @@ h1 .sub { color: #67e8f9; }
 .cost-minor       { background: rgba(20, 83, 45, 0.3);   color: #86efac; border-color: #166534; }
 .cost-moderate    { background: rgba(120, 53, 15, 0.3);  color: #fcd34d; border-color: #b45309; }
 .cost-significant { background: rgba(127, 29, 29, 0.3);  color: #fca5a5; border-color: #991b1b; }
+
+/* Real-world test plan — for video-documented parameter testing */
+.ex-test {
+    color: #cbd5e1;
+    padding-top: 4px;
+    border-top: 1px dashed #1e293b;
+    margin-top: 4px;
+    background: rgba(67, 56, 202, 0.06);
+    padding: 8px 10px;
+    border-radius: 4px;
+    border-left: 2px solid #818cf8;
+}
+.ex-test b { color: #c4b5fd; }
+.ex-test code { font-size: 10px; }
+.ex-test .test-range {
+    color: #93c5fd;
+    font-weight: 600;
+}
+.ex-test .test-step {
+    display: block;
+    margin-top: 3px;
+    padding-left: 14px;
+    text-indent: -14px;
+    color: #cbd5e1;
+}
+.ex-test .test-step::before {
+    content: "▸ ";
+    color: #818cf8;
+}
+
+/* Slim cards: parameters without a custom canvas (internal tuning) */
+.card.slim canvas { display: none; }
+.card.slim .stat { display: none; }
+/* Realistic range pill — sits near the slider so users see the operating window */
+.range-pill {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #93c5fd;
+    background: rgba(30, 58, 138, 0.25);
+    border: 1px solid #1e40af;
+    border-radius: 3px;
+    padding: 2px 6px;
+    margin-left: 6px;
+    display: inline-block;
+}
 .card canvas {
     display: block;
     width: 100%;
@@ -355,6 +400,12 @@ h1 .sub { color: #67e8f9; }
     <div class="ex-down">↓ <b>Raise z_max:</b> catch tabletops, low countertops, hanging cables. Too high and the ceiling fan joins your map.</div>
     <div class="ex-deps">🔗 <b>Depends on:</b> sensor mount Z in <code>urdf/</code> (band is in <code>base_link</code>). Saved maps assume the band that was used during mapping — if you change it later in localization, walls may stop matching.</div>
     <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-minor">minor</span> <code>O(N_points_in_band)</code> in pointcloud_to_laserscan. Widening 3× costs ~1–2 ms/scan on a Jetson Orin Nano. <b>No downstream effect</b> — slam_toolbox always sees a fixed-size LaserScan (720 rays).</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic 0.10–0.60 m</span>
+      <span class="test-step">Place a chair, a low coffee table, a hanging cable, and a step stool at known heights in the test room. Run <code>./start_slam_2d.sh enable_drive:=true</code> with Foxglove open on <code>/scan</code>.</span>
+      <span class="test-step">For each test value, change <code>scan_z_min:=X scan_z_max:=Y</code> on the launch command line, drive a fixed loop, and screenshot the resulting <code>/scan</code> and saved map.</span>
+      <span class="test-step"><b>Defaults</b> 0.15/0.45: chair legs hit, tabletop above band (invisible). <b>0.00/0.10</b> (floor-skim): scan picks up floor speckle, cables; map gets noisy. <b>0.40/1.20</b> (countertop): tabletop visible, chair legs disappear. <b>0.00/2.50</b>: ceiling fan in the map ⇒ slam_toolbox sees spurious obstacles.</span>
+      <span class="test-step">Document: number of <code>/scan</code> rays with a hit, map cleanliness, doorway visibility.</span>
+    </div>
   </div>
 </div>
 
@@ -382,6 +433,12 @@ h1 .sub { color: #67e8f9; }
     <div class="ex-down">↓ <b>Lower range_max:</b> ignore noisy far hits in big rooms; can speed up scan-match at the cost of losing distant landmarks.</div>
     <div class="ex-deps">🔗 <b>Depends on:</b> rover bumper radius (<code>range_min</code> must exceed it) and slam_toolbox's <code>max_laser_range</code> (20 m) — set <code>range_max</code> ≤ that or points get clamped. Nav2's <code>obstacle_max_range</code> (10 m) caps how far obstacles enter the costmap.</div>
     <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-none">none</span> Both are O(1) filters per point — the comparisons cost nothing measurable. <b>Maxing out range_max to 20 m has zero penalty</b> because the Mid-360 itself only returns ~40 m max indoors; beyond that there's no data to filter.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic range_min 0.05–0.40 m · range_max 5–20 m</span>
+      <span class="test-step">Place a tape marker at 0.10, 0.20, 0.50, 1.00, 5.00, and 10.00 m from the rover. Visualize <code>/scan</code> in Foxglove.</span>
+      <span class="test-step"><b>range_min sweep:</b> 0.05 (sees rover bumper as phantom obstacle) → 0.20 (default, bumper hidden) → 0.40 (loses anything within arm's reach). Capture the closest visible obstacle in the scan after each step.</span>
+      <span class="test-step"><b>range_max sweep:</b> 5 (loses far wall) → 10 → 20. In a long hallway, walk the rover backwards and capture which wall returns disappear first.</span>
+      <span class="test-step">Document: minimum/maximum detected obstacle distances; any phantom obstacles from rover body.</span>
+    </div>
   </div>
 </div>
 
@@ -408,6 +465,14 @@ h1 .sub { color: #67e8f9; }
     <div class="ex-down">↓ <b>Smaller °/bin:</b> crisp scans (you can resolve thin obstacles), more memory + scan-match work per frame.</div>
     <div class="ex-deps">🔗 <b>Depends on:</b> slam_toolbox's <code>correlation_search_space_resolution</code> (0.01 m) and Nav2 costmap <code>resolution</code> (0.05 m) — going finer than these is wasted detail. Mid-360's native angular resolution caps useful values around 0.3°/bin.</div>
     <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-significant">significant</span> <b>One of the biggest CPU knobs.</b> slam_toolbox's scan-matching cost scales <code>O(N_rays × correlation_search_steps)</code>. 0.5°/bin = 720 rays; 0.1°/bin = 3600 rays → roughly <b>5× the scan-match work per frame</b>. On the Jetson Orin Nano, going below 0.3°/bin can make the optimizer fall behind the 10 Hz scan rate. Going coarser is essentially free.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic 0.3°–1.0° per bin (sensor-limited)</span>
+      <span class="test-step">Place a vertical broomstick (~25 mm wide) at exactly 2.0 m from the rover. Visualize <code>/scan</code> in Foxglove with point size large.</span>
+      <span class="test-step"><b>0.1°/bin</b> (3600 rays): broomstick clearly outlined. CPU on Orin Nano load test: <code>top</code> in another terminal — slam_toolbox should stay under 80%.</span>
+      <span class="test-step"><b>0.5°/bin</b> (default, 720 rays): broomstick still visible but blurred.</span>
+      <span class="test-step"><b>5°/bin</b> (72 rays): broomstick missing if it falls between two bins; nearby wall completely fills its bin.</span>
+      <span class="test-step"><b>30°/bin</b> (extreme): scan looks like 12 chunky rays. Drive into a chair — record where the rover thinks it hits.</span>
+      <span class="test-step">Document: broomstick detectability, slam_toolbox CPU usage from <code>top</code>, scan rate via <code>ros2 topic hz /scan</code>.</span>
+    </div>
   </div>
 </div>
 
@@ -441,6 +506,11 @@ h1 .sub { color: #67e8f9; }
     <div class="ex-down">↓ <b>Smaller cell:</b> crisp walls, narrow doorways resolvable. Map file balloons (quadratic), planner gets slower.</div>
     <div class="ex-deps">🔗 <b>Must match:</b> Nav2 <code>local_costmap.resolution</code> + <code>global_costmap.resolution</code> (both 0.05 m in <code>nav2_params_2d.yaml:210,264</code>). If you remap at higher res, ALSO bump those — otherwise saved maps load at the wrong scale and inflation looks wrong.</div>
     <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-significant">significant</span> <b>Quadratic in 1/cell</b>. Cells = (room area) ÷ cell². Halving cell size = 4× cells = 4× raycasts AND 4× inflation work AND 4× saved file size. 0.01 m on a 10×10 m room = 1M cells (vs 40k at 0.05 m). On Jetson Orin Nano, going below 0.03 m makes Nav2 raycasts noticeably laggy. <b>0.05 m is the sweet spot.</b></div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic 0.025–0.10 m</span>
+      <span class="test-step">Map the same room three times with <code>resolution: 0.025</code>, <code>0.05</code>, <code>0.10</code>. Save each map. Inspect the resulting <code>.pgm</code> in an image viewer — zoom into a doorway.</span>
+      <span class="test-step">After each map, drive an autonomous goal through a 0.76 m doorway. <b>0.025 m:</b> sharp doorway edges, planner threads cleanly, map file ~4× bigger. <b>0.05 m</b> (default): edges have a 2-pixel jitter, still navigable. <b>0.10 m:</b> doorway edges chunky, planner may refuse narrow openings.</span>
+      <span class="test-step">Document: map file size, Foxglove map zoom-in screenshots, doorway success rate (5 attempts per setting).</span>
+    </div>
   </div>
 </div>
 
@@ -465,6 +535,13 @@ h1 .sub { color: #67e8f9; }
     <div class="ex-down">↓ <b>Smaller distance:</b> dense graph, optimizer slower, but more chances for loop closure and smoother trajectory.</div>
     <div class="ex-deps">🔗 <b>Pairs with:</b> <code>minimum_travel_heading</code> (0.1 rad) and <code>minimum_time_interval</code> (0.2 s) — any one triggers a new keyframe. <b>No effect in localization</b> — that mode re-uses the existing graph and doesn't insert keyframes.</div>
     <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-moderate">moderate</span> Pose-graph optimizer cost grows with keyframe count (roughly <code>O(N · loop_candidates)</code> per optimize). Going 0.1 → 0.05 m doubles keyframe rate AND doubles loop-closure candidate work. In a long session this compounds — the slam_toolbox YAML comment recommends bumping <code>minimum_time_interval</code> to 0.5 s if the optimizer falls behind on Jetson.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic 0.05–0.30 m</span>
+      <span class="test-step">Drive an identical 5 m straight-line path at <b>0.05 m</b>, <b>0.10 m</b> (default), <b>0.30 m</b>, and <b>1.00 m</b>. Don't rotate.</span>
+      <span class="test-step">After each run, query <code>ros2 service call /slam_toolbox/get_graph slam_toolbox/srv/Pause</code> and count keyframes. 5 m at 0.05 = ~100 keyframes; 0.30 = ~17; 1.00 = ~5.</span>
+      <span class="test-step">Observe Foxglove pose graph: dense vs sparse dot pattern along trajectory.</span>
+      <span class="test-step">Stress test: drive a closed loop and check whether each setting catches the loop closure. At 1.00 m the rover may pass familiar landmarks without recording a keyframe and miss the closure.</span>
+      <span class="test-step">Document: keyframe count, Foxglove screenshots, loop-closure detection success.</span>
+    </div>
   </div>
 </div>
 
@@ -490,6 +567,13 @@ h1 .sub { color: #67e8f9; }
     <div class="ex-down">↓ <b>Disable / shrink:</b> map won't "snap" back together on re-visit; drift accumulates. Useful for debugging when wrong closures are warping the map.</div>
     <div class="ex-deps">🔗 <b>Mapping-only.</b> The pose graph is built and optimized live in mapping. <b>Localization mode IGNORES this</b> — it does scan-to-existing-map matching, not loop closure. <b>Pairs with:</b> <code>loop_match_minimum_response_coarse</code> (0.35), <code>loop_match_minimum_response_fine</code> (0.45), <code>loop_match_minimum_chain_size</code> (10). Lower thresholds = more (and riskier) closures.</div>
     <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-moderate">moderate</span> Per keyframe, slam_toolbox runs a candidate search over a circle of radius <code>loop_search_maximum_distance</code> on the <code>loop_search_space</code> grid (8×8 m at 0.05 m = 25k cells). <b>Cost scales O(radius²)</b>. Going 3 → 6 m = 4× the candidate work. Turning loop closure OFF saves the whole pipeline — useful for benchmarking, harmful for actual mapping.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic 1.0–6.0 m</span>
+      <span class="test-step">Drive a deliberate closed loop: pick a corner of the room, drive away ~3 m, around an obstacle, and back to the same corner. <b>This is the standard loop-closure stress test.</b></span>
+      <span class="test-step"><b>do_loop_closing: false</b>: when you return, the trajectory in Foxglove does NOT snap back — it drifts visibly. Map will be banana-shaped.</span>
+      <span class="test-step"><b>loop_search_maximum_distance: 0.5</b>: too tight, loop missed; <b>3.0</b> (default): loop snaps cleanly; <b>6.0</b>: catches more loops but in a self-similar room may produce false matches that warp the map.</span>
+      <span class="test-step">Try in a long featureless corridor (hallway) with two identical doorways — too-large search distance may produce a wrong closure between the doorways.</span>
+      <span class="test-step">Document: trajectory snap-back behavior, map shape after closing loop, time-to-closure detection.</span>
+    </div>
   </div>
 </div>
 
@@ -573,6 +657,13 @@ h1 .sub { color: #67e8f9; }
     <div class="ex-down">↓ <b>Too small:</b> Nav2 plans you into walls. Don't shrink below the real bumper.</div>
     <div class="ex-deps">🔗 <b>Must match in two places:</b> <code>local_costmap.robot_radius</code> AND <code>global_costmap.robot_radius</code> (lines 217, 263). <b>Inflation_radius must be ≥ robot_radius</b> — otherwise the inflation gradient is meaningless. Should match the URDF's <code>collision</code> geometry, not the URDF's visual mesh.</div>
     <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-minor">minor</span> Inflation only runs on cells changed since last update, and only out to <code>robot_radius + inflation_radius</code>. Doubling robot_radius = ~4× the affected cells per obstacle update, but on a static map this fires rarely. <b>Maxing it has no real penalty</b>; the planner refusing to find paths is the failure mode, not CPU.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic 0.15–0.30 m (Yahboom X3 mecanum: 0.18 m)</span>
+      <span class="test-step">Measure rover's actual bounding circle with a tape measure (corner-to-corner ÷ 2). For Yahboom X3 mecanum it's ~0.18 m.</span>
+      <span class="test-step">Set up a 0.50 m wide gap with two boxes. Send autonomous goal through gap.</span>
+      <span class="test-step"><b>0.10 m</b> (too small): planner tries to drive THROUGH the boxes — they clip the rover. <b>0.18 m</b> (honest): planner threads cleanly. <b>0.30 m</b> (too large): planner refuses the 0.50 m gap entirely (0.30×2 = 0.60 > 0.50).</span>
+      <span class="test-step">Try doorway navigation at 0.76 m (standard interior door): 0.18 m bounding ⇒ 0.40 m clearance per side ⇒ should succeed.</span>
+      <span class="test-step">Document: actual clipping vs planning refusal at each value; successful doorway transit count.</span>
+    </div>
   </div>
 </div>
 
@@ -599,6 +690,12 @@ h1 .sub { color: #67e8f9; }
     <div class="ex-down">↓ <b>Higher scaling:</b> gradient falls off fast, so distant cells stay cheap and the planner only avoids close obstacles. Good for tight indoor maps; bad for dynamic obstacles.</div>
     <div class="ex-deps">🔗 <b>Set in two costmaps:</b> <code>local_costmap.inflation_layer</code> (236–246) AND <code>global_costmap.inflation_layer</code> (282–286). <b>Constraint:</b> inflation_radius ≥ robot_radius (0.18 default). Cost formula: <code>cost = exp(-K·(d − r_robot))</code>. <b>Tighter than 0.30 m here</b> on purpose — let planner thread narrow doorways (project note).</div>
     <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-moderate">moderate</span> <code>inflation_radius</code> scales <b>O(r²)</b> in cells touched per obstacle update. Doubling from 0.15 → 0.30 m = 4× the gradient work; 0.5 m = 11×. <code>cost_scaling_factor</code> is <b>free</b> (just changes the exponential's constant). Big inflation on dynamic obstacles (people walking around) is the worst case — every frame redoes the gradient.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic inflation 0.10–0.40 m · cost_scaling 1–10</span>
+      <span class="test-step">Set up a wall on one side of a 1.5 m wide corridor. Send a goal at the far end. Visualize <code>/local_costmap/costmap</code> in Foxglove.</span>
+      <span class="test-step"><b>inflation_radius: 0.10</b> (tight): rover hugs the wall, path runs ~0.30 m from wall. <b>0.15</b> (default): path threads through doorways but stays ~0.35 m off. <b>0.40</b> (wide): rover refuses any corridor < 1.16 m total width.</span>
+      <span class="test-step"><b>cost_scaling_factor: 1.0</b> (slow decay): cost field spreads widely; rover prefers center even of large rooms. <b>3.0</b> (default): mild center preference. <b>10.0</b>: sharp decay, rover ignores anything past 0.50 m.</span>
+      <span class="test-step">Document: Foxglove costmap screenshots, measured rover-to-wall distance during traversal, doorway success rate.</span>
+    </div>
   </div>
 </div>
 
@@ -627,6 +724,13 @@ h1 .sub { color: #67e8f9; }
     <div class="ex-down">↓ <b>Default 0.0 s</b> = instant clearing the moment a ray passes through the cell. The rover reacts the fastest, but a brief sensor dropout can flicker obstacles in and out.</div>
     <div class="ex-deps">🔗 <b>Convention:</b> <code>raytrace_max_range</code> ≥ <code>obstacle_max_range</code> so the clearing buffer reaches past the marking buffer (15 ≥ 10 here ✓). If you flip them, you can add obstacles you can never clear. <b>Only set on local_costmap</b> — global_costmap intentionally omits the obstacle_layer (line 266 comment) so the saved slam_toolbox map stays the source of truth for static structure.</div>
     <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-minor">minor</span> Marking + raytracing run every scan but are O(scan_rays) — same work whether the rays go 5 m or 20 m (the ray is followed cell-by-cell until it hits its hit point or max range). Persistence buffer is per-cell metadata, O(1) lookup. Maxing all three has negligible CPU cost; the real risk is making the costmap visually wrong (phantoms or missed obstacles).</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic obs_max 5–15 m · raytrace_max ≥ obs_max · persistence 0–2 s</span>
+      <span class="test-step">Park the rover. Have an assistant walk a slow figure-8 in front of the rover. Visualize <code>/local_costmap/costmap</code> in Foxglove.</span>
+      <span class="test-step"><b>observation_persistence: 0.0</b> (default): obstacle dot follows the person frame-by-frame; clears instantly when they pass behind a wall. <b>1.0 s</b>: visible trail behind the person. <b>5.0 s</b>: trail looks like a smear, planner thinks the room is full of obstacles.</span>
+      <span class="test-step"><b>obstacle_max_range: 2.0 m</b>: person visible only within 2 m of rover; far approaches don't trigger costmap update. <b>10 m</b> (default): standard. <b>20 m</b>: even a far ceiling-height return marks a cell.</span>
+      <span class="test-step"><b>Phantom test:</b> set <code>raytrace_max_range: 2.0</code> AND <code>obstacle_max_range: 10.0</code>. Walk away to 5 m, stand still, walk back. The 5 m mark stays forever (raytrace can't reach it to clear).</span>
+      <span class="test-step">Document: trail length per persistence setting; phantom cell behavior at wrong raytrace ordering.</span>
+    </div>
   </div>
 </div>
 
@@ -653,6 +757,12 @@ h1 .sub { color: #67e8f9; }
     <div class="ex-down">↓ <b>Tighter yaw on mecanum:</b> pure-rotation yaw is physically hard at goal; below ~0.30 rad the rover oscillates forever (see memory: <code>project_mecanum_yaw_stall</code>).</div>
     <div class="ex-deps">🔗 <b>Set in two places:</b> <code>controller_server.general_goal_checker</code> (line 120) AND <code>controller_server.FollowPath</code> (174). Both must match. <b>Pairs with:</b> <code>PoseProgressChecker.required_movement_radius</code> (0.3) + <code>required_movement_angle</code> (0.05 rad) — the rover must keep making progress at this scale or Nav2 aborts.</div>
     <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-none">none</span> Pure scalar comparisons every controller cycle. The values don't change any sampling, raycasting, or grid work. <b>Max them or min them — same CPU.</b> The real cost of tight tolerances is the rover failing to terminate (which then triggers Nav2 recovery behaviors, which DO cost CPU and time).</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic xy 0.10–0.50 m · yaw 0.30–1.00 rad (mecanum)</span>
+      <span class="test-step">Send a goal 2 m away with a specific heading (use RViz "2D Goal Pose"). Tape a circle of radius = <code>xy_goal_tolerance</code> on the floor at the goal.</span>
+      <span class="test-step"><b>xy 0.05 / yaw 0.05:</b> rover oscillates forever, never declares success (mecanum can't yaw precisely at goal). <b>xy 0.25 / yaw 0.40</b> (default): clean termination. <b>xy 1.00 / yaw 1.50:</b> rover stops far short, dock not reached.</span>
+      <span class="test-step">Time the goal duration with a stopwatch for each setting. Watch the Nav2 log for "GoalChecker: succeeded" or recovery behavior triggers.</span>
+      <span class="test-step">Document: time-to-goal, final pose error (stop, measure), recovery behaviors triggered.</span>
+    </div>
   </div>
 </div>
 
@@ -679,6 +789,13 @@ h1 .sub { color: #67e8f9; }
     <div class="ex-down">↓ <b>Lower vθ:</b> smoother yaw, less impulse. Too low and the rover can't yaw quickly enough to track curving paths.</div>
     <div class="ex-deps">🔗 <b>Pairs with:</b> <code>acc_lim_x/y/theta</code> (2.5 / 2.0 / 5.0) — accel must be high enough to hit max_vel inside <code>sim_time</code> (1.7 s). <b>Mecanum-specific:</b> also set <code>max_vel_y</code> (0.3) — non-mecanum platforms MUST override y to 0.0. <b>Mirror in:</b> <code>velocity_smoother.max_velocity</code> (line 364) — values must match or smoother clips the DWB output.</div>
     <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-none">none</span> DWB samples a fixed grid of <code>vx_samples × vy_samples × vtheta_samples</code> = 20×10×8 = 1600 candidate trajectories every cycle regardless of max_vel. Higher max just spreads samples over a wider velocity range. <b>The mechanical cost is real (faster = more wheel slip on mecanum)</b>, but the CPU cost is constant.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic vx 0.20–0.80 m/s · vθ 0.8–2.0 rad/s (mecanum)</span>
+      <span class="test-step">Lay a 5 m straight tape line on the floor. Send a goal at the end. Time the traverse with a stopwatch.</span>
+      <span class="test-step"><b>vx 0.2</b>: ~25 s, low slip, accurate odom. <b>0.5</b> (default): ~10 s. <b>1.5</b>: ~3.3 s but mecanum slips visibly, odom drifts &gt;0.2 m over 5 m.</span>
+      <span class="test-step">Measure odom drift: <code>ros2 topic echo /odom</code> at start vs end vs ground truth from tape measure. Capture the drift per setting.</span>
+      <span class="test-step"><b>vθ 0.3</b>: slow turns, rover lags around corners. <b>1.5</b> (default): brisk. <b>3.0</b>: motor whine + IMU saturation possible on Mid-360's onboard IMU.</span>
+      <span class="test-step">Document: time-to-goal, odom drift in meters, audible motor strain.</span>
+    </div>
   </div>
 </div>
 
@@ -711,6 +828,12 @@ h1 .sub { color: #67e8f9; }
     <div class="ex-down">↓ <b>Smaller blind:</b> sees obstacles closer to the rover, but self-hits become "phantom" obstacles glued to the rover that drag the map.</div>
     <div class="ex-deps">🔗 <b>Active only when FAST-LIO is running</b> (<code>start_fast_lio.sh</code> / <code>start_slam.sh</code>). <b>Hardware-dependent:</b> tuned for the 2040 test fixture (self-hits at 0.2–0.5 m, project memory). Different mount = different value. <b>Independent of 2D stack</b> — the 2D path uses <code>scan_range_min</code> instead (different filter, same purpose).</div>
     <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-none">none</span> One distance comparison per raw point in the preprocess step. Raising blind actually <b>SAVES</b> downstream cost — fewer points enter the voxel filter and ICP. Free win up to the point where you'd start losing real obstacles.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic 0.20–0.60 m (mount-dependent)</span>
+      <span class="test-step">Run <code>./start_fast_lio.sh</code> on the test fixture. Open Foxglove on <code>/livox/lidar</code>. Slowly orbit the rover around its own center while watching the cloud.</span>
+      <span class="test-step"><b>blind: 0.05</b>: self-hits from 2040 frame, battery, buck converter at 0.2–0.5 m appear as solid points glued to the rover (phantom obstacles). <b>0.50</b> (default): self-hits silent. <b>1.5</b>: also drops real chairs and table legs within arm's reach.</span>
+      <span class="test-step">Move a real chair to 0.30 m from rover. At blind:0.50, chair leg should still be visible (it's at 0.30 from the rover, but the lidar is on top — measure from lidar mount).</span>
+      <span class="test-step">Document: closest visible point in each setting; presence of fixture self-hits.</span>
+    </div>
   </div>
 </div>
 
@@ -735,6 +858,13 @@ h1 .sub { color: #67e8f9; }
     <div class="ex-down">↓ <b>Smaller voxel:</b> more points, ICP can lock to fine features, but map memory grows fast and the Jetson Orin Nano slows.</div>
     <div class="ex-deps">🔗 <b>Pairs with</b> <code>filter_size_map</code> (also 0.3 m in <code>fast_lio_mid360.yaml:65</code>) — surf is per-scan, map is the accumulated map. Convention: set them equal. <b>Hardware-dependent:</b> Mid-360 is point-sparse per sweep, so unlike Velodyne/Ouster you can't go past ~0.5 m without ICP failing. RTABMap's voxel downsample is separate.</div>
     <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-significant">significant</span> <b>Biggest FAST-LIO CPU knob.</b> ICP cost is roughly <b>O(N · log N)</b> for KD-tree correspondence search; points scale <code>O(1/voxel³)</code>. Going 0.3 → 0.1 m = ~27× more points = ICP can slow by an order of magnitude. The flip side: too coarse and ICP fails with "No Effective Points!" then the pose just drifts. <b>0.3 m is the Jetson Orin Nano sweet spot for Mid-360.</b></div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic 0.2–0.5 m (Mid-360 sparse-cloud sweet spot)</span>
+      <span class="test-step">Run <code>top</code> in a separate terminal to watch fastlio_mapping CPU. Visualize <code>/cloud_registered</code> in Foxglove.</span>
+      <span class="test-step">Drive the rover slowly through the room and observe the map building.</span>
+      <span class="test-step"><b>filter_size_surf: 0.05</b>: dense, beautiful map; fastlio_mapping pegs at 100%+ CPU on Orin Nano; pose updates lag. <b>0.30</b> (default): smooth map building, CPU around 40–60%. <b>0.60</b>: sparse map; fastlio prints "No Effective Points!" sporadically; pose starts to drift. <b>1.0</b>: pose drifts severely.</span>
+      <span class="test-step">Capture: <code>ros2 topic hz /Odometry</code> — should stay around 10 Hz at default; drops below 5 Hz when ICP is overloaded.</span>
+      <span class="test-step">Document: CPU%, /Odometry rate, map detail (Foxglove screenshots), error messages in fastlio log.</span>
+    </div>
   </div>
 </div>
 
@@ -760,6 +890,13 @@ h1 .sub { color: #67e8f9; }
     <div class="ex-down">↓ <b>Lower gyr_cov:</b> smoother attitude through brief lidar dropouts. Too low and gyro bias drift bends the map.</div>
     <div class="ex-deps">⚠ <b>CRITICAL DEPENDENCY:</b> <code>common.imu_topic</code> MUST be <code>/livox/imu_ms2</code> (unit-corrected, m/s²), NOT <code>/livox/imu</code> (which is in g). Default tuned against the corrected stream — pointing at raw <code>/livox/imu</code> over-trusts the IMU by ~96× and silently degrades pose smoothing. The <code>imu_units_g_to_ms2</code> republisher is launched alongside FAST-LIO. Also pairs with <code>b_acc_cov</code> / <code>b_gyr_cov</code> (bias drift, both 0.0001).</div>
     <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-none">none</span> Just scalar constants in the EKF's noise matrix. The Kalman update runs the same math regardless of value. <b>Maxing them or minning them costs the same CPU</b> — the failure mode is pose quality (jitter, lag, drift), never compute.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic acc_cov 0.1–1.0 · gyr_cov 0.05–0.5</span>
+      <span class="test-step"><b>FIRST</b>: confirm <code>imu_topic: /livox/imu_ms2</code> in YAML — this is the unit-corrected stream. Wrong topic invalidates these defaults.</span>
+      <span class="test-step">Perform two stress tests: (a) slow walk pace 0.3 m/s, (b) brisk turns at 1.5 rad/s. Plot <code>/Odometry</code> trajectory in Foxglove.</span>
+      <span class="test-step"><b>acc_cov: 0.05</b> (IMU heavily trusted): smooth pose during slow walks, but fast turns leave the IMU prediction stuck — pose lags ~0.2 s behind reality. <b>0.5</b> (default): ICP corrects fast motion cleanly. <b>2.0</b> (IMU ignored): pose jitters more during smooth motion, drifts during brief lidar dropouts.</span>
+      <span class="test-step"><b>gyr_cov: 0.01</b>: smooth attitude through brief sensor occlusion (someone walks past the lidar). <b>1.0</b>: yaw bounces with every scan.</span>
+      <span class="test-step">Document: pose smoothness via Foxglove path width; lag estimate by sudden start/stop test (move rover by hand, see how fast /Odometry catches up).</span>
+    </div>
   </div>
 </div>
 
@@ -784,6 +921,12 @@ h1 .sub { color: #67e8f9; }
     <div class="ex-down">↓ <b>Smaller range:</b> caps memory in long sessions, kills noisy far returns. Too small in a big room and ICP loses lock as you move.</div>
     <div class="ex-deps">🔗 <b>Pairs with</b> <code>fov_degree</code> (360 — full Mid-360 sweep) and the sensor's hardware spec (Mid-360 advertised 70 m @ 80% reflectivity). Setting det_range past sensor capability just wastes the FOV test. <b>Independent of</b> <code>filter_size_surf</code> — det_range trims by distance, filter_size by voxel density. Both run.</div>
     <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-minor">minor</span> Indoor: <b>essentially zero penalty</b> at the 100 m default — the room caps the actual point distances at ~10 m anyway. Outdoors or long corridors: each surviving point becomes work for ICP and the KD-tree map. Memory grows linearly with kept points. The voxel filter (<code>filter_size_surf</code>) actually does the heavy lifting; det_range is a coarse pre-trim.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic 10–100 m indoor · up to 200 m outdoor</span>
+      <span class="test-step">Set up the rover at one end of a long hallway or driveway. Visualize <code>/Laser_map</code> in Foxglove.</span>
+      <span class="test-step"><b>det_range: 2</b>: map shows only a 2 m bubble around the rover. Drive forward — far walls never appear. <b>10</b>: typical room coverage; doorways visible. <b>100</b> (default): no practical limit indoors. <b>200</b>: outdoor scene gets distant cars, trees.</span>
+      <span class="test-step">Cross-check sensor capability with <code>ros2 topic echo /livox/lidar --field point_data --max-print=0</code> and look for max-range hits. The Mid-360 caps at ~70 m @ 80% reflectivity; setting det_range past sensor capability is wasted.</span>
+      <span class="test-step">Document: <code>ros2 topic bw /Laser_map</code> bandwidth at each setting; map extent in Foxglove; memory usage from <code>top</code> over 5 min.</span>
+    </div>
   </div>
 </div>
 
