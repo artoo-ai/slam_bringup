@@ -1034,6 +1034,135 @@ h1 .sub { color: #67e8f9; }
   </div>
 </div>
 
+<!-- Card 15: filter_size_map (paired with surf) -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">mapping.filter_size_map</span>
+    <span class="paramFile">config/fast_lio_mid360.yaml:65</span>
+    <span class="paramDesc">Voxel grid size (m) for the <b>accumulated map</b>, separate from <code>filter_size_surf</code> (per-scan). Determines how densely the persistent map stores points.</span>
+    <div class="modes"><span class="mode-chip mode-3d">3D stack only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>map voxel</label><input type="range" id="fmap-v" min="0.05" max="1.0" step="0.01" value="0.3" data-unit=" m" data-precision="2"><span class="val" id="fmap-vVal">0.30 m</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> how many points the world map keeps per cubic voxel. Affects map memory growth, ICP correspondence quality, and how much of the room's detail survives long sessions.</div>
+    <div class="ex-up">↑ <b>Larger:</b> map stays smaller, RAM grows slowly. Past 0.5 m on Mid-360 the map gets too sparse for reliable re-localization.</div>
+    <div class="ex-down">↓ <b>Smaller:</b> richer map (visible thin features), but memory grows fast. Pairs poorly with long sessions on Jetson.</div>
+    <div class="ex-deps">🔗 <b>Convention:</b> set <code>filter_size_map = filter_size_surf</code>. Setting them differently is valid but rare. <b>Independent of</b> RTABMap's <code>Grid/CellSize</code> which is the 2D occupancy grid.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-significant">significant</span> Larger map = larger KD-tree = slower ICP queries. Memory grows as O(1/voxel³).</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic 0.20–0.50 m (Mid-360)</span>
+      <span class="test-step">Map a 5×5 m room for 5 minutes. Note RAM growth with <code>top</code>. At 0.10 m: RAM climbs ~50 MB/min. At 0.30 m: ~10 MB/min. At 0.50 m: ~3 MB/min.</span>
+      <span class="test-step">Save the map with <code>ros2 service call /map_save</code> and inspect file size. Compare each setting.</span>
+      <span class="test-step">Stop+restart FAST-LIO and re-localize on the saved map. Sparser maps make re-localization slower or fail.</span>
+    </div>
+    <div class="ex-cross">🔄 <b>Cross-device:</b> same scaling as <code>filter_size_surf</code> per sensor density. <span class="device-tag">Mid-360 0.30 m</span><span class="device-tag">VLP-16 0.20 m</span><span class="device-tag">Pandar40P 0.15 m</span></div>
+  </div>
+</div>
+
+<!-- Card 16: scan_line + fov_degree (FAST-LIO preprocessing) -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">preprocess.scan_line · mapping.fov_degree</span>
+    <span class="paramFile">config/fast_lio_mid360.yaml:37, 57</span>
+    <span class="paramDesc">Lidar geometry hints. <code>scan_line</code> = number of effective rows (Livox: 4 for the spiral pattern). <code>fov_degree</code> = angular range to consider for mapping (360 = full sweep).</span>
+    <div class="modes"><span class="mode-chip mode-3d">3D stack only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>scan_line</label><input type="range" id="sl-v" min="1" max="40" step="1" value="4" data-unit="" data-precision="0"><span class="val" id="sl-vVal">4</span></div>
+    <div class="slider-row"><label>fov_degree</label><input type="range" id="fov-v" min="60" max="360" step="5" value="360" data-unit="°" data-precision="0"><span class="val" id="fov-vVal">360°</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> how FAST-LIO buckets points by ring index (scan_line) and what angular sector it cares about (fov_degree).</div>
+    <div class="ex-up">↑ <b>scan_line</b> for denser lidars: Velodyne VLP-16 = 16, Hesai Pandar40P = 40. <b>fov_degree</b> = 360 for any rotating lidar.</div>
+    <div class="ex-down">↓ <b>fov_degree to 180</b> only if your sensor is forward-facing (e.g. an OAK-D Pro pointed forward). Cuts CPU roughly in half.</div>
+    <div class="ex-deps">🔗 <b>scan_line must match the driver's actual ring count.</b> Misaligning silently breaks preprocessing. <b>fov_degree</b> can be smaller than the sensor's actual FOV for testing.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-minor">minor</span> Preprocessing scales linearly with kept points; halving fov_degree halves them.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic scan_line: sensor-defined · fov_degree 180–360</span>
+      <span class="test-step">Set <code>scan_line</code> wrong (e.g., 16 on Mid-360) and observe — FAST-LIO will run but mapping quality degrades subtly. Foxglove map gets "missing rings" of points.</span>
+      <span class="test-step">Set <code>fov_degree: 180</code>, drive a 360° turn. The map only fills in the forward 180° at any moment; behind the rover stays empty until you yaw.</span>
+    </div>
+    <div class="ex-cross">🔄 <b>Cross-device scan_line</b>: <span class="device-tag">Mid-360 = 4</span><span class="device-tag">VLP-16 = 16</span><span class="device-tag">Pandar40P = 40</span><span class="device-tag">Unitree L1 = 4-8</span><span class="device-tag">2D lidars (RPLidar, Neato) = 1</span></div>
+  </div>
+</div>
+
+<!-- Card 17: b_acc_cov + b_gyr_cov (bias drift) -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">mapping.b_acc_cov · mapping.b_gyr_cov</span>
+    <span class="paramFile">config/fast_lio_mid360.yaml:55–56</span>
+    <span class="paramDesc">IMU <b>bias</b> drift covariances (random walk). Distinct from <code>acc_cov</code>/<code>gyr_cov</code> which model per-sample noise — these model how fast the bias itself drifts over time.</span>
+    <div class="modes"><span class="mode-chip mode-3d">3D stack only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="slider-row"><label>b_acc_cov</label><input type="range" id="bacc-v" min="0.00001" max="0.01" step="0.00001" value="0.0001" data-unit="" data-precision="5"><span class="val" id="bacc-vVal">0.00010</span></div>
+    <div class="slider-row"><label>b_gyr_cov</label><input type="range" id="bgyr-v" min="0.00001" max="0.01" step="0.00001" value="0.0001" data-unit="" data-precision="5"><span class="val" id="bgyr-vVal">0.00010</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> the EKF's belief about how the IMU's zero-offset drifts. Low values lock the bias estimate; high values let the EKF re-estimate the bias more eagerly.</div>
+    <div class="ex-up">↑ <b>Higher:</b> bias is allowed to drift fast — useful after warm-up periods when the IMU is still thermalizing. Risk: EKF "absorbs" real motion into bias and pose lags.</div>
+    <div class="ex-down">↓ <b>Lower:</b> bias treated as constant. Good if you let the IMU sit still for 30 s before launching (bias is well-calibrated). Bad if you re-launch frequently with different thermal states.</div>
+    <div class="ex-deps">🔗 <b>Pairs with</b> <code>acc_cov</code>/<code>gyr_cov</code> (per-sample noise — usually 1000–10000× larger).</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-none">none</span> Pure EKF constant.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic 1e-5 to 1e-3</span>
+      <span class="test-step">Stationary test: park rover, launch FAST-LIO, leave it idle for 5 min. Log <code>/Odometry</code>. Truth is "no motion." Drift in pose = bias being mis-estimated.</span>
+      <span class="test-step">b_acc_cov: 0.0001 (default) → typical drift &lt; 5 cm/5 min. Bump to 0.001 → drift may exceed 20 cm as bias wanders.</span>
+    </div>
+    <div class="ex-cross">🔄 <b>Cross-device:</b> consumer IMUs (WT901, BNO055) have larger bias-drift constants (~1e-3) than industrial (ICM40609, BNO086 fused: ~1e-4 to 1e-5).</div>
+  </div>
+</div>
+
+<!-- Card 18: time_sync_en + time_offset_lidar_to_imu -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">common.time_sync_en · common.time_offset_lidar_to_imu</span>
+    <span class="paramFile">config/fast_lio_mid360.yaml:32–33</span>
+    <span class="paramDesc">Hardware time synchronization between lidar and IMU. The Mid-360 has factory-synchronized timestamps so this is OFF; if you use a non-synced IMU pair, enabling this lets FAST-LIO estimate the time offset online.</span>
+    <div class="modes"><span class="mode-chip mode-3d">3D stack only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="toggle-row"><input type="checkbox" id="tsync-en"><label for="tsync-en">time_sync_en</label></div>
+    <div class="slider-row"><label>offset</label><input type="range" id="toff-v" min="-0.05" max="0.05" step="0.001" value="0.0" data-unit=" s" data-precision="3"><span class="val" id="toff-vVal">0.000 s</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> alignment of lidar timestamps to IMU timestamps. Misalignment causes "ghost" motion in the map (points placed at where they would've been 10 ms ago).</div>
+    <div class="ex-up">↑ <b>Enable time_sync_en</b> for IMU+lidar pairs without hardware sync (e.g. Velodyne VLP-16 + WT901 over USB). Lets EKF estimate the offset online.</div>
+    <div class="ex-down">↓ <b>Leave OFF</b> for factory-synced IMUs (Mid-360 onboard). Adding online estimation costs CPU and can fight the true zero-offset.</div>
+    <div class="ex-deps">⚠ <b>Critical:</b> if you switch from Mid-360 onboard to external IMU (BNO086, WT901), MUST enable time_sync_en or set a manual offset measured from oscilloscope-traced PPS signals.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-minor">minor</span> Adds one extra state to the EKF when enabled.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic offset ±20 ms (USB-based IMUs)</span>
+      <span class="test-step">Drive the rover in a tight figure-8 at moderate speed. With time_sync_en:false and a wrong offset, the trajectory in Foxglove looks like a smeared figure-8 — points lag behind motion.</span>
+      <span class="test-step">Enable time_sync_en. Watch <code>/Odometry</code> after 30 s of motion — FAST-LIO converges to the true offset; trajectory sharpens.</span>
+    </div>
+    <div class="ex-cross">🔄 <b>Cross-device:</b> required for external IMUs (WT901, BNO086, BNO055). NOT needed for Mid-360's onboard ICM40609 or any IMU+lidar with shared hardware PPS.</div>
+  </div>
+</div>
+
+<!-- Card 19: extrinsic_est_en -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">mapping.extrinsic_est_en</span>
+    <span class="paramFile">config/fast_lio_mid360.yaml:66</span>
+    <span class="paramDesc">Online estimation of the IMU-to-lidar transform. Default OFF — uses the datasheet extrinsic (<code>extrinsic_T</code> + <code>extrinsic_R</code>). Enable once to auto-calibrate, then lock back to false.</span>
+    <div class="modes"><span class="mode-chip mode-3d">3D stack only</span></div>
+  </div>
+  <div class="card-controls">
+    <div class="toggle-row"><input type="checkbox" id="ext-en"><label for="ext-en">extrinsic_est_en</label></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What changes:</b> FAST-LIO adds 6 extra states (3 trans + 3 rot) to the EKF and re-estimates the IMU-to-lidar transform as the rover moves.</div>
+    <div class="ex-up">↑ <b>Enable temporarily</b> after sensor mount changes — drive 5 min of varied motion, log the converged extrinsic from <code>/Odometry</code>'s associated state vector, write those values to <code>extrinsic_T</code>/<code>R</code>, then DISABLE.</div>
+    <div class="ex-down">↓ <b>Leave OFF</b> for normal operation. Online estimation can drift in low-motion environments and produce a worse extrinsic than the datasheet value.</div>
+    <div class="ex-deps">🔗 <b>Sister params:</b> <code>extrinsic_T</code> (translation in meters) and <code>extrinsic_R</code> (3×3 rotation matrix flattened to 9-element list).</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-minor">minor</span> 6 extra EKF states. Pose updates take ~5% longer.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">realistic: enable once, disable</span>
+      <span class="test-step">Bench test: enable, run FAST-LIO. Hand-rotate the rover slowly through pitch, roll, yaw. After 2 min watch the estimated extrinsic stabilize.</span>
+      <span class="test-step">Compare estimated extrinsic to datasheet. Mid-360: <code>x=-0.011, y=-0.02329, z=0.04412</code>. Discrepancy &gt; 5 mm or 1° = check the mechanical mount.</span>
+    </div>
+    <div class="ex-cross">🔄 <b>Cross-device:</b> particularly useful when adding aftermarket IMUs (WT901 zip-tied to a Velodyne) where the datasheet extrinsic doesn't exist.</div>
+  </div>
+</div>
+
 </div><!-- /cards -->
 
 </div><!-- /wrap -->
@@ -2448,6 +2577,26 @@ function drawScanRays(ctx, P, ranges, color) {
     }
     eV.addEventListener('input', draw);
     window.addEventListener('resize', draw); draw();
+})();
+
+// ============================================================
+// Slim-card slider handlers
+// For cards without a custom canvas: data-unit attribute on the slider
+// controls the val span format. e.g. <input data-unit=" m" data-precision="2">.
+// ============================================================
+(function() {
+    document.querySelectorAll('input[type=range][data-unit]').forEach(el => {
+        const valSpan = document.getElementById(el.id + 'Val');
+        if (!valSpan) return;
+        const unit = el.dataset.unit || '';
+        const prec = el.dataset.precision !== undefined ? +el.dataset.precision : 2;
+        const update = () => {
+            const v = +el.value;
+            valSpan.textContent = (prec >= 0 ? v.toFixed(prec) : v.toString()) + unit;
+        };
+        el.addEventListener('input', update);
+        update();
+    });
 })();
 
 // ============================================================
