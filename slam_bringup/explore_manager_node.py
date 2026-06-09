@@ -11,11 +11,11 @@ Lifecycle:
 """
 
 import json
-import math
 import os
 import time
 from enum import Enum, auto
-from pathlib import Path
+
+import numpy as np
 
 import rclpy
 from rclpy.node import Node
@@ -96,24 +96,21 @@ class ExploreManager(Node):
 
     def _map_cb(self, msg: OccupancyGrid):
         self._map_received = True
-        data = msg.data
-        self._free_cells = sum(1 for v in data if v == 0)
-
-        frontier = 0
         w = msg.info.width
         h = msg.info.height
-        for y in range(h):
-            for x in range(w):
-                idx = y * w + x
-                if data[idx] != 0:
-                    continue
-                for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-                    nx, ny = x + dx, y + dy
-                    if 0 <= nx < w and 0 <= ny < h:
-                        if data[ny * w + nx] == -1:
-                            frontier += 1
-                            break
-        self._frontier_count = frontier
+        grid = np.array(msg.data, dtype=np.int8).reshape((h, w))
+
+        free = grid == 0
+        self._free_cells = int(np.count_nonzero(free))
+
+        unknown = grid == -1
+        has_unknown_neighbor = np.zeros_like(free)
+        has_unknown_neighbor[1:, :]  |= unknown[:-1, :]
+        has_unknown_neighbor[:-1, :] |= unknown[1:, :]
+        has_unknown_neighbor[:, 1:]  |= unknown[:, :-1]
+        has_unknown_neighbor[:, :-1] |= unknown[:, 1:]
+
+        self._frontier_count = int(np.count_nonzero(free & has_unknown_neighbor))
 
     def _record_home_pose(self):
         try:
