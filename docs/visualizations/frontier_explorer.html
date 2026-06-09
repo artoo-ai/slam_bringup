@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Frontier Explorer — Make or Code</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Audiowide&family=JetBrains+Mono:wght@400;500;600;700&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+/* ─────────────────────────────────────────────────────────────
+   Make or Code brand atoms
+   ───────────────────────────────────────────────────────────── */
+:root {
+    --brand-pink:   #ff3d7f;
+    --brand-blue:   #00b8ff;
+    --brand-purple: #7a2dff;
+    --brand-bg:     #0a0a14;
+    --brand-bg-2:   #140820;
+    --font-display:     'Audiowide', 'Orbitron', sans-serif;
+    --font-display-alt: 'Orbitron', 'Audiowide', sans-serif;
+    --font-ui:          'JetBrains Mono', 'Fira Mono', monospace;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    background:
+        radial-gradient(ellipse at top, var(--brand-bg-2) 0%, var(--brand-bg) 60%),
+        var(--brand-bg);
+    background-attachment: fixed;
+    color: #e2e8f0;
+    font-family: var(--font-ui);
+    min-height: 100vh;
+    padding: 32px 16px 80px;
+}
+.wrap { max-width: 1480px; margin: 0 auto; }
+
+h1 {
+    font-family: var(--font-display);
+    font-size: 42px;
+    font-weight: 400;
+    color: var(--brand-pink);
+    letter-spacing: 0.04em;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    text-shadow: 0 0 24px rgba(255, 61, 127, 0.35);
+}
+h1 .sub {
+    color: var(--brand-blue);
+    text-shadow: 0 0 24px rgba(0, 184, 255, 0.45);
+}
+.lede {
+    color: #94a3b8;
+    font-size: 14px;
+    line-height: 1.65;
+    margin-bottom: 28px;
+    max-width: 1000px;
+}
+.lede b { color: #cbd5e1; }
+.lede code {
+    background: rgba(0, 184, 255, 0.08);
+    color: var(--brand-blue);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+.section-title {
+    font-family: var(--font-display-alt);
+    font-size: 24px;
+    font-weight: 700;
+    color: #f1f5f9;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    margin: 44px 0 18px;
+    border-bottom: 1px solid rgba(122, 45, 255, 0.45);
+    padding-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+/* ── Cards ── */
+.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(560px, 1fr));
+    gap: 18px;
+}
+.card {
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 20px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.card-head {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.card-head .paramName {
+    font-family: 'JetBrains Mono', 'Fira Mono', monospace;
+    color: var(--brand-blue);
+    font-size: 16px;
+    font-weight: 600;
+    text-shadow: 0 0 12px rgba(0, 184, 255, 0.25);
+}
+.card-head .paramFile {
+    font-family: 'JetBrains Mono', monospace;
+    color: #64748b;
+    font-size: 11px;
+}
+.card-head .paramDesc {
+    color: #cbd5e1;
+    font-size: 14px;
+    margin-top: 6px;
+    line-height: 1.6;
+}
+.modes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+.mode-chip {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 3px 9px;
+    border-radius: 3px;
+    border: 1px solid;
+}
+.mode-mapping { background: rgba(20, 83, 45, 0.25);  color: #86efac; border-color: #166534; }
+.mode-loc     { background: rgba(30, 58, 138, 0.25); color: #93c5fd; border-color: #1e40af; }
+.mode-nav     { background: rgba(67, 56, 202, 0.25); color: #c4b5fd; border-color: #4338ca; }
+.mode-3d      { background: rgba(127, 29, 29, 0.25); color: #fca5a5; border-color: #991b1b; }
+.mode-always  { background: rgba(30, 41, 59, 0.6);   color: #cbd5e1; border-color: #475569; }
+.mode-explore { background: rgba(52, 211, 153, 0.18); color: #6ee7b7; border: 1px solid rgba(52, 211, 153, 0.4); }
+
+.ex-observe {
+    color: #cbd5e1;
+    padding: 12px 14px;
+    margin-top: 4px;
+    background: rgba(52, 211, 153, 0.07);
+    border-radius: 4px;
+    border-left: 3px solid #34d399;
+    font-size: 13px;
+    line-height: 1.6;
+}
+.ex-observe b { color: #34d399; }
+.ex-observe code {
+    font-size: 12px;
+    background: rgba(0, 184, 255, 0.08);
+    color: var(--brand-blue);
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+
+/* ── Occupancy Grid Visualization ── */
+.grid-viz-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    margin: 20px 0 10px;
+}
+.grid-viz {
+    display: grid;
+    grid-template-columns: repeat(12, 38px);
+    grid-template-rows: repeat(10, 38px);
+    gap: 2px;
+    border-radius: 8px;
+    padding: 10px;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid #334155;
+}
+.grid-cell {
+    border-radius: 3px;
+    position: relative;
+    transition: background 0.3s;
+}
+.cell-unknown  { background: #1e293b; }
+.cell-free     { background: rgba(52, 211, 153, 0.2); }
+.cell-occupied { background: #ef4444; }
+.cell-frontier {
+    background: rgba(255, 61, 127, 0.35);
+    box-shadow: 0 0 8px rgba(255, 61, 127, 0.5);
+    animation: frontier-pulse 1.8s ease-in-out infinite;
+}
+.cell-robot {
+    background: rgba(52, 211, 153, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.cell-robot::after {
+    content: '';
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--brand-blue);
+    box-shadow: 0 0 10px var(--brand-blue);
+}
+.cell-path {
+    background: rgba(52, 211, 153, 0.2);
+}
+.cell-path::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(0, 184, 255, 0.5);
+}
+@keyframes frontier-pulse {
+    0%, 100% { box-shadow: 0 0 6px rgba(255, 61, 127, 0.3); }
+    50%      { box-shadow: 0 0 14px rgba(255, 61, 127, 0.7); }
+}
+
+.grid-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: center;
+    font-size: 12px;
+    color: #94a3b8;
+}
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.legend-swatch {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+
+/* ── Loop Steps ── */
+.loop-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 16px 0 8px;
+    max-width: 700px;
+}
+.loop-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 10px 0;
+}
+.loop-num {
+    font-family: var(--font-display);
+    font-size: 20px;
+    color: var(--brand-pink);
+    text-shadow: 0 0 10px rgba(255, 61, 127, 0.3);
+    min-width: 32px;
+    text-align: center;
+    padding-top: 1px;
+}
+.loop-text {
+    color: #cbd5e1;
+    font-size: 13px;
+    line-height: 1.6;
+}
+.loop-text b { color: #e2e8f0; }
+
+/* ── Recovery Flow ── */
+.recovery-flow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 0;
+    margin: 16px 0;
+    overflow-x: auto;
+    padding-bottom: 8px;
+}
+.recovery-step {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-shrink: 0;
+}
+.recovery-box {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 14px 16px;
+    min-width: 120px;
+    text-align: center;
+}
+.recovery-box .rb-title {
+    font-family: var(--font-display);
+    font-size: 13px;
+    color: var(--brand-pink);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.recovery-box .rb-desc {
+    font-size: 11px;
+    color: #94a3b8;
+    line-height: 1.5;
+}
+.recovery-arrow {
+    color: var(--brand-purple);
+    font-size: 22px;
+    padding: 0 6px;
+    flex-shrink: 0;
+    line-height: 1;
+    align-self: center;
+}
+.recovery-note {
+    color: #94a3b8;
+    font-size: 13px;
+    line-height: 1.6;
+    margin-top: 12px;
+}
+.recovery-note code {
+    background: rgba(0, 184, 255, 0.08);
+    color: var(--brand-blue);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+/* ── State Machine ── */
+.state-machine {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    margin: 20px 0;
+}
+.state-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0;
+    justify-content: center;
+}
+.state-box {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 16px 20px;
+    min-width: 170px;
+    max-width: 240px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.state-box .sb-name {
+    font-family: var(--font-display);
+    font-size: 15px;
+    color: var(--brand-blue);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    letter-spacing: 0.05em;
+    text-shadow: 0 0 10px rgba(0, 184, 255, 0.3);
+}
+.state-box .sb-desc {
+    font-size: 11px;
+    color: #94a3b8;
+    line-height: 1.5;
+}
+.state-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 8px;
+    flex-shrink: 0;
+}
+.state-arrow .sa-line {
+    color: var(--brand-purple);
+    font-size: 22px;
+}
+.state-arrow .sa-label {
+    font-size: 9px;
+    color: #64748b;
+    text-align: center;
+    max-width: 120px;
+    line-height: 1.3;
+}
+.state-vert-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 6px 0;
+}
+.state-vert-arrow .sa-line {
+    color: var(--brand-purple);
+    font-size: 22px;
+}
+.state-vert-arrow .sa-label {
+    font-size: 9px;
+    color: #64748b;
+    text-align: center;
+    max-width: 140px;
+    line-height: 1.3;
+}
+
+/* ── Resume Columns ── */
+.resume-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin: 16px 0;
+}
+@media (max-width: 900px) {
+    .resume-cols { grid-template-columns: 1fr; }
+}
+.resume-col {
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 20px 22px;
+}
+.resume-col h3 {
+    font-family: var(--font-display);
+    font-size: 16px;
+    color: var(--brand-pink);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.resume-col ul {
+    list-style: none;
+    padding: 0;
+}
+.resume-col li {
+    padding: 5px 0;
+    font-size: 13px;
+    color: #cbd5e1;
+    line-height: 1.6;
+    padding-left: 16px;
+    position: relative;
+}
+.resume-col li::before {
+    content: '\25B8';
+    position: absolute;
+    left: 0;
+    color: var(--brand-purple);
+}
+.resume-col code {
+    background: rgba(0, 184, 255, 0.08);
+    color: var(--brand-blue);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+.resume-constraint {
+    margin-top: 14px;
+    padding: 12px 14px;
+    background: rgba(255, 61, 127, 0.07);
+    border-left: 3px solid var(--brand-pink);
+    border-radius: 4px;
+    font-size: 13px;
+    color: #cbd5e1;
+    line-height: 1.6;
+}
+.resume-constraint b { color: var(--brand-pink); }
+
+/* ── FAQ ── */
+.faq-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin: 16px 0;
+}
+.faq-item {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.faq-q {
+    font-family: var(--font-display);
+    font-size: 14px;
+    color: #e2e8f0;
+    letter-spacing: 0.02em;
+}
+.faq-q::before {
+    content: 'Q: ';
+    color: var(--brand-pink);
+}
+.faq-a {
+    color: #cbd5e1;
+    padding: 12px 14px;
+    background: rgba(52, 211, 153, 0.07);
+    border-radius: 4px;
+    border-left: 3px solid #34d399;
+    font-size: 13px;
+    line-height: 1.6;
+}
+.faq-a code {
+    background: rgba(0, 184, 255, 0.08);
+    color: var(--brand-blue);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 640px) {
+    h1 { font-size: 28px; }
+    .cards { grid-template-columns: 1fr; }
+    .grid-viz { grid-template-columns: repeat(12, 28px); grid-template-rows: repeat(10, 28px); }
+    .recovery-flow { flex-direction: column; align-items: stretch; }
+    .recovery-step { flex-direction: column; align-items: center; }
+    .recovery-arrow { transform: rotate(90deg); }
+    .state-row { flex-direction: column; }
+    .state-arrow { transform: rotate(90deg); padding: 8px 0; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- ══════════════════════════════════════════════════════════
+     Title
+     ══════════════════════════════════════════════════════════ -->
+<h1>Frontier <span class="sub">Explorer</span></h1>
+<p class="lede">Autonomous frontier-based exploration for the SLAM stack. The robot identifies unexplored boundaries on the occupancy grid, drives toward them via Nav2, and repeats until a time limit expires or no frontiers remain. Then it saves the map and returns home.</p>
+
+<!-- ══════════════════════════════════════════════════════════
+     Section 1: How Frontier Exploration Works
+     ══════════════════════════════════════════════════════════ -->
+<div class="section-title">How Frontier Exploration Works</div>
+
+<div class="grid-viz-wrap">
+    <div class="grid-viz" id="occGrid"></div>
+    <div class="grid-legend">
+        <div class="legend-item"><div class="legend-swatch" style="background:#1e293b;"></div>Unknown</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:rgba(52,211,153,0.35);"></div>Free</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#ef4444;"></div>Occupied / Wall</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:rgba(255,61,127,0.45); box-shadow:0 0 6px rgba(255,61,127,0.5);"></div>Frontier</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:var(--brand-blue); border-radius:50%;"></div>Robot</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:rgba(0,184,255,0.3); display:flex; align-items:center; justify-content:center;"><div style="width:6px;height:6px;border-radius:50%;background:rgba(0,184,255,0.7);"></div></div>Path</div>
+    </div>
+</div>
+
+<div class="loop-steps">
+    <div class="loop-step"><div class="loop-num">1</div><div class="loop-text"><b>Scan</b> the occupancy grid for frontier cells &mdash; free cells adjacent to at least one unknown cell.</div></div>
+    <div class="loop-step"><div class="loop-num">2</div><div class="loop-text"><b>Cluster</b> adjacent frontier cells into groups and discard clusters smaller than <code>min_frontier_size</code>.</div></div>
+    <div class="loop-step"><div class="loop-num">3</div><div class="loop-text"><b>Rank</b> clusters by <code>distance cost &times; potential_scale</code> versus <code>information gain &times; gain_scale</code>.</div></div>
+    <div class="loop-step"><div class="loop-num">4</div><div class="loop-text"><b>Send</b> a <code>NavigateToPose</code> goal to the best-ranked frontier via Nav2.</div></div>
+    <div class="loop-step"><div class="loop-num">5</div><div class="loop-text"><b>Re-evaluate</b> every 3 seconds &mdash; if a better frontier appears or the current one is reached, the loop restarts from step 1.</div></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     Section 2: Exploration Parameters
+     ══════════════════════════════════════════════════════════ -->
+<div class="section-title">Exploration Parameters</div>
+
+<div class="cards">
+
+    <!-- min_frontier_size -->
+    <div class="card">
+        <div class="card-head">
+            <div class="paramName">min_frontier_size</div>
+            <div class="paramFile">config/explore_params.yaml &rarr; explore_lite</div>
+            <div class="paramDesc">Minimum frontier cluster size in meters. Clusters smaller than this are ignored. <b>Default: 0.75 m</b></div>
+            <div class="modes"><span class="mode-chip mode-explore">Explore</span></div>
+        </div>
+        <div class="ex-observe"><b>Observation:</b> Start at 0.75. If the robot wastes time on tiny gaps between furniture, raise to 1.0&ndash;1.5. If it misses doorways, lower to 0.5.</div>
+    </div>
+
+    <!-- potential_scale -->
+    <div class="card">
+        <div class="card-head">
+            <div class="paramName">potential_scale</div>
+            <div class="paramFile">config/explore_params.yaml &rarr; explore_lite</div>
+            <div class="paramDesc">Weight for distance cost &mdash; higher values make the robot prefer closer frontiers. <b>Default: 3.0</b></div>
+            <div class="modes"><span class="mode-chip mode-explore">Explore</span></div>
+        </div>
+        <div class="ex-observe"><b>Observation:</b> At 3.0, the robot strongly favors nearby frontiers (room-by-room clearance). Lower to 1.0 for more adventurous jumps across the map.</div>
+    </div>
+
+    <!-- gain_scale -->
+    <div class="card">
+        <div class="card-head">
+            <div class="paramName">gain_scale</div>
+            <div class="paramFile">config/explore_params.yaml &rarr; explore_lite</div>
+            <div class="paramDesc">Weight for information gain &mdash; higher values make the robot prefer larger frontiers. <b>Default: 1.0</b></div>
+            <div class="modes"><span class="mode-chip mode-explore">Explore</span></div>
+        </div>
+        <div class="ex-observe"><b>Observation:</b> Balance with <code>potential_scale</code>. If the robot ignores large unexplored areas in favor of tiny nearby ones, raise <code>gain_scale</code> or lower <code>potential_scale</code>.</div>
+    </div>
+
+    <!-- planner_frequency -->
+    <div class="card">
+        <div class="card-head">
+            <div class="paramName">planner_frequency</div>
+            <div class="paramFile">config/explore_params.yaml &rarr; explore_lite</div>
+            <div class="paramDesc">How often frontiers are re-evaluated. <b>Default: 0.33 Hz (~3 s)</b></div>
+            <div class="modes"><span class="mode-chip mode-explore">Explore</span></div>
+        </div>
+        <div class="ex-observe"><b>Observation:</b> 3 s is a good default. On slower hardware (Jetson Orin Nano), raising to 5 s (<code>0.2</code> Hz) reduces CPU load with minimal impact on exploration speed.</div>
+    </div>
+
+    <!-- progress_timeout -->
+    <div class="card">
+        <div class="card-head">
+            <div class="paramName">progress_timeout</div>
+            <div class="paramFile">config/explore_params.yaml &rarr; explore_lite</div>
+            <div class="paramDesc">Seconds without navigation progress before the current goal is abandoned and a new frontier is selected. <b>Default: 30.0 s</b></div>
+            <div class="modes"><span class="mode-chip mode-explore">Explore</span></div>
+        </div>
+        <div class="ex-observe"><b>Observation:</b> If the robot gets stuck spinning at a goal, lower to 15&ndash;20. If it gives up too quickly on valid but slow paths, raise to 45.</div>
+    </div>
+
+    <!-- time_limit_minutes -->
+    <div class="card">
+        <div class="card-head">
+            <div class="paramName">time_limit_minutes</div>
+            <div class="paramFile">config/explore_params.yaml &rarr; explore_manager</div>
+            <div class="paramDesc">Exploration session duration in minutes. Set to 0 for no time limit (coverage-only). <b>Default: 15.0</b></div>
+            <div class="modes"><span class="mode-chip mode-explore">Explore</span></div>
+        </div>
+        <div class="ex-observe"><b>Observation:</b> 15 min covers a typical 2-bedroom apartment. Large houses may need 30&ndash;45 min. Use <code>time_limit:=0</code> for thorough coverage of unknown spaces.</div>
+    </div>
+
+    <!-- frontier_done_patience -->
+    <div class="card">
+        <div class="card-head">
+            <div class="paramName">frontier_done_patience</div>
+            <div class="paramFile">config/explore_params.yaml &rarr; explore_manager</div>
+            <div class="paramDesc">Seconds of zero frontiers before declaring exploration complete. Guards against false stops during SLAM loop closures that temporarily clear all frontiers. <b>Default: 30.0 s</b></div>
+            <div class="modes"><span class="mode-chip mode-explore">Explore</span></div>
+        </div>
+        <div class="ex-observe"><b>Observation:</b> 30 s handles most RTABMap loop closure transients. If exploration stops prematurely in large spaces, raise to 45&ndash;60.</div>
+    </div>
+
+    <!-- status_publish_rate -->
+    <div class="card">
+        <div class="card-head">
+            <div class="paramName">status_publish_rate</div>
+            <div class="paramFile">config/explore_params.yaml &rarr; explore_manager</div>
+            <div class="paramDesc">Rate at which <code>/explore/status</code> JSON is published. <b>Default: 0.2 Hz (every 5 s)</b></div>
+            <div class="modes"><span class="mode-chip mode-explore">Explore</span></div>
+        </div>
+        <div class="ex-observe"><b>Observation:</b> 5 s is fine for Foxglove monitoring. If you need real-time frontier count in a custom UI, raise to 1.0 Hz.</div>
+    </div>
+
+</div><!-- /cards -->
+
+<!-- ══════════════════════════════════════════════════════════
+     Section 3: Recovery Behaviors
+     ══════════════════════════════════════════════════════════ -->
+<div class="section-title">Recovery Behaviors</div>
+
+<div class="recovery-flow">
+    <div class="recovery-step">
+        <div class="recovery-box">
+            <div class="rb-title">Stuck Detected</div>
+            <div class="rb-desc">10 s no progress</div>
+        </div>
+        <div class="recovery-arrow">&rarr;</div>
+    </div>
+    <div class="recovery-step">
+        <div class="recovery-box">
+            <div class="rb-title">Spin</div>
+            <div class="rb-desc">Rotate in-place</div>
+        </div>
+        <div class="recovery-arrow">&rarr;</div>
+    </div>
+    <div class="recovery-step">
+        <div class="recovery-box">
+            <div class="rb-title">Backup</div>
+            <div class="rb-desc">Reverse ~0.3 m</div>
+        </div>
+        <div class="recovery-arrow">&rarr;</div>
+    </div>
+    <div class="recovery-step">
+        <div class="recovery-box">
+            <div class="rb-title">Wait</div>
+            <div class="rb-desc">2 s pause</div>
+        </div>
+        <div class="recovery-arrow">&rarr;</div>
+    </div>
+    <div class="recovery-step">
+        <div class="recovery-box">
+            <div class="rb-title">Clear Costmap</div>
+            <div class="rb-desc">Wipe stale obstacle data</div>
+        </div>
+        <div class="recovery-arrow">&rarr;</div>
+    </div>
+    <div class="recovery-step">
+        <div class="recovery-box">
+            <div class="rb-title">Re-plan</div>
+            <div class="rb-desc">Global planner runs</div>
+        </div>
+        <div class="recovery-arrow">&rarr;</div>
+    </div>
+    <div class="recovery-step">
+        <div class="recovery-box">
+            <div class="rb-title">Next Frontier</div>
+            <div class="rb-desc">explore_lite picks new target</div>
+        </div>
+    </div>
+</div>
+
+<p class="recovery-note">These behaviors are configured in <code>config/nav2_params.yaml</code> under <code>behavior_server</code>. No changes needed for exploration &mdash; they work out of the box.</p>
+
+<!-- ══════════════════════════════════════════════════════════
+     Section 4: Session Lifecycle
+     ══════════════════════════════════════════════════════════ -->
+<div class="section-title">Session Lifecycle</div>
+
+<div class="state-machine">
+    <!-- Top row: WAITING → EXPLORING → SAVING -->
+    <div class="state-row">
+        <div class="state-box">
+            <div class="sb-name">Waiting</div>
+            <div class="sb-desc">Recording home pose, waiting for /map and TF ready</div>
+        </div>
+        <div class="state-arrow">
+            <div class="sa-label">map received + TF ready</div>
+            <div class="sa-line">&rarr;</div>
+        </div>
+        <div class="state-box">
+            <div class="sb-name">Exploring</div>
+            <div class="sb-desc">explore_lite sends goals, manager monitors time + frontiers</div>
+        </div>
+        <div class="state-arrow">
+            <div class="sa-label">time limit or 30 s zero frontiers</div>
+            <div class="sa-line">&rarr;</div>
+        </div>
+        <div class="state-box">
+            <div class="sb-name">Saving</div>
+            <div class="sb-desc">RTABMap backup (3D) or slam_toolbox serialize (2D) to ~/maps/</div>
+        </div>
+    </div>
+
+    <!-- Vertical connector from SAVING down -->
+    <div class="state-vert-arrow" style="align-self: flex-end; margin-right: 90px;">
+        <div class="sa-label">map saved</div>
+        <div class="sa-line">&darr;</div>
+    </div>
+
+    <!-- Bottom row: COMPLETE ← RETURNING -->
+    <div class="state-row">
+        <div class="state-box">
+            <div class="sb-name">Complete</div>
+            <div class="sb-desc">Final stats published, node stays alive for visualization</div>
+        </div>
+        <div class="state-arrow">
+            <div class="sa-label">arrived or failed retry</div>
+            <div class="sa-line">&larr;</div>
+        </div>
+        <div class="state-box">
+            <div class="sb-name">Returning</div>
+            <div class="sb-desc">NavigateToPose to home pose (retry once on failure)</div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     Section 5: Resume Mode
+     ══════════════════════════════════════════════════════════ -->
+<div class="section-title">Resume Mode</div>
+
+<div class="resume-cols">
+    <div class="resume-col">
+        <h3>3D Resume (RTABMap)</h3>
+        <ul>
+            <li><code>./start_explore.sh resume:=true</code></li>
+            <li>Sets <code>delete_db_on_start:=false</code></li>
+            <li>RTABMap loads existing <code>~/.ros/rtabmap.db</code></li>
+            <li>Continues mapping new areas (<code>localization:=false</code>)</li>
+            <li>explore_lite finds remaining frontiers</li>
+        </ul>
+    </div>
+    <div class="resume-col">
+        <h3>2D Resume (slam_toolbox)</h3>
+        <ul>
+            <li><code>./start_explore_2d.sh resume:=true map_file:=~/maps/explore_latest</code></li>
+            <li>Deserializes saved <code>.data</code> + <code>.posegraph</code></li>
+            <li>Continues in async mapping mode</li>
+            <li>New areas stitched onto existing graph</li>
+        </ul>
+    </div>
+</div>
+
+<div class="resume-constraint">
+    <b>Constraint:</b> Robot must start in or near already-mapped territory. SLAM needs visual / scan overlap with the prior map to re-localize before new frontiers can be planned.
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     Section 6: FAQ
+     ══════════════════════════════════════════════════════════ -->
+<div class="section-title">FAQ</div>
+
+<div class="faq-list">
+
+    <div class="faq-item">
+        <div class="faq-q">Does starting position matter?</div>
+        <div class="faq-a">No. In mapping mode, the power-on position becomes (0, 0, 0) in the map frame. SLAM initializes from wherever the robot is.</div>
+    </div>
+
+    <div class="faq-item">
+        <div class="faq-q">What if it gets stuck?</div>
+        <div class="faq-a">Nav2 recovery chain: spin &rarr; backup &rarr; wait &rarr; clear costmap. If all fail, explore_lite picks the next frontier.</div>
+    </div>
+
+    <div class="faq-item">
+        <div class="faq-q">Can it explore multiple rooms?</div>
+        <div class="faq-a">Yes, automatically. Frontiers are global across the map. When one room is done, the next frontier is in another room.</div>
+    </div>
+
+    <div class="faq-item">
+        <div class="faq-q">How do I know when it's done?</div>
+        <div class="faq-a">Monitor <code>/explore/status</code> topic in Foxglove. Frontier count trending to zero means almost done.</div>
+    </div>
+
+    <div class="faq-item">
+        <div class="faq-q">Can I take over with RC mid-explore?</div>
+        <div class="faq-a">Yes. explore_lite pauses when it can't send goals (Nav2 is busy with your RC commands). When you release, it resumes.</div>
+    </div>
+
+    <div class="faq-item">
+        <div class="faq-q">What maps are saved?</div>
+        <div class="faq-a">3D: <code>~/maps/explore_YYYYMMDD_HHMMSS.db</code>. 2D: <code>~/maps/explore_YYYYMMDD_HHMMSS.data</code> + <code>.posegraph</code>.</div>
+    </div>
+
+</div>
+
+</div><!-- /wrap -->
+
+<!-- ══════════════════════════════════════════════════════════
+     Occupancy Grid — generated via JS (no external deps)
+     ══════════════════════════════════════════════════════════ -->
+<script>
+(function () {
+    // Grid layout:  12 cols x 10 rows
+    // 0 = unknown, 1 = free, 2 = occupied, 3 = frontier, 4 = robot, 5 = path
+    const map = [
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 2, 2, 2, 2, 0, 0, 0, 0],
+        [0, 0, 0, 3, 2, 1, 1, 2, 3, 0, 0, 0],
+        [0, 0, 3, 1, 1, 1, 1, 1, 1, 3, 0, 0],
+        [0, 0, 3, 1, 1, 5, 1, 1, 1, 3, 0, 0],
+        [0, 0, 3, 1, 5, 4, 1, 1, 1, 3, 0, 0],
+        [0, 0, 3, 1, 1, 1, 1, 1, 1, 3, 0, 0],
+        [0, 0, 0, 3, 2, 1, 1, 2, 3, 0, 0, 0],
+        [0, 0, 0, 0, 2, 2, 1, 2, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0],
+    ];
+
+    const classMap = {
+        0: 'cell-unknown',
+        1: 'cell-free',
+        2: 'cell-occupied',
+        3: 'cell-frontier',
+        4: 'cell-robot',
+        5: 'cell-path',
+    };
+
+    const grid = document.getElementById('occGrid');
+    for (let r = 0; r < 10; r++) {
+        for (let c = 0; c < 12; c++) {
+            const cell = document.createElement('div');
+            cell.className = 'grid-cell ' + classMap[map[r][c]];
+            grid.appendChild(cell);
+        }
+    }
+})();
+</script>
+</body>
+</html>
