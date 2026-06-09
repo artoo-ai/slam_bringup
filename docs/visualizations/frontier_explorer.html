@@ -915,6 +915,81 @@ h1 .sub {
     </div>
 </div>
 
+<div class="card">
+    <div class="card-head">
+        <span class="paramName">Why not go finer than 0.05 m/cell?</span>
+        <p class="paramDesc">Smaller cells sound better, but the costs are quadratic and the gains hit diminishing returns fast.</p>
+    </div>
+    <div style="font-size:13px; line-height:1.7; color:#cbd5e1;">
+
+        <div style="overflow-x:auto; margin: 8px 0 14px;">
+        <table style="width:100%; border-collapse:collapse; font-size:12px; min-width:520px;">
+        <thead>
+        <tr style="border-bottom: 1px solid rgba(122,45,255,0.35); text-align:left;">
+            <th style="padding:6px 10px; color:var(--brand-blue); font-weight:600;">Cell Size</th>
+            <th style="padding:6px 10px; color:#94a3b8;">Grid for 20&times;20 m</th>
+            <th style="padding:6px 10px; color:#94a3b8;">Cells</th>
+            <th style="padding:6px 10px; color:#94a3b8;">Grid RAM</th>
+            <th style="padding:6px 10px; color:#94a3b8;">vs 0.05 m</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr style="border-bottom:1px solid #1e293b;">
+            <td style="padding:6px 10px; color:#6ee7b7; font-weight:600;">0.05 m (default)</td>
+            <td style="padding:6px 10px;">400 &times; 400</td>
+            <td style="padding:6px 10px;">160 K</td>
+            <td style="padding:6px 10px;">0.2 MB</td>
+            <td style="padding:6px 10px;">1&times;</td>
+        </tr>
+        <tr style="border-bottom:1px solid #1e293b;">
+            <td style="padding:6px 10px; color:#fcd34d; font-weight:600;">0.025 m</td>
+            <td style="padding:6px 10px;">800 &times; 800</td>
+            <td style="padding:6px 10px;">640 K</td>
+            <td style="padding:6px 10px;">0.6 MB</td>
+            <td style="padding:6px 10px; color:#fcd34d;">4&times;</td>
+        </tr>
+        <tr style="border-bottom:1px solid #1e293b;">
+            <td style="padding:6px 10px; color:#fca5a5; font-weight:600;">0.01 m</td>
+            <td style="padding:6px 10px;">2000 &times; 2000</td>
+            <td style="padding:6px 10px;">4 M</td>
+            <td style="padding:6px 10px;">4 MB</td>
+            <td style="padding:6px 10px; color:#fca5a5;">25&times;</td>
+        </tr>
+        <tr>
+            <td style="padding:6px 10px; color:#fca5a5; font-weight:600;">0.005 m</td>
+            <td style="padding:6px 10px;">4000 &times; 4000</td>
+            <td style="padding:6px 10px;">16 M</td>
+            <td style="padding:6px 10px;">16 MB</td>
+            <td style="padding:6px 10px; color:#fca5a5;">100&times;</td>
+        </tr>
+        </tbody>
+        </table>
+        </div>
+
+        <div style="margin-top:6px;">
+            <b style="color:#fca5a5;">Quadratic memory growth.</b> Halving the cell size <b>quadruples</b> the cell count &mdash; and that multiplier hits <i>every layer</i>: the SLAM occupancy grid, the Nav2 global costmap (which has 3 sub-layers), and the frontier detection scan. At 0.01 m, a modest 20&times;20 m house map consumes the same grid RAM as a 100&times;100 m warehouse at 0.05 m.
+        </div>
+        <div style="margin-top:10px;">
+            <b style="color:#fca5a5;">Nav2 path planning slows down.</b> The global planner (NavFn / SMAC) searches the costmap graph. 4&times; more cells means ~4&times; more nodes to expand per plan. On the Jetson, planning that took 50 ms at 0.05 m can take 200+ ms at 0.025 m &mdash; noticeable lag when the robot needs to re-plan around a dynamic obstacle.
+        </div>
+        <div style="margin-top:10px;">
+            <b style="color:#fca5a5;">Sensor noise fills the map.</b> The Mid-360 has &plusmn;2 cm range accuracy. At 0.05 m cells, that noise averages out within a cell. At 0.01 m cells, individual noisy returns create a speckled map &mdash; phantom occupied cells that confuse the costmap and make the robot think gaps are blocked.
+        </div>
+        <div style="margin-top:10px;">
+            <b style="color:#fca5a5;">slam_toolbox scan matching cost.</b> The correlative scan matcher evaluates candidate poses against the grid. More cells per scan footprint means more lookups per candidate &mdash; scan matching that runs comfortably at 0.05 m can miss its real-time deadline at finer resolutions.
+        </div>
+        <div style="margin-top:10px;">
+            <b style="color:#fca5a5;">Frontier detection overhead.</b> Both explore_lite and our explore_manager scan every cell in the grid. At 0.01 m, a 20&times;20 m map has 4 million cells to check every re-evaluation cycle &mdash; 25&times; the work of 0.05 m.
+        </div>
+        <div style="margin-top:10px;">
+            <b style="color:#fca5a5;">Costmap resolution must match.</b> Nav2&rsquo;s global costmap resolution should match the SLAM map. If you shrink the SLAM cell size, you must also shrink the costmap &mdash; compounding all the above costs. Mismatched resolutions cause inflation artifacts and incorrect obstacle distances.
+        </div>
+        <div style="margin-top:14px; padding:10px; background:rgba(52,211,153,0.08); border-radius:6px; border:1px solid rgba(52,211,153,0.2);">
+            <b style="color:#34d399;">Bottom line:</b> 0.05 m is the sweet spot for indoor robotics with consumer-grade lidar. It&rsquo;s fine enough to see doorways (16 cells wide) and furniture, coarse enough to keep the Jetson comfortable. Only go finer if you have a specific need (e.g., navigating between chair legs) <i>and</i> you&rsquo;re willing to cut the max map area proportionally.
+        </div>
+    </div>
+</div>
+
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
