@@ -1,0 +1,29 @@
+# Autonomous frontier exploration parameters.
+#
+# explore_lite (m-explore-lite) finds frontiers on the occupancy grid
+# and sends NavigateToPose goals to Nav2. explore_manager orchestrates
+# the session lifecycle: timer, frontier monitoring, map save, return-home.
+#
+# Override at launch: explore.launch.py explore_params_file:=/path/to/custom.yaml
+
+explore_lite:
+  ros__parameters:
+    costmap_topic: /map
+    min_frontier_size: 0.75
+    potential_scale: 3.0
+    gain_scale: 1.0
+    transform_tolerance: 0.3
+    planner_frequency: 0.33
+    progress_timeout: 30.0
+    visualize_frontiers: true
+    robot_base_frame: base_link
+
+explore_manager:
+  ros__parameters:
+    time_limit_minutes: 15.0
+    frontier_done_patience: 30.0
+    map_save_dir: "~/maps"
+    auto_save_map: true
+    return_home: true
+    status_publish_rate: 0.2
+    slam_mode: "3d"
