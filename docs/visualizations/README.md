@@ -78,6 +78,29 @@ base_link bridge (visualizes the `PLATFORM_BRIDGES` Z), and a
 Use this when you're modifying a mount, adding a sensor, or porting
 the rig to a Go2 / R2D2 / Roboscout / other chassis.
 
+### `frontier_explorer.html`
+**Autonomous frontier exploration reference.** 8 parameter cards plus
+visual explainers for the `start_explore.sh` / `start_explore_2d.sh`
+autonomous mapping mode. Covers:
+
+1. **How frontier exploration works** — animated occupancy grid showing
+   free/occupied/unknown/frontier cells, with the 5-step explore loop
+2. **Exploration parameters** — interactive cards for explore_lite
+   (`min_frontier_size`, `potential_scale`, `gain_scale`,
+   `planner_frequency`, `progress_timeout`) and explore_manager
+   (`time_limit_minutes`, `frontier_done_patience`, `status_publish_rate`)
+3. **Recovery behaviors** — visual flowchart of Nav2's stuck → spin →
+   backup → wait → clear costmap → re-plan → next frontier chain
+4. **Session lifecycle** — state machine: WAITING → EXPLORING → SAVING →
+   RETURNING → COMPLETE with transition triggers
+5. **Resume mode** — side-by-side 3D (RTABMap) vs 2D (slam_toolbox)
+   resume behavior with command examples
+6. **FAQ** — starting position, stuck handling, multi-room, completion
+   detection, RC takeover mid-explore, saved map locations
+
+Use this when tuning exploration behavior or understanding what the
+robot does during an autonomous mapping session.
+
 ### `slam_2d_vs_3d.html`
 **Why 2D SLAM works where the 3D stack stalled.** Side-by-side comparison
 of FAST-LIO2 + RTABMap (15-state estimator, full cloud) vs.
