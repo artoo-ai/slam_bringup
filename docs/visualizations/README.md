@@ -95,7 +95,10 @@ autonomous mapping mode. Covers:
    RETURNING → COMPLETE with transition triggers
 5. **Resume mode** — side-by-side 3D (RTABMap) vs 2D (slam_toolbox)
    resume behavior with command examples
-6. **FAQ** — starting position, stuck handling, multi-room, completion
+6. **Map size limits** — Jetson Orin Nano Super memory budget table
+   (m, ft, sq ft), per-component RAM breakdown, practical limits for
+   3D vs 2D SLAM paths
+7. **FAQ** — starting position, stuck handling, multi-room, completion
    detection, RC takeover mid-explore, saved map locations
 
 Use this when tuning exploration behavior or understanding what the

@@ -793,7 +793,132 @@ h1 .sub {
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
-     Section 6: FAQ
+     Section 6: Map Size Limits (Jetson Orin Nano Super)
+     ══════════════════════════════════════════════════════════ -->
+<div class="section-title">Map Size Limits <span class="tag mode-explore">Jetson Orin Nano Super</span></div>
+
+<p class="lede">
+    The Jetson Orin Nano Super has <b>8 GB RAM</b> (LPDDR5, 68 GB/s) with a 6-core ARM Cortex-A78AE CPU.
+    The occupancy grid itself is cheap (1 byte per cell), but the SLAM graph and Nav2 costmap layers are
+    the real memory bottlenecks. All sizes below assume the default <code>0.05 m/cell</code> resolution.
+</p>
+
+<div style="overflow-x:auto; margin: 18px 0;">
+<table style="width:100%; border-collapse:collapse; font-size:13px; min-width: 700px;">
+<thead>
+<tr style="border-bottom: 2px solid rgba(122,45,255,0.45); text-align:left;">
+    <th style="padding:10px 12px; color:var(--brand-blue); font-weight:700;">Map Area</th>
+    <th style="padding:10px 12px; color:#94a3b8;">Grid Size</th>
+    <th style="padding:10px 12px; color:#94a3b8;">Grid RAM</th>
+    <th style="padding:10px 12px; color:#94a3b8;">3D Path (RTABMap)</th>
+    <th style="padding:10px 12px; color:#94a3b8;">2D Path (slam_toolbox)</th>
+    <th style="padding:10px 12px; color:#94a3b8;">Typical Space</th>
+</tr>
+</thead>
+<tbody>
+<tr style="border-bottom:1px solid #1e293b;">
+    <td style="padding:10px 12px; color:#6ee7b7; font-weight:600;">20 &times; 20 m<br><span style="color:#64748b; font-weight:400; font-size:11px;">65 &times; 65 ft &middot; 4,306 sq ft</span></td>
+    <td style="padding:10px 12px;">400 &times; 400</td>
+    <td style="padding:10px 12px;">0.2 MB</td>
+    <td style="padding:10px 12px;"><span style="color:#6ee7b7;">Easy</span></td>
+    <td style="padding:10px 12px;"><span style="color:#6ee7b7;">Easy</span></td>
+    <td style="padding:10px 12px; color:#94a3b8;">Studio / 1BR apartment</td>
+</tr>
+<tr style="border-bottom:1px solid #1e293b;">
+    <td style="padding:10px 12px; color:#6ee7b7; font-weight:600;">50 &times; 50 m<br><span style="color:#64748b; font-weight:400; font-size:11px;">164 &times; 164 ft &middot; 26,910 sq ft</span></td>
+    <td style="padding:10px 12px;">1000 &times; 1000</td>
+    <td style="padding:10px 12px;">1 MB</td>
+    <td style="padding:10px 12px;"><span style="color:#6ee7b7;">Comfortable</span></td>
+    <td style="padding:10px 12px;"><span style="color:#6ee7b7;">Comfortable</span></td>
+    <td style="padding:10px 12px; color:#94a3b8;">Large house / office floor</td>
+</tr>
+<tr style="border-bottom:1px solid #1e293b;">
+    <td style="padding:10px 12px; color:#fcd34d; font-weight:600;">100 &times; 100 m<br><span style="color:#64748b; font-weight:400; font-size:11px;">328 &times; 328 ft &middot; 107,639 sq ft</span></td>
+    <td style="padding:10px 12px;">2000 &times; 2000</td>
+    <td style="padding:10px 12px;">4 MB</td>
+    <td style="padding:10px 12px;"><span style="color:#fcd34d;">At limit</span> &mdash; LTM active</td>
+    <td style="padding:10px 12px;"><span style="color:#6ee7b7;">Comfortable</span></td>
+    <td style="padding:10px 12px; color:#94a3b8;">Small warehouse</td>
+</tr>
+<tr style="border-bottom:1px solid #1e293b;">
+    <td style="padding:10px 12px; color:#fca5a5; font-weight:600;">200 &times; 200 m<br><span style="color:#64748b; font-weight:400; font-size:11px;">656 &times; 656 ft &middot; 430,556 sq ft</span></td>
+    <td style="padding:10px 12px;">4000 &times; 4000</td>
+    <td style="padding:10px 12px;">16 MB</td>
+    <td style="padding:10px 12px;"><span style="color:#fca5a5;">Not recommended</span></td>
+    <td style="padding:10px 12px;"><span style="color:#fcd34d;">At limit</span></td>
+    <td style="padding:10px 12px; color:#94a3b8;">Office building floor</td>
+</tr>
+<tr>
+    <td style="padding:10px 12px; color:#fca5a5; font-weight:600;">500 &times; 500 m<br><span style="color:#64748b; font-weight:400; font-size:11px;">1640 &times; 1640 ft &middot; 2,690,978 sq ft</span></td>
+    <td style="padding:10px 12px;">10000 &times; 10000</td>
+    <td style="padding:10px 12px;">100 MB</td>
+    <td style="padding:10px 12px;"><span style="color:#fca5a5;">OOM</span></td>
+    <td style="padding:10px 12px;"><span style="color:#fca5a5;">OOM</span></td>
+    <td style="padding:10px 12px; color:#94a3b8;">Campus / outdoor</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<div class="cards">
+
+<div class="card">
+    <div class="card-head">
+        <span class="paramName">Where the memory actually goes</span>
+        <p class="paramDesc">The occupancy grid is just 1 byte per cell &mdash; even a 200 m map is only 16 MB. The real memory consumers are the SLAM backends and Nav2 costmap layers.</p>
+    </div>
+    <div style="font-size:13px; line-height:1.7; color:#cbd5e1;">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px;">
+            <div style="background:rgba(15,23,42,0.5); padding:10px; border-radius:6px; border:1px solid #1e293b;">
+                <div style="color:var(--brand-blue); font-weight:600; margin-bottom:4px;">ROS2 + Nav2 base</div>
+                ~500 MB fixed overhead
+            </div>
+            <div style="background:rgba(15,23,42,0.5); padding:10px; border-radius:6px; border:1px solid #1e293b;">
+                <div style="color:var(--brand-blue); font-weight:600; margin-bottom:4px;">Nav2 global costmap</div>
+                3&times; grid size (static + obstacle + inflation)
+            </div>
+            <div style="background:rgba(15,23,42,0.5); padding:10px; border-radius:6px; border:1px solid #1e293b;">
+                <div style="color:var(--brand-pink); font-weight:600; margin-bottom:4px;">RTABMap (3D path)</div>
+                1&ndash;4 GB &mdash; 3D point clouds, visual features, loop closure. The bottleneck. ~2&ndash;3 MB per keyframe.
+            </div>
+            <div style="background:rgba(15,23,42,0.5); padding:10px; border-radius:6px; border:1px solid #1e293b;">
+                <div style="color:var(--brand-pink); font-weight:600; margin-bottom:4px;">slam_toolbox (2D path)</div>
+                200&ndash;800 MB &mdash; scan-matching graph only. Much lighter than RTABMap.
+            </div>
+            <div style="background:rgba(15,23,42,0.5); padding:10px; border-radius:6px; border:1px solid #1e293b;">
+                <div style="color:var(--brand-blue); font-weight:600; margin-bottom:4px;">FAST-LIO2</div>
+                ~300 MB &mdash; IMU + point cloud state estimation
+            </div>
+            <div style="background:rgba(15,23,42,0.5); padding:10px; border-radius:6px; border:1px solid #1e293b;">
+                <div style="color:var(--brand-blue); font-weight:600; margin-bottom:4px;">Nav2 local costmap</div>
+                ~2 MB fixed (rolling 6 &times; 6 m window)
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-head">
+        <span class="paramName">Practical guidance</span>
+        <p class="paramDesc">How far you can push each SLAM backend on the Jetson Orin Nano Super (8 GB).</p>
+    </div>
+    <div style="font-size:13px; line-height:1.7; color:#cbd5e1;">
+        <div style="margin-top:6px;">
+            <b style="color:var(--brand-pink);">3D path (FAST-LIO2 + RTABMap):</b> RTABMap stores ~2&ndash;3 MB per keyframe (3D clouds + visual features). After ~2000&ndash;3000 keyframes, it starts moving old nodes to Long-Term Memory (disk). This corresponds to a <b style="color:#fcd34d;">~200&ndash;300 m travel path</b>. Map area: <b>~50 &times; 50 m (164 &times; 164 ft / ~27,000 sq ft) comfortably</b>, up to ~100 &times; 100 m (328 &times; 328 ft / ~108,000 sq ft) with LTM active.
+        </div>
+        <div style="margin-top:10px;">
+            <b style="color:var(--brand-pink);">2D path (slam_toolbox):</b> Only stores 2D laser scans &mdash; dramatically lighter. <b>~100 &times; 100 m (328 &times; 328 ft / ~108,000 sq ft) comfortably</b>, up to ~200 &times; 200 m (656 &times; 656 ft / ~431,000 sq ft) before the scan graph gets sluggish.
+        </div>
+        <div style="margin-top:10px;">
+            <b style="color:#34d399;">For a typical house:</b> A large single-family home is roughly 15 &times; 20 m (50 &times; 65 ft / ~3,200 sq ft). A multi-story house mapped floor-by-floor is ~30 &times; 30 m (100 &times; 100 ft / ~9,700 sq ft) per floor. Both are <b>well within the comfortable zone</b> on either path.
+        </div>
+    </div>
+</div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     Section 7: FAQ
      ══════════════════════════════════════════════════════════ -->
 <div class="section-title">FAQ</div>
 
