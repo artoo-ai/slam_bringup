@@ -38,6 +38,9 @@ setup(
             # "Mecanum UGV - GitHub - AutomaticAddison ROSMASTER X3 ROS2"
             # (Path A — direct Python bridge).
             'yahboom_bridge = slam_bringup.yahboom_bridge_node:main',
+            # Exploration session manager — timer, frontier monitor, map save, return-home.
+            # See slam_bringup/explore_manager_node.py for the lifecycle state machine.
+            'explore_manager = slam_bringup.explore_manager_node:main',
         ],
     },
 )
