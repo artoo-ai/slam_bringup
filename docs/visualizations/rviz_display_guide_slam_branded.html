@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>RViz / Foxglove Display Guide — Make or Code</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Audiowide&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+    --void:         #1a1a2e;
+    --panel:        #242438;
+    --surface:      #2d2d44;
+    --border:       #3a3a52;
+    --muted:        #8888a0;
+    --primary-text: #d0d0e0;
+    --bright:       #f0f0ff;
+    --accent-blue:  #00b8ff;
+    --live-green:   #4cda64;
+    --warning-red:  #ff4444;
+    --alert-amber:  #e6a817;
+    --font-title:   'Audiowide', -apple-system, 'Inter', sans-serif;
+    --font-ui:      'JetBrains Mono', 'SF Mono', 'Fira Mono', monospace;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    background: var(--void);
+    color: var(--primary-text);
+    font-family: var(--font-ui);
+    font-size: 12px;
+    min-height: 100vh;
+    padding: 24px 16px 64px;
+}
+.wrap { max-width: 1100px; margin: 0 auto; }
+
+/* ── Header ──────────────────────────────────────────────── */
+.header-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 0 20px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+}
+h1 {
+    font-family: var(--font-title);
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--bright);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+h1 .sub {
+    color: var(--accent-blue);
+}
+.header-badge {
+    font-family: var(--font-ui);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--void);
+    background: var(--accent-blue);
+    padding: 2px 8px;
+    border-radius: 3px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+.lede {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.7;
+    margin-bottom: 24px;
+    max-width: 900px;
+}
+.lede b { color: var(--primary-text); }
+.lede code {
+    background: var(--surface);
+    color: var(--accent-blue);
+    padding: 1px 5px;
+    border-radius: 2px;
+    font-size: 11px;
+}
+
+/* ── Section titles ──────────────────────────────────────── */
+.section-title {
+    font-family: var(--font-ui);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin: 36px 0 14px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* ── Flow diagram ────────────────────────────────────────── */
+.flow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    margin: 16px 0 32px;
+    position: relative;
+}
+.flow-tier {
+    width: 100%;
+    max-width: 900px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.tier-label {
+    font-family: var(--font-ui);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+    width: 100%;
+    text-align: center;
+}
+.tier-nodes {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+}
+.node {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px 14px;
+    width: 260px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+    position: relative;
+    background: var(--panel);
+}
+.node:hover {
+    border-color: var(--accent-blue);
+    background: rgba(0, 184, 255, 0.04);
+}
+.node.active {
+    border-color: var(--accent-blue);
+    border-left: 3px solid var(--accent-blue);
+}
+.node-name {
+    font-family: var(--font-ui);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--bright);
+    margin-bottom: 2px;
+}
+.node-type {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+}
+.node-oneliner {
+    font-size: 11px;
+    color: var(--primary-text);
+    line-height: 1.5;
+}
+.node-topics {
+    margin-top: 6px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+.topic-chip {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 2px;
+    background: var(--surface);
+    color: var(--accent-blue);
+    font-weight: 500;
+}
+.node-config-badge {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+.cfg-chip {
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 2px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    border: 1px solid;
+}
+.cfg-slam3d  { background: rgba(0, 184, 255, 0.10); color: #7fdbff; border-color: rgba(0, 184, 255, 0.25); }
+.cfg-slam2d  { background: rgba(0, 184, 255, 0.06); color: #5eadd4; border-color: rgba(0, 184, 255, 0.15); }
+.cfg-nav3d   { background: rgba(76, 218, 100, 0.10); color: #86efac; border-color: rgba(76, 218, 100, 0.25); }
+.cfg-nav2d   { background: rgba(76, 218, 100, 0.06); color: #5ebd6f; border-color: rgba(76, 218, 100, 0.15); }
+.cfg-percep  { background: rgba(230, 168, 23, 0.10); color: #fcd34d; border-color: rgba(230, 168, 23, 0.25); }
+
+/* ── Arrows ──────────────────────────────────────────────── */
+.arrow-row {
+    display: flex;
+    justify-content: center;
+    padding: 4px 0;
+}
+.arrow-row svg { display: block; }
+
+/* ── Detail panel ────────────────────────────────────────── */
+.detail-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 20px 24px;
+    margin: 20px 0;
+    display: none;
+}
+.detail-panel.visible { display: block; }
+.detail-panel h3 {
+    font-family: var(--font-ui);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--bright);
+    margin-bottom: 2px;
+}
+.detail-panel .dp-type {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 12px;
+}
+.detail-panel .dp-desc {
+    font-size: 12px;
+    color: var(--primary-text);
+    line-height: 1.7;
+    margin-bottom: 14px;
+}
+.detail-panel .dp-section {
+    margin-bottom: 12px;
+}
+.detail-panel .dp-section-title {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 6px;
+}
+.detail-panel .dp-topic-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.detail-panel .dp-topic {
+    font-size: 12px;
+    color: var(--accent-blue);
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+.detail-panel .dp-topic .qos {
+    font-size: 10px;
+    color: var(--muted);
+}
+.detail-panel .dp-when {
+    font-size: 12px;
+    color: var(--live-green);
+    background: rgba(76, 218, 100, 0.06);
+    padding: 10px 12px;
+    border-radius: 3px;
+    border-left: 3px solid var(--live-green);
+    line-height: 1.6;
+}
+.detail-panel .dp-when b { color: var(--live-green); }
+.detail-panel .dp-skip {
+    font-size: 12px;
+    color: #fca5a5;
+    background: rgba(255, 68, 68, 0.06);
+    padding: 10px 12px;
+    border-radius: 3px;
+    border-left: 3px solid var(--warning-red);
+    line-height: 1.6;
+    margin-top: 6px;
+}
+.detail-panel .dp-skip b { color: var(--warning-red); }
+.detail-panel .dp-foxglove {
+    font-size: 12px;
+    color: var(--primary-text);
+    background: rgba(0, 184, 255, 0.06);
+    padding: 10px 12px;
+    border-radius: 3px;
+    border-left: 3px solid var(--accent-blue);
+    line-height: 1.6;
+    margin-top: 6px;
+}
+.detail-panel .dp-foxglove b { color: var(--accent-blue); }
+.detail-panel .dp-configs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+/* ── Legend ───────────────────────────────────────────────── */
+.legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 12px 0 8px;
+    justify-content: center;
+}
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    color: var(--muted);
+}
+.legend-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    border: 1px solid;
+}
+
+/* ── Config table ────────────────────────────────────────── */
+.config-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    margin: 14px 0;
+}
+.config-table th {
+    text-align: left;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+}
+.config-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid rgba(58, 58, 82, 0.5);
+    color: var(--primary-text);
+    vertical-align: top;
+}
+.config-table tr:hover td { background: rgba(0, 184, 255, 0.03); }
+.config-table .on  { color: var(--live-green); font-weight: 600; }
+.config-table .off { color: var(--muted); }
+.config-table .fname { color: var(--bright); font-weight: 600; }
+
+/* ── Stats bar (new element) ─────────────────────────────── */
+.stats-bar {
+    display: flex;
+    gap: 32px;
+    padding: 12px 0;
+    margin-bottom: 20px;
+}
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.stat-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--live-green);
+}
+.stat-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+/* ── Responsive ──────────────────────────────────────────── */
+@media (max-width: 700px) {
+    h1 { font-size: 12px; }
+    .node { width: 100%; }
+    .stats-bar { gap: 16px; flex-wrap: wrap; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="header-bar">
+    <h1>RViz / Foxglove <span class="sub">Display Guide</span></h1>
+    <span class="header-badge">10 Displays</span>
+</div>
+
+<div class="stats-bar">
+    <div class="stat-item">
+        <div class="stat-value">10</div>
+        <div class="stat-label">Display Types</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-value">5</div>
+        <div class="stat-label">RViz Configs</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-value">6</div>
+        <div class="stat-label">Tiers</div>
+    </div>
+</div>
+
+<p class="lede">
+    Every checkbox in the RViz <b>Displays</b> panel (or panel type in Foxglove) renders one
+    kind of data from your robot's ROS topic tree. This page maps <b>all 10 display types</b>
+    used across the five <code>.rviz</code> configs in this project, explains what each one
+    shows and why, and arranges them in a vertical flow from <b>raw sensor data</b> at the
+    top down through <b>derived perception</b> and <b>planning/navigation</b> at the bottom.
+    <br><br>
+    <b>Click any node</b> in the diagram for full details — topics, QoS, when to enable it,
+    and the Foxglove equivalent.
+</p>
+
+<!-- Legend -->
+<div class="legend">
+    <div class="legend-item"><div class="legend-swatch cfg-slam3d"></div> slam.rviz (3D SLAM)</div>
+    <div class="legend-item"><div class="legend-swatch cfg-slam2d"></div> slam_2d.rviz (2D SLAM)</div>
+    <div class="legend-item"><div class="legend-swatch cfg-nav3d"></div> nav.rviz (3D Nav)</div>
+    <div class="legend-item"><div class="legend-swatch cfg-nav2d"></div> nav_2d.rviz (2D Nav)</div>
+    <div class="legend-item"><div class="legend-swatch cfg-percep"></div> perception.rviz</div>
+</div>
+
+<!-- Flow diagram -->
+<div class="flow" id="flow">
+
+    <!-- Tier 1: Reference frame -->
+    <div class="flow-tier">
+        <div class="tier-label">Tier 1 — Reference Frame & Robot Model</div>
+        <div class="tier-nodes">
+            <div class="node" data-id="grid" onclick="showDetail('grid')">
+                <div class="node-name">Grid</div>
+                <div class="node-type">rviz_default_plugins/Grid</div>
+                <div class="node-oneliner">Ground-plane reference grid so you have spatial scale and orientation.</div>
+                <div class="node-config-badge">
+                    <span class="cfg-chip cfg-slam3d">slam</span>
+                    <span class="cfg-chip cfg-slam2d">2d</span>
+                    <span class="cfg-chip cfg-nav3d">nav</span>
+                    <span class="cfg-chip cfg-nav2d">nav2d</span>
+                    <span class="cfg-chip cfg-percep">perc</span>
+                </div>
+            </div>
+            <div class="node" data-id="tf" onclick="showDetail('tf')">
+                <div class="node-name">TF</div>
+                <div class="node-type">rviz_default_plugins/TF</div>
+                <div class="node-oneliner">Coordinate frame tree — axes at every link showing how frames connect.</div>
+                <div class="node-config-badge">
+                    <span class="cfg-chip cfg-slam3d">slam</span>
+                    <span class="cfg-chip cfg-slam2d">2d</span>
+                    <span class="cfg-chip cfg-nav3d">nav</span>
+                    <span class="cfg-chip cfg-nav2d">nav2d</span>
+                    <span class="cfg-chip cfg-percep">perc</span>
+                </div>
+            </div>
+            <div class="node" data-id="robotmodel" onclick="showDetail('robotmodel')">
+                <div class="node-name">RobotModel</div>
+                <div class="node-type">rviz_default_plugins/RobotModel</div>
+                <div class="node-oneliner">URDF mesh overlay — shows the physical robot in the scene.</div>
+                <div class="node-config-badge">
+                    <span class="cfg-chip cfg-slam3d">slam</span>
+                    <span class="cfg-chip cfg-slam2d">2d</span>
+                    <span class="cfg-chip cfg-nav3d">nav</span>
+                    <span class="cfg-chip cfg-nav2d">nav2d</span>
+                    <span class="cfg-chip cfg-percep">perc</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="arrow-row">
+        <svg width="24" height="28" viewBox="0 0 24 28">
+            <line x1="12" y1="0" x2="12" y2="22" stroke="var(--border)" stroke-width="1.5"/>
+            <polygon points="7,22 12,28 17,22" fill="var(--border)"/>
+        </svg>
+    </div>
+
+    <!-- Tier 2: Raw sensor data -->
+    <div class="flow-tier">
+        <div class="tier-label">Tier 2 — Raw Sensor Data</div>
+        <div class="tier-nodes">
+            <div class="node" data-id="lidar-live" onclick="showDetail('lidar-live')">
+                <div class="node-name">LiDAR (live)</div>
+                <div class="node-type">PointCloud2</div>
+                <div class="node-oneliner">Current Mid-360 scan — the raw 3D point cloud straight from the sensor.</div>
+                <div class="node-topics"><span class="topic-chip">/livox/lidar</span></div>
+                <div class="node-config-badge">
+                    <span class="cfg-chip cfg-slam3d">slam</span>
+                    <span class="cfg-chip cfg-slam2d">2d</span>
+                    <span class="cfg-chip cfg-nav3d">nav</span>
+                    <span class="cfg-chip cfg-percep">perc</span>
+                </div>
+            </div>
+            <div class="node" data-id="d435" onclick="showDetail('d435')">
+                <div class="node-name">D435 Front Pointcloud</div>
+                <div class="node-type">PointCloud2</div>
+                <div class="node-oneliner">RGB-D colored point cloud from the front RealSense D435 depth camera.</div>
+                <div class="node-topics"><span class="topic-chip">/d435_front/.../color/points</span></div>
+                <div class="node-config-badge">
+                    <span class="cfg-chip cfg-slam3d">slam</span>
+                    <span class="cfg-chip cfg-slam2d">2d</span>
+                    <span class="cfg-chip cfg-nav3d">nav</span>
+                    <span class="cfg-chip cfg-percep">perc</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="arrow-row">
+        <svg width="24" height="28" viewBox="0 0 24 28">
+            <line x1="12" y1="0" x2="12" y2="22" stroke="var(--border)" stroke-width="1.5"/>
+            <polygon points="7,22 12,28 17,22" fill="var(--border)"/>
+        </svg>
+    </div>
+
+    <!-- Tier 3: Processed sensor data -->
+    <div class="flow-tier">
+        <div class="tier-label">Tier 3 — Processed / Projected Sensor Data</div>
+        <div class="tier-nodes">
+            <div class="node" data-id="laserscan" onclick="showDetail('laserscan')">
+                <div class="node-name">LaserScan</div>
+                <div class="node-type">LaserScan</div>
+                <div class="node-oneliner">2D ring — the Mid-360 cloud flattened into a single horizontal plane via <code>pointcloud_to_laserscan</code>.</div>
+                <div class="node-topics"><span class="topic-chip">/scan</span></div>
+                <div class="node-config-badge">
+                    <span class="cfg-chip cfg-slam2d">2d</span>
+                    <span class="cfg-chip cfg-nav3d">nav</span>
+                    <span class="cfg-chip cfg-nav2d">nav2d</span>
+                    <span class="cfg-chip cfg-percep">perc</span>
+                </div>
+            </div>
+            <div class="node" data-id="cloud-world" onclick="showDetail('cloud-world')">
+                <div class="node-name">Cloud (world)</div>
+                <div class="node-type">PointCloud2</div>
+                <div class="node-oneliner">Accumulated SLAM cloud — all scans stitched into a persistent 3D map by FAST-LIO2.</div>
+                <div class="node-topics"><span class="topic-chip">/cloud_viz_clipped</span></div>
+                <div class="node-config-badge">
+                    <span class="cfg-chip cfg-slam3d">slam</span>
+                    <span class="cfg-chip cfg-nav3d">nav</span>
+                    <span class="cfg-chip cfg-percep">perc</span>
+                </div>
+            </div>
+            <div class="node" data-id="odometry" onclick="showDetail('odometry')">
+                <div class="node-name">Odometry</div>
+                <div class="node-type">Odometry</div>
+                <div class="node-oneliner">Pose trail — where the robot has been, drawn as arrows along the path.</div>
+                <div class="node-topics">
+                    <span class="topic-chip">/Odometry</span>
+                    <span class="topic-chip">/odom</span>
+                </div>
+                <div class="node-config-badge">
+                    <span class="cfg-chip cfg-slam3d">slam</span>
+                    <span class="cfg-chip cfg-slam2d">2d</span>
+                    <span class="cfg-chip cfg-nav3d">nav</span>
+                    <span class="cfg-chip cfg-percep">perc</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="arrow-row">
+        <svg width="24" height="28" viewBox="0 0 24 28">
+            <line x1="12" y1="0" x2="12" y2="22" stroke="var(--border)" stroke-width="1.5"/>
+            <polygon points="7,22 12,28 17,22" fill="var(--border)"/>
+        </svg>
+    </div>
+
+    <!-- Tier 4: Map -->
+    <div class="flow-tier">
+        <div class="tier-label">Tier 4 — Map (SLAM Output)</div>
+        <div class="tier-nodes">
+            <div class="node" data-id="map" onclick="showDetail('map')">
+                <div class="node-name">Map</div>
+                <div class="node-type">Map (OccupancyGrid)</div>
+                <div class="node-oneliner">2D occupancy grid — the floorplan SLAM builds. Black = wall, white = free, grey = unknown.</div>
+                <div class="node-topics"><span class="topic-chip">/map</span></div>
+                <div class="node-config-badge">
+                    <span class="cfg-chip cfg-slam3d">slam</span>
+                    <span class="cfg-chip cfg-slam2d">2d</span>
+                    <span class="cfg-chip cfg-nav3d">nav</span>
+                    <span class="cfg-chip cfg-nav2d">nav2d</span>
+                    <span class="cfg-chip cfg-percep">perc</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="arrow-row">
+        <svg width="24" height="28" viewBox="0 0 24 28">
+            <line x1="12" y1="0" x2="12" y2="22" stroke="var(--border)" stroke-width="1.5"/>
+            <polygon points="7,22 12,28 17,22" fill="var(--border)"/>
+        </svg>
+    </div>
+
+    <!-- Tier 5: Navigation layers -->
+    <div class="flow-tier">
+        <div class="tier-label">Tier 5 — Navigation Layers (Nav2)</div>
+        <div class="tier-nodes">
+            <div class="node" data-id="global-costmap" onclick="showDetail('global-costmap')">
+                <div class="node-name">Global Costmap</div>
+                <div class="node-type">Map (OccupancyGrid)</div>
+                <div class="node-oneliner">Inflated obstacle map covering the whole environment — what the global planner uses.</div>
+                <div class="node-topics"><span class="topic-chip">/global_costmap/costmap</span></div>
+                <div class="node-config-badge">
+                    <span class="cfg-chip cfg-nav3d">nav</span>
+                    <span class="cfg-chip cfg-nav2d">nav2d</span>
+                    <span class="cfg-chip cfg-percep">perc</span>
+                </div>
+            </div>
+            <div class="node" data-id="local-costmap" onclick="showDetail('local-costmap')">
+                <div class="node-name">Local Costmap</div>
+                <div class="node-type">Map (OccupancyGrid)</div>
+                <div class="node-oneliner">Rolling window around the robot — what the local controller uses to dodge obstacles.</div>
+                <div class="node-topics"><span class="topic-chip">/local_costmap/costmap</span></div>
+                <div class="node-config-badge">
+                    <span class="cfg-chip cfg-nav3d">nav</span>
+                    <span class="cfg-chip cfg-nav2d">nav2d</span>
+                    <span class="cfg-chip cfg-percep">perc</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="arrow-row">
+        <svg width="24" height="28" viewBox="0 0 24 28">
+            <line x1="12" y1="0" x2="12" y2="22" stroke="var(--border)" stroke-width="1.5"/>
+            <polygon points="7,22 12,28 17,22" fill="var(--border)"/>
+        </svg>
+    </div>
+
+    <!-- Tier 6: Plan output -->
+    <div class="flow-tier">
+        <div class="tier-label">Tier 6 — Plan Execution</div>
+        <div class="tier-nodes">
+            <div class="node" data-id="plan" onclick="showDetail('plan')">
+                <div class="node-name">Plan (Global)</div>
+                <div class="node-type">Path</div>
+                <div class="node-oneliner">Green line — the full route from the robot to the goal computed by the global planner.</div>
+                <div class="node-topics"><span class="topic-chip">/plan</span></div>
+                <div class="node-config-badge">
+                    <span class="cfg-chip cfg-nav3d">nav</span>
+                    <span class="cfg-chip cfg-nav2d">nav2d</span>
+                    <span class="cfg-chip cfg-percep">perc</span>
+                </div>
+            </div>
+            <div class="node" data-id="local-plan" onclick="showDetail('local-plan')">
+                <div class="node-name">Local Plan</div>
+                <div class="node-type">Path</div>
+                <div class="node-oneliner">Blue line — the short-horizon trajectory the local controller is actually executing right now.</div>
+                <div class="node-topics"><span class="topic-chip">/local_plan</span></div>
+                <div class="node-config-badge">
+                    <span class="cfg-chip cfg-nav3d">nav</span>
+                    <span class="cfg-chip cfg-nav2d">nav2d</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div><!-- /flow -->
+
+<!-- Detail panel -->
+<div class="detail-panel" id="detail-panel"></div>
+
+<!-- Config matrix -->
+<div class="section-title">Which Displays Are On In Each Config?</div>
+<p class="lede">
+    <b>ON</b> = enabled by default when you open this <code>.rviz</code> file.
+    <b>off</b> = present in the file but toggled off — you can enable it in the Displays panel.
+    <b>—</b> = not in that config at all.
+</p>
+<table class="config-table">
+    <thead>
+        <tr>
+            <th>Display</th>
+            <th>slam.rviz</th>
+            <th>slam_2d.rviz</th>
+            <th>nav.rviz</th>
+            <th>nav_2d.rviz</th>
+            <th>perception.rviz</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td class="fname">Grid</td>
+            <td class="on">ON</td><td class="on">ON</td><td class="on">ON</td><td class="on">ON</td><td class="on">ON</td>
+        </tr>
+        <tr>
+            <td class="fname">TF</td>
+            <td class="on">ON</td><td class="on">ON</td><td class="on">ON</td><td class="on">ON</td><td class="on">ON</td>
+        </tr>
+        <tr>
+            <td class="fname">RobotModel</td>
+            <td class="on">ON</td><td class="on">ON</td><td class="on">ON</td><td class="on">ON</td><td class="on">ON</td>
+        </tr>
+        <tr>
+            <td class="fname">Map (/map)</td>
+            <td class="on">ON</td><td class="on">ON</td><td class="on">ON</td><td class="on">ON</td><td class="on">ON</td>
+        </tr>
+        <tr>
+            <td class="fname">Cloud (world)</td>
+            <td class="on">ON</td><td>—</td><td class="on">ON</td><td>—</td><td class="on">ON</td>
+        </tr>
+        <tr>
+            <td class="fname">LiDAR (live)</td>
+            <td class="off">off</td><td class="off">off</td><td class="off">off</td><td>—</td><td class="off">off</td>
+        </tr>
+        <tr>
+            <td class="fname">LaserScan (/scan)</td>
+            <td class="off">off</td><td class="on">ON</td><td class="on">ON</td><td class="on">ON</td><td class="off">off</td>
+        </tr>
+        <tr>
+            <td class="fname">D435 Front Pointcloud</td>
+            <td class="off">off</td><td class="off">off</td><td class="off">off</td><td>—</td><td class="off">off</td>
+        </tr>
+        <tr>
+            <td class="fname">Odometry</td>
+            <td class="on">ON</td><td class="on">ON</td><td class="on">ON</td><td class="on">ON</td><td class="off">off</td>
+        </tr>
+        <tr>
+            <td class="fname">Global Costmap</td>
+            <td>—</td><td>—</td><td class="on">ON</td><td class="on">ON</td><td class="on">ON</td>
+        </tr>
+        <tr>
+            <td class="fname">Local Costmap</td>
+            <td>—</td><td>—</td><td class="on">ON</td><td class="on">ON</td><td class="on">ON</td>
+        </tr>
+        <tr>
+            <td class="fname">Plan (global)</td>
+            <td>—</td><td>—</td><td class="on">ON</td><td class="on">ON</td><td class="on">ON</td>
+        </tr>
+        <tr>
+            <td class="fname">Local Plan</td>
+            <td>—</td><td>—</td><td class="on">ON</td><td class="on">ON</td><td>—</td>
+        </tr>
+    </tbody>
+</table>
+
+</div><!-- /wrap -->
+
+<script>
+const displays = {
+    grid: {
+        name: 'Grid',
+        type: 'rviz_default_plugins/Grid',
+        desc: `The grid is pure visual scaffolding — it draws a flat plane of squares on XY at Z=0 in whatever frame you pick (usually the Fixed Frame, which is <code>map</code>). It doesn't subscribe to any ROS topic. Its only job is to give you spatial orientation and a sense of scale (each cell = 1 m). Without it, point clouds and maps float in a void with no reference.`,
+        topics: [],
+        whenOn: `<b>Always on.</b> It costs nothing (no topic, no bandwidth) and every other display looks confusing without it. Leave it on in every config.`,
+        whenOff: `Only turn it off if you're doing a screenshot/recording and want a clean background.`,
+        foxglove: `Foxglove has a built-in grid in the <b>3D Panel</b> settings (gear icon → Show Grid). It works identically.`,
+        configs: ['slam.rviz', 'slam_2d.rviz', 'nav.rviz', 'nav_2d.rviz', 'perception.rviz']
+    },
+    tf: {
+        name: 'TF',
+        type: 'rviz_default_plugins/TF',
+        desc: `TF draws the <b>coordinate frame tree</b> — colored axes (red=X, green=Y, blue=Z) at every transform frame the robot publishes. In your stack this includes: <code>map</code> → <code>camera_init</code> → <code>body</code> → <code>base_link</code> → all the sensor and wheel frames from the URDF.
+        <br><br>
+        This is the <b>most important debugging display</b>. If any frame is wrong, rotated, or missing, every other display that depends on it (point clouds, maps, costmaps) will be garbled. TF lets you see at a glance whether the frame tree is healthy.`,
+        topics: [{name: '/tf', qos: 'Best Effort'}, {name: '/tf_static', qos: 'Reliable + Transient Local'}],
+        whenOn: `<b>Always on during development.</b> If a point cloud appears in the wrong place, or a costmap is offset from the map, the first thing to check is TF. Keep it on until your transforms are rock-solid.`,
+        whenOff: `During demos or recordings when the axis markers are visual clutter. Or reduce <code>Marker Scale</code> below 0.2 to make them tiny.`,
+        foxglove: `Foxglove shows TF frames as axes in the <b>3D Panel</b> automatically. Toggle individual frames in the panel's left sidebar under "Transforms."`,
+        configs: ['slam.rviz', 'slam_2d.rviz', 'nav.rviz', 'nav_2d.rviz', 'perception.rviz']
+    },
+    robotmodel: {
+        name: 'RobotModel',
+        type: 'rviz_default_plugins/RobotModel',
+        desc: `Reads your URDF from <code>/robot_description</code> and renders the robot's mesh/visual geometry in the scene, positioned by the TF tree. This gives you the physical shape of the rover overlaid on all the sensor data — so you can see where the lidar and cameras are mounted relative to the chassis.`,
+        topics: [{name: '/robot_description', qos: 'Reliable + Transient Local'}],
+        whenOn: `<b>Always on.</b> Without it, you're looking at disembodied sensor data. The robot model anchors everything — you can tell if a sensor mount offset is wrong because the cloud won't line up with the mesh.`,
+        whenOff: `Only if the URDF meshes are eating GPU on a weak machine (unlikely at your poly count).`,
+        foxglove: `Foxglove's <b>3D Panel</b> renders the URDF automatically when it sees <code>/robot_description</code>. Toggle it under the "URDF" section in the panel sidebar.`,
+        configs: ['slam.rviz', 'slam_2d.rviz', 'nav.rviz', 'nav_2d.rviz', 'perception.rviz']
+    },
+    'lidar-live': {
+        name: 'LiDAR (live)',
+        type: 'rviz_default_plugins/PointCloud2',
+        desc: `The <b>raw, current-frame</b> point cloud straight from the Livox Mid-360 LiDAR. This is the sensor's view of the world <em>right now</em> — not accumulated, not map-aligned, just the latest ~100 ms of returns in the sensor's body frame. Rendered as grey dots.
+        <br><br>
+        This is the "what is the sensor actually seeing?" display. It's the bottom-level truth before FAST-LIO, before slam_toolbox, before anything processes it.`,
+        topics: [{name: '/livox/lidar', qos: 'Best Effort'}],
+        whenOn: `<b>Debugging sensor alignment.</b> Turn this on when you suspect the lidar mount angle is off, when the Mid-360 isn't connecting, or when you want to verify the scan pattern covers the area you expect. Also useful to compare against the accumulated cloud to spot drift.`,
+        whenOff: `<b>Most of the time.</b> During normal SLAM or navigation, the accumulated Cloud (world) or the 2D LaserScan are more useful. The live cloud is noisy and overwrites each frame, so it's hard to get spatial context from it.`,
+        foxglove: `Add a <b>3D Panel</b> and subscribe to <code>/livox/lidar</code>. Use the "Point Cloud" message type. Set point size small (1-2px) and flat color for the same look.`,
+        configs: ['slam.rviz (off)', 'slam_2d.rviz (off)', 'nav.rviz (off)', 'perception.rviz (off)']
+    },
+    d435: {
+        name: 'D435 Front Pointcloud',
+        type: 'rviz_default_plugins/PointCloud2',
+        desc: `RGB-D colored point cloud from the front-facing RealSense D435 depth camera. Unlike the lidar, this cloud has <b>color</b> — each point carries the RGB value from the camera image. It only covers the camera's field of view (~87° horizontal), not a full 360°.
+        <br><br>
+        Note: In SLAM mode (<code>slam_mode:=true</code>), RTABMap builds its own internal cloud from the depth images, so this display topic (<code>pointcloud:=true</code>) is usually disabled to save bandwidth. It's most useful in raw/perception mode.`,
+        topics: [{name: '/d435_front/camera/depth/color/points', qos: 'Best Effort'}],
+        whenOn: `<b>When debugging the camera.</b> Verify the depth image is clean, check for holes in the depth data, confirm the camera extrinsic calibration (the cloud should align with the lidar cloud). Also great for visualizing what the robot "sees" in color.`,
+        whenOff: `<b>During SLAM and navigation.</b> The topic is bandwidth-heavy (~10 MB/s) and RTABMap doesn't need it published as a point cloud — it reads the depth image directly. Enabling it during mapping wastes Jetson CPU.`,
+        foxglove: `Add a <b>3D Panel</b> and subscribe to the depth/color/points topic. Foxglove renders RGB point clouds natively. You can also use an <b>Image Panel</b> to see the raw camera image side by side.`,
+        configs: ['slam.rviz (off)', 'slam_2d.rviz (off)', 'nav.rviz (off)', 'perception.rviz (off)']
+    },
+    laserscan: {
+        name: 'LaserScan',
+        type: 'rviz_default_plugins/LaserScan',
+        desc: `A <b>2D projection</b> of the Mid-360's 3D point cloud, produced by <code>pointcloud_to_laserscan</code>. It collapses all 3D points within a Z band (<code>scan_z_min</code> to <code>scan_z_max</code>) into a single horizontal ring of range measurements.
+        <br><br>
+        This is <b>the data Nav2 actually uses</b> for obstacle detection and costmap updates. The 2D SLAM path (slam_toolbox + rf2o) also builds the map from this topic. Drawn as cyan dots in a ring around the robot.`,
+        topics: [{name: '/scan', qos: 'Best Effort'}],
+        whenOn: `<b>During 2D SLAM (always on).</b> This is the primary sensor input in the 2D path. <b>During navigation:</b> always on — it's what feeds the costmaps. You need to see it to verify obstacles are being detected. <b>During 3D SLAM:</b> turn on to debug the Z projection band — if the cyan ring doesn't match the walls in the 3D cloud, your <code>scan_z_min/max</code> is wrong.`,
+        whenOff: `During 3D SLAM when you're only looking at the accumulated cloud and don't care about the 2D projection.`,
+        foxglove: `Use a <b>3D Panel</b> and subscribe to <code>/scan</code>. Foxglove renders LaserScan as a ring of points. You can also use a dedicated <b>Plot Panel</b> to see range vs. angle if debugging specific sectors.`,
+        configs: ['slam.rviz (off)', 'slam_2d.rviz (ON)', 'nav.rviz (ON)', 'nav_2d.rviz (ON)', 'perception.rviz (off)']
+    },
+    'cloud-world': {
+        name: 'Cloud (world)',
+        type: 'rviz_default_plugins/PointCloud2',
+        desc: `The <b>accumulated, map-aligned point cloud</b> from FAST-LIO2 — every scan the robot has ever taken, stitched together into a persistent 3D model of the environment. Color-coded by Z height (rainbow: blue=floor, red=ceiling).
+        <br><br>
+        The topic is <code>/cloud_viz_clipped</code> when the viz_clip node is running (strips ceiling points for cleaner viewing), falling back to <code>/cloud_registered</code> if clipping is disabled. This is the 3D equivalent of the 2D occupancy grid — it's the map, in 3D.`,
+        topics: [{name: '/cloud_viz_clipped', qos: 'Best Effort'}, {name: '/cloud_registered (fallback)', qos: 'Best Effort'}],
+        whenOn: `<b>During 3D SLAM (always on).</b> This is the main thing you're watching — the map growing in real time as the robot drives. <b>During 3D navigation:</b> on, so you can see the environment around the robot. Essential for spotting SLAM drift (the cloud will blur or double-image if odometry drifts).`,
+        whenOff: `During 2D SLAM (not produced — FAST-LIO isn't running). On low-power machines, disable to save GPU if you only need the 2D map.`,
+        foxglove: `Subscribe to <code>/cloud_viz_clipped</code> in a <b>3D Panel</b>. Use "Color by: position.z" to replicate the rainbow Z-height coloring.`,
+        configs: ['slam.rviz (ON)', 'nav.rviz (ON)', 'perception.rviz (ON)']
+    },
+    odometry: {
+        name: 'Odometry',
+        type: 'rviz_default_plugins/Odometry',
+        desc: `Draws a <b>trail of arrows</b> showing the robot's estimated poses over time. Each arrow points in the direction the robot was facing at that position. The trail length is controlled by <code>Keep</code> (default: 100 poses).
+        <br><br>
+        In 3D mode, the topic is <code>/Odometry</code> from FAST-LIO2 (IMU-fused, red arrows). In 2D mode, it's <code>/odom</code> from rf2o laser odometry (green arrows). This is your primary tool for judging whether odometry is smooth and consistent.`,
+        topics: [{name: '/Odometry', qos: 'Best Effort (3D / FAST-LIO2)'}, {name: '/odom', qos: 'Reliable (2D / rf2o)'}],
+        whenOn: `<b>During SLAM (always on).</b> Watch for: jerky jumps (IMU issue), smooth but curving drift (calibration issue), or arrows pointing the wrong way (axis inversion — see the chassis yaw note). <b>During navigation:</b> useful to see where the robot has been and confirm it's following the planned path.`,
+        whenOff: `After you trust your odometry is solid. The arrows can become visual clutter once you're focused on navigation planning.`,
+        foxglove: `Subscribe to the odometry topic in a <b>3D Panel</b>. Foxglove renders the pose trail as arrows. Adjust "Max arrows" to control trail length.`,
+        configs: ['slam.rviz (ON)', 'slam_2d.rviz (ON)', 'nav.rviz (ON)', 'nav_2d.rviz (ON)', 'perception.rviz (off)']
+    },
+    map: {
+        name: 'Map',
+        type: 'rviz_default_plugins/Map',
+        desc: `The <b>2D occupancy grid</b> — the floorplan that SLAM produces. Black cells are occupied (walls/obstacles), white cells are free space, grey cells are unknown. This is the output of either RTABMap (3D path) or slam_toolbox (2D path), published on <code>/map</code>.
+        <br><br>
+        <code>Draw Behind: true</code> places it underneath all other displays so point clouds and costmaps render on top. <code>Alpha: 0.7</code> makes it slightly transparent so you can see the grid through it.
+        <br><br>
+        This is the persistent spatial knowledge the robot has built. Nav2 reads this map (plus live sensor data) to plan paths.`,
+        topics: [{name: '/map', qos: 'Reliable + Transient Local'}],
+        whenOn: `<b>Always on.</b> During SLAM, you watch the map grow to verify it's clean and complete. During navigation, it's the background layer that paths and costmaps are drawn on top of. Without the map display, nothing else makes spatial sense.`,
+        whenOff: `Virtually never. Maybe during a sensor-only debug session where you haven't launched SLAM yet (but it just shows nothing — no harm leaving it on).`,
+        foxglove: `Use a <b>Map Panel</b> for a dedicated top-down view, or view it in the <b>3D Panel</b> as a floor texture. Foxglove handles the Transient Local QoS automatically.`,
+        configs: ['slam.rviz (ON)', 'slam_2d.rviz (ON)', 'nav.rviz (ON)', 'nav_2d.rviz (ON)', 'perception.rviz (ON)']
+    },
+    'global-costmap': {
+        name: 'Global Costmap',
+        type: 'rviz_default_plugins/Map',
+        desc: `The <b>inflated obstacle layer</b> that covers the entire known map. Nav2's global planner reads this when computing a route from A to B. It takes the raw occupancy grid (<code>/map</code>) and <b>inflates</b> obstacles — adding a danger gradient around each wall so the planner keeps the robot away from tight gaps.
+        <br><br>
+        Rendered with the "costmap" color scheme: purple = deadly (lethal obstacle), rainbow gradient = inflation cost decreasing with distance, dark = free space.`,
+        topics: [{name: '/global_costmap/costmap', qos: 'Reliable + Transient Local'}],
+        whenOn: `<b>During navigation.</b> Check that inflation covers the right radius (the robot shouldn't plan paths through doorways it can't physically fit through). If the global plan takes weird detours, the global costmap will show you why — there's probably an inflated zone blocking the direct path.`,
+        whenOff: `During SLAM (Nav2 isn't running, so this topic doesn't exist). Also turn off temporarily if the costmap rainbow obscures the base map — toggle it to check, then toggle back.`,
+        foxglove: `Subscribe to <code>/global_costmap/costmap</code> in a <b>3D Panel</b>. Use "Color map: costmap" for the same purple-to-rainbow rendering.`,
+        configs: ['nav.rviz (ON)', 'nav_2d.rviz (ON)', 'perception.rviz (ON)']
+    },
+    'local-costmap': {
+        name: 'Local Costmap',
+        type: 'rviz_default_plugins/Map',
+        desc: `A <b>rolling window</b> costmap centered on the robot — typically 3-5 m in each direction. Nav2's local controller (DWB or MPPI) uses this for real-time obstacle avoidance. Unlike the global costmap, this one updates rapidly from live sensor data and doesn't rely on the static map being correct.
+        <br><br>
+        The local costmap is what saves you when a new obstacle appears (a person walks in front, a door closes). The global costmap won't know about it until the map is updated, but the local costmap sees it immediately from <code>/scan</code>.`,
+        topics: [{name: '/local_costmap/costmap', qos: 'Reliable + Transient Local'}],
+        whenOn: `<b>During navigation.</b> Watch it to verify that new obstacles are being detected in real time. If the robot drives into something, the local costmap will show whether the obstacle was visible in the costmap before impact — if not, check your sensor coverage or z-projection band.`,
+        whenOff: `During SLAM (not running). Also disable temporarily if the overlay is too visually dense — the local costmap + global costmap + map + point cloud simultaneously can be hard to read.`,
+        foxglove: `Same as global costmap — subscribe in a <b>3D Panel</b>.`,
+        configs: ['nav.rviz (ON)', 'nav_2d.rviz (ON)', 'perception.rviz (ON)']
+    },
+    plan: {
+        name: 'Plan (Global)',
+        type: 'rviz_default_plugins/Path',
+        desc: `The <b>green line</b> — Nav2's global plan from the robot's current position to the goal. Computed by the global planner (NavFn or Smac) over the global costmap. This is the "big picture" route that gets the robot from A to B while avoiding all known obstacles.
+        <br><br>
+        The plan recomputes periodically (or when the robot deviates too far), so you'll see it update as the robot moves. If the line looks sensible but the robot won't follow it, the problem is in the local controller, not the planner.`,
+        topics: [{name: '/plan', qos: 'Reliable'}],
+        whenOn: `<b>During navigation (always on).</b> This is how you verify the robot is planning a sensible route. Watch for: paths that go through furniture (costmap doesn't know about it), paths that take absurdly long detours (inflation too aggressive), or paths that flicker/jump (planner can't find a stable route).`,
+        whenOff: `During SLAM (no Nav2). No reason to disable during navigation.`,
+        foxglove: `Subscribe to <code>/plan</code> in a <b>3D Panel</b>. Foxglove renders Path messages as lines automatically.`,
+        configs: ['nav.rviz (ON)', 'nav_2d.rviz (ON)', 'perception.rviz (ON)']
+    },
+    'local-plan': {
+        name: 'Local Plan',
+        type: 'rviz_default_plugins/Path',
+        desc: `The <b>blue line</b> — the short-horizon trajectory the local controller is executing right now. This is typically 1-3 seconds of lookahead. The local controller (DWB or MPPI) samples hundreds of candidate trajectories, scores them against the local costmap, and picks the best one.
+        <br><br>
+        The local plan wiggles and adjusts in real time as the robot encounters minor obstacles. If the local plan diverges far from the global plan, the recovery behavior triggers and the global plan recomputes.`,
+        topics: [{name: '/local_plan', qos: 'Reliable'}],
+        whenOn: `<b>During navigation (always on).</b> The local plan tells you what the robot is about to do in the next second. If the robot oscillates or won't enter a narrow space, the local plan will show you the controller's best attempt — you can see if it's being repelled by inflation or if the trajectory scoring is off.`,
+        whenOff: `During SLAM. No reason to disable during navigation.`,
+        foxglove: `Same as global plan — subscribe to <code>/local_plan</code> in a <b>3D Panel</b>.`,
+        configs: ['nav.rviz (ON)', 'nav_2d.rviz (ON)']
+    }
+};
+
+function showDetail(id) {
+    const d = displays[id];
+    if (!d) return;
+
+    document.querySelectorAll('.node').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll(`.node[data-id="${id}"]`).forEach(n => n.classList.add('active'));
+
+    const panel = document.getElementById('detail-panel');
+    let topicsHtml = '';
+    if (d.topics.length) {
+        topicsHtml = `<div class="dp-section">
+            <div class="dp-section-title">ROS Topics</div>
+            <div class="dp-topic-list">
+                ${d.topics.map(t => `<div class="dp-topic"><code>${t.name}</code> <span class="qos">${t.qos}</span></div>`).join('')}
+            </div>
+        </div>`;
+    }
+
+    panel.innerHTML = `
+        <h3>${d.name}</h3>
+        <div class="dp-type">${d.type}</div>
+        <div class="dp-desc">${d.desc}</div>
+        ${topicsHtml}
+        <div class="dp-section">
+            <div class="dp-section-title">Present In</div>
+            <div class="dp-configs">
+                ${d.configs.map(c => {
+                    let cls = 'cfg-percep';
+                    if (c.includes('slam.')) cls = 'cfg-slam3d';
+                    else if (c.includes('slam_2d')) cls = 'cfg-slam2d';
+                    else if (c.includes('nav.') && !c.includes('nav_2d')) cls = 'cfg-nav3d';
+                    else if (c.includes('nav_2d')) cls = 'cfg-nav2d';
+                    return `<span class="cfg-chip ${cls}">${c}</span>`;
+                }).join('')}
+            </div>
+        </div>
+        <div class="dp-when">${d.whenOn}</div>
+        <div class="dp-skip"><b>Skip it when:</b> ${d.whenOff}</div>
+        <div class="dp-foxglove"><b>Foxglove equivalent:</b> ${d.foxglove}</div>
+    `;
+    panel.classList.add('visible');
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+</script>
+</body>
+</html>

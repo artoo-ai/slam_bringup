@@ -187,7 +187,7 @@ canvas{
   padding:1px 6px;border-radius:3px;font-size:12px;
 }
 .card-explain b{color:#f1f5f9}
-.ex-deps,.ex-cost,.ex-cross,.ex-test{
+.ex-deps,.ex-cost,.ex-cross,.ex-test,.ex-observe{
   border-left:3px solid;
   padding:8px 10px;
   background:rgba(30,41,59,0.4);
@@ -198,11 +198,13 @@ canvas{
 .ex-cost{border-left-color:var(--warn)}
 .ex-cross{border-left-color:var(--brand-blue)}
 .ex-test{border-left-color:var(--brand-pink)}
-.ex-deps b,.ex-cost b,.ex-cross b,.ex-test b{font-family:var(--font-display-alt);font-size:11px;letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:4px}
+.ex-deps b,.ex-cost b,.ex-cross b,.ex-test b,.ex-observe b{font-family:var(--font-display-alt);font-size:11px;letter-spacing:0.1em;text-transform:uppercase;display:block;margin-bottom:4px}
 .ex-deps b{color:var(--brand-purple)}
 .ex-cost b{color:var(--warn)}
 .ex-cross b{color:var(--brand-blue)}
 .ex-test b{color:var(--brand-pink)}
+.ex-observe{border-left-color:#34d399;background:rgba(52,211,153,0.07)}
+.ex-observe b{color:#34d399}
 .ex-cross .device-tag{
   display:inline-block;font-size:11px;
   background:rgba(0,184,255,0.1);color:var(--brand-blue);
@@ -277,6 +279,7 @@ canvas{
         <code class="block"><span class="k">&lt;robot</span> xmlns:xacro=<span class="v">"http://www.ros.org/wiki/xacro"</span> name=<span class="v">"mecanum_x3"</span><span class="k">&gt;</span>
   <span class="c">&lt;!-- everything else goes inside --&gt;</span>
 <span class="k">&lt;/robot&gt;</span></code>
+        <div class="ex-observe"><b>Where to look</b> <code>xacro urdf/mecanum.urdf.xacro | head -5</code> — the expanded root tag shows the name. In RViz, the RobotModel display uses this name. <code>ros2 param get /robot_state_publisher robot_description</code> returns the full expanded URDF.</div>
         <div class="ex-deps"><b>Where used</b>This file's <code>name="mecanum_x3"</code>, <code>name="bench_fixture"</code>, <code>name="sensor_rig"</code>. Each platform xacro has a unique name so they don't collide if loaded together.</div>
         <div class="ex-test"><b>Quick check</b><code>xacro urdf/mecanum.urdf.xacro | head -5</code> — confirm the root tag expands without error. The fastest sanity check that a xacro file is syntactically valid.</div>
       </div>
@@ -301,6 +304,7 @@ canvas{
 <span class="k">&lt;link</span> name=<span class="v">"base_link"</span><span class="k">&gt;</span>
   <span class="k">&lt;visual&gt;</span>…<span class="k">&lt;/visual&gt;</span>
 <span class="k">&lt;/link&gt;</span></code>
+        <div class="ex-observe"><b>Where to look</b> RViz → TF display to see all link frames. <code>ros2 run tf2_tools view_frames.py</code> generates a PDF of all frames. <code>ros2 topic echo /scan --field header.frame_id --once</code> confirms which link a topic publishes in.</div>
         <div class="ex-deps"><b>Why empty links exist</b>Every sensor in this repo needs a TF frame so ROS nodes (FAST-LIO2, realsense, witmotion) can publish data tagged with the correct <code>frame_id</code>. The frame doesn't need a mesh — the link element just declares "this name is a valid TF node."</div>
         <div class="ex-test"><b>Test plan</b>Load the URDF in RViz with <code>RobotModel</code> display + <code>TF</code> display. Toggle individual link visibility. Confirm every sensor topic's <code>frame_id</code> matches a link defined here (<code>ros2 topic echo /scan --once</code>).</div>
       </div>
@@ -323,6 +327,7 @@ canvas{
   <span class="k">&lt;child</span>  link=<span class="v">"sensor_plate"</span><span class="k">/&gt;</span>
   <span class="k">&lt;origin</span> xyz=<span class="v">"0 0 0.207670"</span> rpy=<span class="v">"0 0 0"</span><span class="k">/&gt;</span>
 <span class="k">&lt;/joint&gt;</span></code>
+        <div class="ex-observe"><b>Where to look</b> <code>ros2 run tf2_tools view_frames.py</code> → open the PDF to see the parent→child tree. <code>ros2 run tf2_ros tf2_echo parent_link child_link</code> prints the live transform between two specific links.</div>
         <div class="ex-deps"><b>Tree constraint</b>If you try to make link A the child of link B AND link B the child of link A, <code>robot_state_publisher</code> will refuse to launch. Same if you forget to give a non-root link a parent — it becomes orphan and won't appear in TF.</div>
       </div>
     </article>
@@ -348,6 +353,7 @@ canvas{
         <button data-jt="floating">floating</button>
       </div>
       <div class="card-explain">
+        <div class="ex-observe"><b>Where to look</b> RViz → RobotModel display. For non-fixed joints, <code>ros2 topic echo /joint_states</code> shows position/velocity per joint. For fixed joints, <code>ros2 run tf2_ros tf2_echo</code> shows a static transform that never changes.</div>
         <div class="ex-deps"><b>Cheat sheet</b>
           <code>fixed</code> = bolted (no motion) ·
           <code>revolute</code> = hinge with limits ·
@@ -383,6 +389,7 @@ canvas{
       </div>
       <div class="stat" id="origin-stat"></div>
       <div class="card-explain">
+        <div class="ex-observe"><b>Where to look</b> <code>ros2 run tf2_ros tf2_echo parent_frame child_frame</code> prints the origin's xyz and quaternion live. RViz → TF display shows axes at each frame origin. Foxglove 3D panel renders TF frames with colored axis arrows.</div>
         <div class="ex-deps"><b>Order matters</b>URDF rpy is ZYX intrinsic: rotate yaw around Z, then pitch around the rotated Y, then roll around the doubly-rotated X. If you write <code>rpy="1.57 0 1.57"</code> and <code>rpy="0 0 1.57"</code> then <code>rpy="1.57 0 0"</code>, you get the SAME final orientation. But mid-computation the rotation axes differ — important when composing transforms manually.</div>
         <div class="ex-cost"><b>Common bug</b>Writing pitch in <b>degrees</b>. <code>rpy="0 10 0"</code> means 10 radians = ~573°. Always convert: <code>10° × π/180 = 0.1745</code>. The D435 mount in this repo uses <code>0.176136</code> which encodes exactly 10.09° nose-down.</div>
       </div>
@@ -403,6 +410,7 @@ canvas{
         <code class="block"><span class="k">&lt;geometry&gt;</span>
   <span class="k">&lt;box</span> size=<span class="v">"0.280 0.230 0.090"</span><span class="k">/&gt;</span>
 <span class="k">&lt;/geometry&gt;</span></code>
+        <div class="ex-observe"><b>Where to look</b> RViz → RobotModel display with Visual enabled. Toggle between wireframe and solid rendering to see box/cylinder/sphere shapes. <code>xacro urdf/mecanum.urdf.xacro | grep geometry</code> lists all geometry elements.</div>
         <div class="ex-deps"><b>Visual vs collision</b>Use detailed meshes for <code>&lt;visual&gt;</code> (eye candy in RViz), simplified primitives for <code>&lt;collision&gt;</code> (physics + Nav2 footprint). This repo only has <code>&lt;visual&gt;</code> boxes — collision footprints come from Nav2's <code>robot_radius</code>, not from URDF collision elements.</div>
         <div class="ex-test"><b>Test plan</b>To swap the bench-fixture wireframe for a real STL: download an extrusion CAD, save as <code>cad/2040_segment.stl</code>, replace <code>&lt;box&gt;</code> with <code>&lt;mesh filename="package://slam_bringup/cad/2040_segment.stl"/&gt;</code>, rebuild + reload RViz. Geometry is now photoreal but SLAM math is unchanged.</div>
       </div>
@@ -427,6 +435,7 @@ canvas{
     <span class="k">&lt;color</span> rgba=<span class="v">"0.15 0.15 0.18 0.6"</span><span class="k">/&gt;</span>
   <span class="k">&lt;/material&gt;</span>
 <span class="k">&lt;/visual&gt;</span></code>
+        <div class="ex-observe"><b>Where to look</b> RViz → RobotModel display — link colors come from material rgba values. Change alpha to 0.3 and reload to see through the chassis. Foxglove's URDF panel also renders these.</div>
         <div class="ex-deps"><b>Alpha is your friend</b>Set <code>rgba "… … … 0.3"</code> on extrusion boxes so you can see sensor positions through the chassis. This repo's <code>bench_fixture.urdf.xacro</code> uses 0.15–0.3 alpha for exactly this reason.</div>
       </div>
     </article>
@@ -443,6 +452,7 @@ canvas{
         <div class="paramDesc">Geometry used for physics simulation and contact detection (Gazebo, MoveIt). For Nav2 navigation this repo bypasses URDF collision entirely — the footprint comes from Nav2's <code>robot_radius</code> param (see <code>nav2_params_2d.yaml</code>). If you're not simulating in Gazebo, skip collision elements entirely. They cost nothing to leave out.</div>
       </div>
       <div class="card-explain">
+        <div class="ex-observe"><b>Where to look</b> RViz → RobotModel display → toggle "Visual Enabled" off and "Collision Enabled" on to see collision geometry (if defined). This repo omits collision elements so nothing will appear.</div>
         <div class="ex-deps"><b>Why this repo omits collision</b>Nav2 reads its footprint from <code>nav2_params_2d.yaml::robot_radius: 0.22</code>, not from URDF. Simulation isn't part of the SLAM workflow on this rig — physical robot only. Adding collision elements does nothing here. If you ever spin up Gazebo for regression testing, that's when you wire them in.</div>
       </div>
     </article>
@@ -464,6 +474,7 @@ canvas{
   <span class="k">&lt;inertia</span> ixx=<span class="v">"0.005"</span> iyy=<span class="v">"0.012"</span> izz=<span class="v">"0.014"</span>
            ixy=<span class="v">"0"</span> ixz=<span class="v">"0"</span> iyz=<span class="v">"0"</span><span class="k">/&gt;</span>
 <span class="k">&lt;/inertial&gt;</span></code>
+        <div class="ex-observe"><b>Where to look</b> Gazebo's Model Editor shows inertia visualizations. <code>xacro urdf/mecanum.urdf.xacro | grep -A3 inertial</code> lists defined inertial blocks. robot_state_publisher and RViz ignore inertial — visible only in simulation.</div>
         <div class="ex-cost"><b>Estimating inertia</b>For a box of mass m and dims (L, W, H): ixx = m/12 (W² + H²), iyy = m/12 (L² + H²), izz = m/12 (L² + W²). For a cylinder of mass m, radius r, length L (axis = Z): ixx = iyy = m/12 (3r² + L²), izz = m/2 · r². For meshes — load STL into Fusion 360 or MeshLab, set material density, export the computed inertia tensor.</div>
         <div class="ex-test"><b>Skip unless</b>You're running Gazebo. Otherwise leave inertial blocks out — they're noise in the file and the SLAM stack ignores them.</div>
       </div>
@@ -493,6 +504,7 @@ canvas{
       <div class="canvas-wrap"><canvas id="cv-axes" width="540" height="280"></canvas></div>
       <div class="stat">Drag the canvas to rotate. <b>Red = +X (forward)</b>. <span class="pink">Green = +Y (left)</span>. <span style="color:var(--brand-blue)">Blue = +Z (up)</span>.</div>
       <div class="card-explain">
+        <div class="ex-observe"><b>Where to look</b> RViz → TF display on <code>base_link</code> — Red arrow = +X (forward), Green = +Y (left), Blue = +Z (up). Drive the rover forward with <code>ros2 topic pub /cmd_vel</code> positive linear.x — it should move in the Red arrow direction.</div>
         <div class="ex-deps"><b>Why this matters</b>The Mid-360 cable port, the D435 lens, and the WT901 X-axis sticker all have to point the SAME physical direction as URDF +X. If the cable port faces backward, every map will be mirrored. Confirmation step in this repo: <code>sensors_common.urdf.xacro</code> §"Sensor axes confirmed (2026-04-25)".</div>
       </div>
     </article>
@@ -516,6 +528,7 @@ canvas{
       </div>
       <div class="stat" id="pitch-stat"></div>
       <div class="card-explain">
+        <div class="ex-observe"><b>Where to look</b> <code>ros2 topic echo /imu/data --field orientation</code> while tilting the rover nose-down — pitch should go positive (URDF convention). RViz → TF display on <code>d435_front_link</code> — the X-axis (red arrow) should point slightly toward the floor.</div>
         <div class="ex-cost"><b>Aerospace mismatch</b>Pilots write "+10° pitch up." URDF math says: <code>R_y(+0.176)</code> takes +X (forward) toward -Z (down) → camera looks at the floor → "nose-down." Same number, opposite intuition. The D435 mount is angled at <code>+0.176136 rad = +10.09°</code> which in URDF terms means nose-down.</div>
         <div class="ex-test"><b>Test plan</b>Run <code>scripts/measure_d435_pitch.py</code> with rig on a level floor. Inlier fraction ≥ 99% means the plane fit is reliable. Compare reported angle to <code>d435_front_rpy</code> in sensors_common.urdf.xacro. If they differ by more than ~0.5°, re-tighten the camera mount and remeasure — the foam-mount drift is real.</div>
       </div>
@@ -541,6 +554,7 @@ canvas{
 <span class="v">import math</span>
 math.radians(10.09)  <span class="c"># → 0.17611</span>
 math.degrees(0.176136)  <span class="c"># → 10.09</span></code>
+        <div class="ex-observe"><b>Where to look</b> Use <code>python3 -c "import math; print(math.radians(10.09))"</code> to verify conversions. Check any rpy value in the expanded URDF with <code>xacro urdf/mecanum.urdf.xacro | grep rpy</code> — all values must be in radians.</div>
       </div>
     </article>
 
@@ -563,6 +577,7 @@ math.degrees(0.176136)  <span class="c"># → 10.09</span></code>
         <button data-cad="overlay">overlay both</button>
       </div>
       <div class="card-explain">
+        <div class="ex-observe"><b>Where to look</b> Compare sensor positions in <code>sensors_common.urdf.xacro</code> comments (CAD coordinates) against the actual xacro property values (body coordinates). RViz → TF display with <code>sensor_plate</code> as the fixed frame — sensor positions should match the physical layout with D435 forward.</div>
         <div class="ex-deps"><b>The conversion table</b>
           <code>plate +X → body +Y</code> (left) ·
           <code>plate -X → body -Y</code> (right) ·
@@ -601,6 +616,7 @@ math.degrees(0.176136)  <span class="c"># → 10.09</span></code>
 
 <span class="c">&lt;!-- compose: plate top - thickness/2 puts plate visual below origin --&gt;</span>
 <span class="k">&lt;origin</span> xyz=<span class="v">"0 0 ${-plate_thickness/2}"</span><span class="k">/&gt;</span></code>
+        <div class="ex-observe"><b>Where to look</b> <code>xacro urdf/bench_fixture.urdf.xacro</code> expands all properties to literal values — grep for a known number (e.g. <code>0.007</code>) to confirm plate_thickness substituted. Change a property, re-run xacro, diff the output.</div>
         <div class="ex-deps"><b>Single source of truth</b>This repo uses <code>plate_thickness=0.007</code> in <code>sensors_common.urdf.xacro</code>. If you remill the plate to 5 mm, change one number and every derived xyz/origin updates. Same pattern for <code>rubber_compressed</code>, <code>extrusion_2040_height</code>, etc.</div>
         <div class="ex-test"><b>Test plan</b>Open <code>bench_fixture.urdf.xacro</code>. Add <code>&lt;xacro:property name="extrusion_2040_height" value="0.050"/&gt;</code> (override). Re-run <code>xacro</code> + reload RViz. The whole stack-up grows 20 mm and base_link → sensor_plate auto-recomputes.</div>
       </div>
@@ -623,6 +639,7 @@ math.degrees(0.176136)  <span class="c"># → 10.09</span></code>
 
 <span class="c">&lt;!-- now plate_thickness, sensor_plate link, livox_frame, imu_link, --&gt;</span>
 <span class="c">&lt;!-- d435_front_link are all available in this file --&gt;</span></code>
+        <div class="ex-observe"><b>Where to look</b> <code>xacro urdf/mecanum.urdf.xacro</code> — the output contains elements from both the platform file AND the included sensors_common file. Missing include → missing sensor frames. <code>xacro --inorder urdf/mecanum.urdf.xacro 2&gt;&amp;1</code> shows include resolution errors.</div>
         <div class="ex-deps"><b>$(find pkg) resolution</b>The <code>$(find slam_bringup)</code> substitution is evaluated by xacro at parse time. It expands to the absolute path of the <code>slam_bringup</code> ROS package's share directory. As long as the package is in <code>AMENT_PREFIX_PATH</code> (true after <code>source install/setup.bash</code>), the include works from any working directory.</div>
         <div class="ex-test"><b>Test plan</b>Run <code>xacro urdf/mecanum.urdf.xacro</code> from a directory that hasn't sourced the workspace — expect "Cannot locate package 'slam_bringup'." Then <code>source install/setup.bash</code> and rerun — clean expansion.</div>
       </div>
@@ -654,6 +671,7 @@ math.degrees(0.176136)  <span class="c"># → 10.09</span></code>
 <span class="k">&lt;xacro:wheel</span> prefix=<span class="v">"front_right"</span> x=<span class="v">"0.14"</span> y=<span class="v">"-0.115"</span><span class="k">/&gt;</span>
 <span class="k">&lt;xacro:wheel</span> prefix=<span class="v">"rear_left"</span>   x=<span class="v">"-0.14"</span> y=<span class="v">"0.115"</span><span class="k">/&gt;</span>
 <span class="k">&lt;xacro:wheel</span> prefix=<span class="v">"rear_right"</span>  x=<span class="v">"-0.14"</span> y=<span class="v">"-0.115"</span><span class="k">/&gt;</span></code>
+        <div class="ex-observe"><b>Where to look</b> <code>xacro urdf/mecanum.urdf.xacro</code> — macros expand to repeated structures. Search the output for the prefix argument (e.g. <code>front_left_wheel</code>) to confirm each macro call generated unique link/joint names.</div>
         <div class="ex-deps"><b>When to add macros</b>≥3 repetitions of similar geometry. <code>mecanum.urdf.xacro</code> will need one as soon as you add wheels for animated joint_states.</div>
       </div>
     </article>
@@ -677,6 +695,7 @@ math.degrees(0.176136)  <span class="c"># → 10.09</span></code>
   <span class="k">&lt;link</span> name=<span class="v">"d435_rear_link"</span><span class="k">/&gt;</span>
   <span class="k">&lt;joint</span> name=<span class="v">"sensor_plate_to_d435_rear_link"</span> type=<span class="v">"fixed"</span><span class="k">&gt;</span>…<span class="k">&lt;/joint&gt;</span>
 <span class="k">&lt;/xacro:if&gt;</span></code>
+        <div class="ex-observe"><b>Where to look</b> <code>xacro urdf/mecanum.urdf.xacro with_rear_camera:=true | grep d435_rear</code> — link should appear. With <code>:=false</code> — absent. <code>ros2 run tf2_ros tf2_echo sensor_plate d435_rear_link</code> at runtime confirms conditional inclusion.</div>
         <div class="ex-test"><b>Test plan</b>Launch with <code>xacro urdf/mecanum.urdf.xacro with_rear_camera:=true</code>. Verify the rear link appears in <code>ros2 run tf2_ros tf2_echo sensor_plate d435_rear_link</code>. Set false → same command returns "did not find transform."</div>
       </div>
     </article>
@@ -709,6 +728,7 @@ math.degrees(0.176136)  <span class="c"># → 10.09</span></code>
         <button data-tf="all">+ Nav2 frames</button>
       </div>
       <div class="card-explain">
+        <div class="ex-observe"><b>Where to look</b> <code>ros2 run tf2_tools view_frames.py</code> outputs a PDF of the live TF tree. Compare it frame-by-frame to this diagram. <code>ros2 topic echo /tf_static</code> lists all static transforms. Foxglove TF panel renders the full tree interactively.</div>
         <div class="ex-deps"><b>Color key</b>
           <span style="color:var(--brand-purple)">■</span> purple = defined in URDF /xacro ·
           <span style="color:var(--brand-blue)">■</span> blue = published by a runtime node (FAST-LIO2, realsense2_camera, witmotion_driver) ·
@@ -729,6 +749,7 @@ math.degrees(0.176136)  <span class="c"># → 10.09</span></code>
         <div class="paramDesc">ROS standardizes four mobile-robot frames: <code>map</code> (global, drift-free, may jump at loop closure), <code>odom</code> (local, smooth, drifts over time), <code>base_link</code> (rigidly attached to the robot's body), <code>base_footprint</code> (projection of base_link onto the ground plane — Z=0). This repo uses the first three; <code>base_footprint</code> is only added on the mecanum platform if you wire it in for Nav2.</div>
       </div>
       <div class="card-explain">
+        <div class="ex-observe"><b>Where to look</b> <code>ros2 run tf2_ros tf2_echo map odom</code> shows the SLAM correction transform. <code>ros2 run tf2_ros tf2_echo odom base_link</code> shows the odometry transform. Foxglove 3D panel → set frame to <code>map</code> for drift-free visualization.</div>
         <div class="ex-deps"><b>Who publishes what</b><code>map → odom</code>: slam_toolbox (mapping) OR localization (loc mode). <code>odom → base_link</code>: rf2o / FAST-LIO2 (via the body bridge). <code>base_link → *</code>: robot_state_publisher reads URDF and emits all static joints. Each transform has exactly one publisher — duplicates cause TF jitter.</div>
         <div class="ex-cross"><b>When to add base_footprint</b><span class="device-tag">Nav2 footprint</span> If the chassis isn't level (Go2 standing height varies), <code>base_footprint</code> stays at Z=0 while <code>base_link</code> rides up and down. Nav2's costmap reads <code>base_footprint</code> by default; without it on a quadruped, costmap clears below the dog.</div>
       </div>
@@ -745,6 +766,7 @@ math.degrees(0.176136)  <span class="c"># → 10.09</span></code>
         <div class="paramDesc">URDF is a directed acyclic graph rooted at <code>base_link</code> (or whatever link you don't list as a child anywhere). Every other link must be the child of <b>exactly one</b> joint. Trying to give a link two parents fails xacro expansion. Trying to make a cycle (A → B → A) fails <code>robot_state_publisher</code> startup.</div>
       </div>
       <div class="card-explain">
+        <div class="ex-observe"><b>Where to look</b> <code>xacro urdf/mecanum.urdf.xacro 2&gt;&amp;1</code> — a cycle or missing parent triggers an error during expansion. <code>ros2 run tf2_tools view_frames.py</code> at runtime — orphan frames appear as disconnected nodes in the PDF.</div>
         <div class="ex-deps"><b>"Closed loop" workaround</b>Real robots with closed kinematic chains (four-bar linkages, parallel manipulators) can't be expressed in URDF. You need <b>SDF</b> (Gazebo's format) or <b>MJCF</b> (MuJoCo). For this rig — purely tree-shaped — URDF is fine.</div>
       </div>
     </article>
@@ -780,6 +802,7 @@ math.degrees(0.176136)  <span class="c"># → 10.09</span></code>
       </div>
       <div class="stat" id="stack-stat"></div>
       <div class="card-explain">
+        <div class="ex-observe"><b>Where to look</b> RViz → RobotModel display — the vertical stack of extrusion segments is visible. <code>ros2 run tf2_ros tf2_echo base_link sensor_plate</code> prints the total height. After changing a segment, re-launch and confirm the TF height matches calipers.</div>
         <div class="ex-deps"><b>Downstream impact</b>Anything that reads <code>sensor_plate</code> moves with this stack. The Mid-360 optical center, the WT901 housing, and the D435 front glass are all expressed relative to <code>sensor_plate</code>'s top — so if the stack grows 10 mm, all three sensors rise 10 mm in the global map. The Z component of <code>PLATFORM_BRIDGES['bench_fixture']</code> in <code>slam.launch.py</code> MUST be updated to match (currently <code>-0.244280</code> = plate_top 0.207670 + livox Z 0.036610).</div>
         <div class="ex-test"><b>Test plan</b>Print a 5 mm spacer, slip it between the upper 2040 and the rubber pads. Re-measure with calipers from base to plate-top. Update <code>extrusion_2040_height</code> or add a new property <code>spacer=0.005</code>. Re-run SLAM, place the rig on the same spot, confirm the map's reported Z of a known wall landmark shifted by exactly 5 mm.</div>
       </div>
@@ -798,6 +821,7 @@ math.degrees(0.176136)  <span class="c"># → 10.09</span></code>
       <div class="card-explain">
         <code class="block"><span class="c">&lt;!-- mecanum.urdf.xacro --&gt;</span>
 <span class="k">&lt;xacro:property</span> name=<span class="v">"base_link_to_plate_top"</span> value=<span class="v">"0.107670"</span><span class="k">/&gt;</span></code>
+        <div class="ex-observe"><b>Where to look</b> <code>ros2 run tf2_ros tf2_echo base_link sensor_plate</code> — the Z value should match your caliper measurement. If the map floor Z isn't 0.0 m, this value is wrong. Compare with the <code>PLATFORM_BRIDGES</code> value in <code>launch/slam.launch.py</code>.</div>
         <div class="ex-deps"><b>Two places to update</b>(1) this property AND (2) <code>PLATFORM_BRIDGES['mecanum']</code> Z in <code>slam.launch.py</code> (currently <code>-0.144280</code>). The bridge value = <code>-(base_link_to_plate_top + 0.036610)</code> where 0.036610 is the Livox plate-top → optical-center Z. They must agree.</div>
         <div class="ex-test"><b>How to measure</b>Set rover on a level floor. Drop a plumb-bob from the sensor plate's top corner. Measure floor-to-plate vertical distance with a caliper. Set both numbers. Re-run SLAM staring at a known wall, confirm map Z = real wall height.</div>
       </div>
@@ -817,6 +841,7 @@ math.degrees(0.176136)  <span class="c"># → 10.09</span></code>
         <code class="block"><span class="k">&lt;xacro:property</span> name=<span class="v">"chassis_length"</span> value=<span class="v">"0.280"</span><span class="k">/&gt;</span>
 <span class="k">&lt;xacro:property</span> name=<span class="v">"chassis_width"</span>  value=<span class="v">"0.230"</span><span class="k">/&gt;</span>
 <span class="k">&lt;xacro:property</span> name=<span class="v">"chassis_height"</span> value=<span class="v">"0.090"</span><span class="k">/&gt;</span></code>
+        <div class="ex-observe"><b>Where to look</b> RViz → RobotModel display — the chassis box is the semi-transparent block around base_link. Changing dimensions only changes the visual — confirm <code>robot_radius</code> in <code>nav2_params_2d.yaml</code> still matches the actual bumper, not the visual.</div>
         <div class="ex-deps"><b>What it doesn't drive</b>Nav2's <code>robot_radius</code> (in <code>nav2_params_2d.yaml</code>) is what determines the lethal-zone footprint for path planning. Changing the chassis box here doesn't widen the planner's no-go zone — you have to update <code>robot_radius</code> separately.</div>
       </div>
     </article>
@@ -851,6 +876,7 @@ math.degrees(0.176136)  <span class="c"># → 10.09</span></code>
       </div>
       <div class="stat" id="livox-stat"></div>
       <div class="card-explain">
+        <div class="ex-observe"><b>Where to look</b> <code>ros2 run tf2_ros tf2_echo sensor_plate livox_frame</code> prints the offset. RViz → TF display shows the livox_frame axes on top of the sensor. <code>/livox/lidar</code> PointCloud2 publishes in this frame — click a point in RViz to read its coordinates.</div>
         <div class="ex-deps"><b>0.03661 m is from the datasheet, not measured</b>The Livox Mid-360 product manual specifies 36.61 mm from the mounting flange to the optical center. If you 3D-print a riser to lift the sensor higher, ADD the riser height to this value — don't replace it.</div>
         <div class="ex-cross"><b>Other lidars</b>
           <span class="device-tag">Velodyne VLP-16: ~0.0717 m optical center above base</span>
@@ -881,6 +907,7 @@ math.degrees(0.176136)  <span class="c"># → 10.09</span></code>
       </div>
       <div class="stat" id="imu-stat"></div>
       <div class="card-explain">
+        <div class="ex-observe"><b>Where to look</b> <code>ros2 run tf2_ros tf2_echo sensor_plate imu_link</code> confirms the offset. <code>ros2 topic echo /imu/data --field header.frame_id</code> should read <code>imu_link</code>. Tilt rover and check IMU axes align with body conventions.</div>
         <div class="ex-deps"><b>If you rotate the WT901 housing</b>The X-axis sticker MUST stay aligned with body +X. If the housing is mounted sideways (sticker pointing left), set <code>imu_rpy = "0 0 1.5708"</code> to undo the 90° physical rotation. Otherwise the IMU reports yaw/pitch about the wrong axes and FAST-LIO2 diverges.</div>
         <div class="ex-cross"><b>Other IMUs</b>
           <span class="device-tag">BNO086: similar 3 mm flange, ~10 mm housing</span>
@@ -911,6 +938,7 @@ math.degrees(0.176136)  <span class="c"># → 10.09</span></code>
       </div>
       <div class="stat" id="d4-stat"></div>
       <div class="card-explain">
+        <div class="ex-observe"><b>Where to look</b> <code>ros2 run tf2_ros tf2_echo sensor_plate d435_front_link</code> for the offset. RViz → PointCloud2 on <code>/d435_front/depth/color/points</code> — the cloud should project correctly into the map. <code>scripts/measure_d435_pitch.py</code> measures the actual optical tilt.</div>
         <div class="ex-deps"><b>Don't trust the housing top</b>The D435 case rounds toward the lens, so resting an inclinometer on the top reads ~5° more pitch than the optical axis actually has. Use <code>scripts/measure_d435_pitch.py</code> — fits the floor plane in the depth cloud → reads the actual optical-axis tilt. The 10.09° in URDF came from a 99.8%-inlier floor fit on 2026-04-26.</div>
         <div class="ex-cost"><b>How much pitch is "too much"</b>At >25° nose-down, the D435 stops seeing the horizon entirely — usable for floor mapping but useless for obstacle avoidance at standing height. At <5° nose-down, depth coverage of the floor in front of the rover collapses to a thin band 2 m+ away; close-range floor obstacles get clipped by the lower FOV edge.</div>
         <div class="ex-cross"><b>Other depth cameras</b>
@@ -942,6 +970,7 @@ math.degrees(0.176136)  <span class="c"># → 10.09</span></code>
   <span class="c">&lt;!-- yaw 180° so the rear cam looks at -X --&gt;</span>
   <span class="k">&lt;origin</span> xyz=<span class="v">"-0.10 0 -0.03"</span> rpy=<span class="v">"0 0.18 3.14159"</span><span class="k">/&gt;</span>
 <span class="k">&lt;/joint&gt;</span></code>
+        <div class="ex-observe"><b>Where to look</b> <code>ros2 run tf2_ros tf2_echo sensor_plate d435_rear_link</code> — if the frame doesn't exist, the xacro conditional excluded it. <code>ros2 run tf2_tools view_frames.py</code> → check for the <code>d435_rear_link</code> node in the tree PDF.</div>
         <div class="ex-deps"><b>realsense launch must match</b>Launch the rear camera with <code>camera_name:=d435_rear</code> so its published frames (<code>d435_rear_color_optical_frame</code>, etc.) start with the right prefix and attach correctly to <code>d435_rear_link</code>.</div>
       </div>
     </article>
@@ -982,6 +1011,7 @@ PLATFORM_BRIDGES = {
     <span class="c"># 'r2d2':      …</span>
     <span class="c"># 'roboscout': …</span>
 }</code>
+        <div class="ex-observe"><b>Where to look</b> <code>ros2 run tf2_ros tf2_echo body base_link</code> prints the bridge transform. In RViz, set fixed frame to <code>map</code>, click a floor point — Z should be 0.0 ± 5 mm. If Z is consistently off by a fixed amount, the bridge value is wrong.</div>
         <div class="ex-deps"><b>The two-place update rule</b>If you change <code>base_link_to_plate_top</code> in the platform xacro, you MUST change the Z in <code>PLATFORM_BRIDGES[platform]</code> in <code>slam.launch.py</code> too. Bridge Z = <code>-(plate_top + livox_z_above_plate)</code>. Forgetting one of them leaves the URDF tree and the SLAM tree disagreeing by your mistake.</div>
         <div class="ex-test"><b>Test plan</b>After any stack-up change: place rover on level floor next to a known landmark (corner of a desk). Start mapping. In RViz, click the floor point in the map. <code>z</code> should be 0.0 m ± 5 mm. Click the desk's top edge — z should equal your desk's measured height. If the offset is constant, you forgot the bridge update.</div>
       </div>
@@ -999,6 +1029,7 @@ PLATFORM_BRIDGES = {
         <div class="paramDesc">The YB-ERF01 firmware's +X is OPPOSITE the sensor "front" (D435 direction). The temptation is to add yaw=π to the URDF base_link to reconcile. <b>Don't.</b> That flips the Nav2 costmap, footprint orientation, and /scan frame 180° and breaks navigation. Instead the velocity-command inversion happens inside <code>yahboom_bridge_node</code> via <code>invert_vx</code>/<code>invert_vy</code> parameters.</div>
       </div>
       <div class="card-explain">
+        <div class="ex-observe"><b>Where to look</b> Send <code>ros2 topic pub /cmd_vel geometry_msgs/Twist "{linear: {x: 0.1}}"</code> — the rover should drive toward the D435 (body +X). If it drives away, invert_vx is wrong in <code>yahboom_bridge.yaml</code>. RViz → TF display on base_link — the red +X arrow should point toward the D435.</div>
         <div class="ex-deps"><b>The correct fix lives in</b><code>config/yahboom_bridge.yaml</code>: <code>invert_vx: true</code>, <code>invert_vy: true</code>. The URDF stays in body convention (D435 = +X). The bridge node sees /cmd_vel in body frame and writes the inverted command to the firmware. Result: Nav2's world view is consistent, the rover obeys correctly.</div>
         <div class="ex-cost"><b>Why rotating base_link breaks things</b>Nav2's costmap origin tracks base_link. Rotating base_link 180° rotates the costmap 180°. Then "in front of the rover" in Nav2's frame is behind the rover physically. The local planner picks paths going backward to reach forward goals. Inflation zone appears mirrored. Everything downstream is wrong by π.</div>
       </div>
@@ -1023,6 +1054,7 @@ realsense_node = Node(
         ...
     }]
 )</code>
+        <div class="ex-observe"><b>Where to look</b> <code>ros2 run tf2_tools view_frames.py</code> → check for <code>d435_front_link → d435_front_color_optical_frame</code> in the tree. If you see <code>camera_color_optical_frame</code> instead (no prefix), camera_name didn't propagate. <code>ros2 topic list | grep d435</code> confirms topic namespace.</div>
         <div class="ex-test"><b>Test plan</b><code>ros2 run tf2_tools view_frames.py</code> after launch. Verify <code>d435_front_link → d435_front_color_optical_frame</code> exists. If <code>camera_color_optical_frame</code> appears instead (no prefix), the camera_name parameter didn't propagate — check the launch include.</div>
       </div>
     </article>
@@ -1068,6 +1100,7 @@ cp urdf/mecanum.urdf.xacro urdf/go2.urdf.xacro
 
 <span class="c"># 6. Launch SLAM: ros2 launch slam_bringup slam.launch.py platform:=go2</span>
 <span class="c">#    Map a 5 m hallway. Click floor in RViz — Z must be 0 m ± 5 mm.</span></code>
+        <div class="ex-observe"><b>Where to look</b> Each step has its own check: (1) <code>xacro urdf/go2.urdf.xacro</code> — clean XML. (2) RViz RobotModel + TF — all frames. (3) <code>ros2 run tf2_ros tf2_echo body base_link</code> — bridge value. (4) Click floor in RViz — Z = 0 m ± 5 mm. (5) Drive 1 m via joystick — RViz shows +1 m in +X direction.</div>
         <div class="ex-deps"><b>If step 5 shows missing frames</b><code>ros2 run tf2_tools view_frames.py</code> → open the PDF → check for orphans. Most common: forgot <code>xacro:include sensors_common.urdf.xacro</code>, or the platform xacro's <code>joint base_link_to_sensor_plate</code> has wrong parent/child names.</div>
         <div class="ex-cost"><b>If step 6 shows wrong Z</b>Bridge Z and <code>base_link_to_plate_top</code> disagree (the two-place update rule). Or you measured the plate offset with the rover crouched but launched while standing (Go2 height varies).</div>
         <div class="ex-test"><b>Test plan</b>Park rover next to known wall, mark a tape arrow on the floor pointing the rover's "forward" direction. Drive 1 m forward via joystick. In RViz the rover icon should also move +1 m in +X. If it moves in +Y or -X, your URDF rpy is wrong (most likely yaw); fix in URDF, not in the bridge unless the cmd_vel sign is the actual issue (see the mecanum card).</div>
@@ -1094,6 +1127,7 @@ grep -c '&lt;joint' /tmp/mecanum.urdf     <span class="c"># expect ~4</span>
 
 <span class="c"># Validate with check_urdf if installed</span>
 check_urdf /tmp/mecanum.urdf            <span class="c"># reports the tree</span></code>
+        <div class="ex-observe"><b>Where to look</b> <code>xacro urdf/&lt;platform&gt;.urdf.xacro 2&gt;&amp;1</code> — clean output with no errors. Pipe to <code>check_urdf</code> for structural validation: <code>xacro urdf/mecanum.urdf.xacro | check_urdf /dev/stdin</code> reports the link/joint tree and catches orphans.</div>
         <div class="ex-test"><b>What success looks like</b><code>check_urdf</code> prints a tree starting at <code>base_link</code> → sensor_plate → (livox_frame, imu_link, d435_front_link). Any "orphan" link means a joint is missing or has a typo'd parent/child name.</div>
       </div>
     </article>
@@ -1117,6 +1151,7 @@ rviz2 -d rviz/slam.rviz
 <span class="c"># Add: RobotModel (Description Topic: /robot_description), TF</span>
 
 <span class="c"># Iterate: edit URDF → Ctrl+C terminal 1 → rerun → RViz auto-reloads</span></code>
+        <div class="ex-observe"><b>Where to look</b> <code>ros2 launch slam_bringup perception.launch.py platform:=mecanum</code> then open RViz with RobotModel + TF displays. All URDF frames should render without needing SLAM or Nav2 running. This isolates URDF issues from SLAM issues.</div>
         <div class="ex-test"><b>What to look for</b>Translucent chassis box appears at base_link. Sensor links visible as small RGB axis triads on top. If you toggle <code>Show Links → livox_frame</code>, RViz draws a label at the optical center — that's where the lidar's Z value should match the datasheet.</div>
       </div>
     </article>

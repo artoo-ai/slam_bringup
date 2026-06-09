@@ -1,0 +1,1898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>LiDAR Deskewing — Make or Code</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Audiowide&family=JetBrains+Mono:wght@400;500;600;700&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+    --brand-pink:   #ff3d7f;
+    --brand-blue:   #00b8ff;
+    --brand-purple: #7a2dff;
+    --brand-bg:     #0a0a14;
+    --brand-bg-2:   #140820;
+    --font-display:     'Audiowide', 'Orbitron', sans-serif;
+    --font-display-alt: 'Orbitron', 'Audiowide', sans-serif;
+    --font-ui:          'JetBrains Mono', 'Fira Mono', monospace;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    background:
+        radial-gradient(ellipse at top, var(--brand-bg-2) 0%, var(--brand-bg) 60%),
+        var(--brand-bg);
+    background-attachment: fixed;
+    color: #e2e8f0;
+    font-family: var(--font-ui);
+    min-height: 100vh;
+    padding: 32px 16px 80px;
+}
+.wrap { max-width: 1480px; margin: 0 auto; }
+
+h1 {
+    font-family: var(--font-display);
+    font-size: 42px;
+    font-weight: 400;
+    color: var(--brand-pink);
+    letter-spacing: 0.04em;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    text-shadow: 0 0 24px rgba(255, 61, 127, 0.35);
+}
+h1 .sub {
+    color: var(--brand-blue);
+    text-shadow: 0 0 24px rgba(0, 184, 255, 0.45);
+}
+.lede {
+    color: #94a3b8;
+    font-size: 14px;
+    line-height: 1.65;
+    margin-bottom: 28px;
+    max-width: 1000px;
+}
+.lede b { color: #cbd5e1; }
+.lede code {
+    background: rgba(0, 184, 255, 0.08);
+    color: var(--brand-blue);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+.section-title {
+    font-family: var(--font-display-alt);
+    font-size: 24px;
+    font-weight: 700;
+    color: #f1f5f9;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    margin: 44px 0 18px;
+    border-bottom: 1px solid rgba(122, 45, 255, 0.45);
+    padding-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+.section-title .tag {
+    font-size: 10px;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+.tag.t-on  { background: rgba(20, 83, 45, 0.25);   color: #86efac; border: 1px solid #166534; }
+.tag.t-off { background: rgba(127, 29, 29, 0.25);  color: #fca5a5; border: 1px solid #991b1b; }
+.tag.t-info { background: rgba(30, 58, 138, 0.25); color: #93c5fd; border: 1px solid #1e40af; }
+.tag.t-cfg { background: rgba(122, 45, 255, 0.18); color: #c4a8ff; border: 1px solid rgba(122, 45, 255, 0.45); }
+
+.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(560px, 1fr));
+    gap: 18px;
+}
+.card {
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 20px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.card.span-2 { grid-column: span 2; }
+@media (max-width: 1200px) { .card.span-2 { grid-column: span 1; } }
+.card-head {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.card-head .paramName {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--brand-blue);
+    font-size: 16px;
+    font-weight: 600;
+    text-shadow: 0 0 12px rgba(0, 184, 255, 0.25);
+}
+.card-head .paramFile {
+    font-family: 'JetBrains Mono', monospace;
+    color: #64748b;
+    font-size: 11px;
+}
+.card-head .paramDesc {
+    color: #cbd5e1;
+    font-size: 14px;
+    margin-top: 6px;
+    line-height: 1.6;
+}
+.modes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+.mode-chip {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 3px 9px;
+    border-radius: 3px;
+    border: 1px solid;
+}
+.mode-3d      { background: rgba(255, 61, 127, 0.18); color: #ffb3cd;  border-color: rgba(255, 61, 127, 0.4); }
+.mode-2d      { background: rgba(0, 184, 255, 0.18);  color: #7fdbff;  border-color: rgba(0, 184, 255, 0.4); }
+.mode-always  { background: rgba(30, 41, 59, 0.6);    color: #cbd5e1;  border-color: #475569; }
+
+.card canvas {
+    display: block;
+    width: 100%;
+    height: 260px;
+    background: #050510;
+    border-radius: 6px;
+    border: 1px solid #1e293b;
+}
+.card-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.slider-row {
+    display: grid;
+    grid-template-columns: 130px 1fr 90px 76px;
+    gap: 10px;
+    align-items: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+}
+.slider-row label { color: #94a3b8; }
+.slider-row .val {
+    color: var(--brand-blue);
+    text-align: right;
+    font-weight: 600;
+}
+.slider-row input[type=range] {
+    accent-color: var(--brand-blue);
+    width: 100%;
+    height: 6px;
+}
+.slider-row .default-hint {
+    font-size: 11px;
+    color: #64748b;
+    text-align: right;
+    white-space: nowrap;
+}
+.slider-row .default-hint.match { color: #86efac; }
+.slider-row .default-hint.diff  { color: #fcd34d; }
+.toggle-row {
+    display: grid;
+    grid-template-columns: 22px 1fr 76px;
+    gap: 10px;
+    align-items: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: #cbd5e1;
+}
+.toggle-row .default-hint {
+    font-size: 11px;
+    color: #64748b;
+    text-align: right;
+    white-space: nowrap;
+}
+.toggle-row .default-hint.match { color: #86efac; }
+.toggle-row .default-hint.diff  { color: #fcd34d; }
+
+.stat {
+    font-family: 'JetBrains Mono', monospace;
+    color: #cbd5e1;
+    font-size: 13px;
+    text-align: center;
+}
+.stat .ok   { color: #86efac; }
+.stat .warn { color: #fcd34d; }
+.stat .bad  { color: #fca5a5; }
+
+.card-explain {
+    font-size: 13px;
+    line-height: 1.65;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 6px;
+    padding-top: 12px;
+    border-top: 1px dashed rgba(122, 45, 255, 0.35);
+}
+.card-explain .ex-what  { color: #cbd5e1; }
+.card-explain .ex-up    { color: #fcd34d; }
+.card-explain .ex-down  { color: #93c5fd; }
+.card-explain b { color: #f1f5f9; }
+.card-explain code {
+    background: rgba(0, 184, 255, 0.08);
+    color: var(--brand-blue);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+}
+
+.reset-btn {
+    background: rgba(122, 45, 255, 0.10);
+    color: #c4a8ff;
+    border: 1px solid rgba(122, 45, 255, 0.45);
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    align-self: flex-start;
+    margin-top: 8px;
+}
+.reset-btn:hover { background: #334155; color: #cbd5e1; }
+
+/* Explainer sections */
+.explainer {
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 24px;
+    margin-bottom: 18px;
+    line-height: 1.7;
+    font-size: 14px;
+    color: #cbd5e1;
+}
+.explainer h3 {
+    font-family: var(--font-display-alt);
+    font-size: 16px;
+    color: var(--brand-blue);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.explainer code {
+    background: rgba(0, 184, 255, 0.08);
+    color: var(--brand-blue);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+.explainer b { color: #f1f5f9; }
+.explainer ul {
+    margin: 8px 0;
+    padding-left: 20px;
+}
+.explainer li { margin-bottom: 6px; }
+.callout {
+    padding: 14px 16px;
+    border-radius: 6px;
+    margin: 12px 0;
+    font-size: 13px;
+}
+.callout-green {
+    background: rgba(52, 211, 153, 0.07);
+    border-left: 3px solid #34d399;
+}
+.callout-green b { color: #34d399; }
+.callout-yellow {
+    background: rgba(250, 204, 21, 0.07);
+    border-left: 3px solid #fcd34d;
+}
+.callout-yellow b { color: #fcd34d; }
+.callout-red {
+    background: rgba(255, 61, 127, 0.07);
+    border-left: 3px solid var(--brand-pink);
+}
+.callout-red b { color: #ffb3cd; }
+.callout-blue {
+    background: rgba(0, 184, 255, 0.07);
+    border-left: 3px solid var(--brand-blue);
+}
+.callout-blue b { color: var(--brand-blue); }
+
+/* Decision table */
+.decision-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin: 12px 0;
+}
+.decision-table th, .decision-table td {
+    padding: 8px 10px;
+    text-align: left;
+    border-bottom: 1px solid #1e293b;
+    vertical-align: top;
+    line-height: 1.45;
+}
+.decision-table th {
+    color: #64748b;
+    font-weight: 500;
+    text-transform: uppercase;
+    font-size: 9px;
+    letter-spacing: 0.4px;
+    background: rgba(30, 41, 59, 0.4);
+}
+.decision-table td code {
+    background: rgba(30, 41, 59, 0.6);
+    color: #00b8ff;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+}
+.decision-table .yes { color: #86efac; font-weight: 600; }
+.decision-table .no  { color: #fca5a5; font-weight: 600; }
+.decision-table .na  { color: #64748b; }
+
+/* Flow diagram */
+.flow-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    margin: 24px 0;
+}
+.flow-node {
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid #475569;
+    border-radius: 8px;
+    padding: 14px 24px;
+    text-align: center;
+    min-width: 340px;
+    max-width: 500px;
+}
+.flow-node.active   { border-color: #86efac; background: rgba(20, 83, 45, 0.2); }
+.flow-node.inactive { border-color: #991b1b; background: rgba(127, 29, 29, 0.15); opacity: 0.7; }
+.flow-node .fn-title {
+    font-family: var(--font-display-alt);
+    font-size: 13px;
+    color: #f1f5f9;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.flow-node .fn-detail {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 4px;
+}
+.flow-node .fn-topic {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--brand-blue);
+    margin-top: 4px;
+}
+.flow-arrow {
+    width: 2px;
+    height: 28px;
+    background: #475569;
+    position: relative;
+}
+.flow-arrow::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: -4px;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid #475569;
+}
+.flow-arrow.green { background: #86efac; }
+.flow-arrow.green::after { border-top-color: #86efac; }
+.flow-arrow.red { background: #fca5a5; }
+.flow-arrow.red::after { border-top-color: #fca5a5; }
+.flow-label {
+    font-size: 10px;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: -2px 0 -2px;
+}
+
+.flow-split {
+    display: flex;
+    gap: 40px;
+    align-items: flex-start;
+    justify-content: center;
+}
+.flow-branch {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+}
+.flow-branch-label {
+    font-family: var(--font-display-alt);
+    font-size: 11px;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>LiDAR <span class="sub">Deskewing</span></h1>
+<p class="lede">
+<b>Deskewing</b> (motion compensation / undistortion) corrects the geometric
+smear that happens because a LiDAR scan is <b>not</b> an instantaneous
+snapshot. The Livox Mid-360 takes <b>~100 ms per sweep</b>. During that
+window the robot moves, so the first point in the scan and the last point were
+measured at different robot poses. Without correction every point is plotted as
+if the robot were frozen — producing a "skewed" cloud that warps walls, doubles
+edges, and drifts the map. This page explains <b>what deskewing is</b>,
+<b>when you need it</b>, whether <b>this repo currently does it</b>, and how
+the relevant parameters affect the output.
+</p>
+
+<!-- ================================================================ -->
+<h2 class="section-title">Do We Deskew Now?
+    <span class="tag t-on">3D: yes (implicit)</span>
+    <span class="tag t-off">2D: no</span>
+</h2>
+
+<div class="explainer">
+<h3>The Short Answer</h3>
+<table class="decision-table">
+<thead><tr><th>Launch script</th><th>Pipeline</th><th>Deskewing?</th><th>How</th></tr></thead>
+<tbody>
+<tr>
+    <td><code>start_slam.sh</code></td>
+    <td>FAST-LIO2 (3D lidar-inertial)</td>
+    <td class="yes">Yes</td>
+    <td>FAST-LIO2 internally uses IMU samples <b>inside</b> each scan window
+        to motion-compensate every point before ICP registration. This is
+        built into the algorithm — there is no on/off flag.</td>
+</tr>
+<tr>
+    <td><code>start_slam_2d.sh</code></td>
+    <td>pointcloud_to_laserscan + slam_toolbox</td>
+    <td class="no">No</td>
+    <td>The 3D cloud is flattened to a 2D <code>LaserScan</code> at ~10 Hz.
+        slam_toolbox treats each scan as a rigid frame and matches
+        scan-to-scan. No per-point motion correction.</td>
+</tr>
+<tr>
+    <td><code>start_nav.sh</code></td>
+    <td>FAST-LIO2 localization + Nav2</td>
+    <td class="yes">Yes</td>
+    <td>Same FAST-LIO2 deskewing as mapping mode.</td>
+</tr>
+<tr>
+    <td><code>start_nav_2d.sh</code></td>
+    <td>slam_toolbox localization + Nav2</td>
+    <td class="no">No</td>
+    <td>Same 2D pipeline — no deskewing.</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-green">
+<b>Key insight:</b> FAST-LIO2's deskewing is <b>implicit and always-on</b>.
+It uses the Mid-360's onboard ICM40609 IMU (hardware time-synced to the
+LiDAR) to predict where the robot was at each point's exact timestamp, then
+transforms that point back to a consistent reference pose. There is no
+<code>deskew: true</code> flag — it's baked into the ESIKF state estimation
+loop.
+</div>
+
+<div class="callout callout-yellow">
+<b>2D stack doesn't need it (yet):</b> At indoor mecanum-chassis speeds
+(&lt; 0.5 m/s), the Mid-360's 100 ms sweep causes &lt; 5 cm of smear in
+the flattened 2D scan. slam_toolbox's scan matching easily absorbs this.
+You would need deskewing in the 2D stack if the rover moved &gt; 1 m/s or
+rotated &gt; 90 deg/s during mapping.
+</div>
+</div>
+
+<!-- ================================================================ -->
+<h2 class="section-title">Other LiDARs: Pandar40P &amp; VLP-16
+    <span class="tag t-off">no built-in IMU</span>
+</h2>
+
+<div class="explainer">
+<h3>Mid-360 vs Mechanical Spinning LiDARs</h3>
+<p>The Mid-360's deskewing story is simple because its IMU lives on the same board.
+The Pandar40P and VLP-16 are <b>mechanical spinning LiDARs with no onboard IMU</b> —
+everything changes.</p>
+
+<table class="decision-table">
+<thead><tr><th></th><th>Livox Mid-360</th><th>Hesai Pandar40P</th><th>Velodyne VLP-16</th></tr></thead>
+<tbody>
+<tr>
+    <td><b>Scan type</b></td>
+    <td>Non-repetitive prism</td>
+    <td>Mechanical 360° spin</td>
+    <td>Mechanical 360° spin</td>
+</tr>
+<tr>
+    <td><b>Vertical FOV</b></td>
+    <td>-7° to +52° (59°)</td>
+    <td>-25° to +15° (40°)</td>
+    <td>-15° to +15° (30°)</td>
+</tr>
+<tr>
+    <td><b>Sweep time</b></td>
+    <td>~100 ms</td>
+    <td>100 ms (at 10 Hz)</td>
+    <td>100 ms (at 10 Hz)</td>
+</tr>
+<tr>
+    <td><b>Built-in IMU</b></td>
+    <td class="yes">ICM40609 (hardware-synced)</td>
+    <td class="no">None</td>
+    <td class="no">None</td>
+</tr>
+<tr>
+    <td><b>Clock sync to LiDAR</b></td>
+    <td class="yes">Shared FPGA clock domain</td>
+    <td class="no">External IMU → software timestamps</td>
+    <td class="no">External IMU → software timestamps</td>
+</tr>
+<tr>
+    <td><b>FAST-LIO2 <code>time_sync_en</code></b></td>
+    <td><code>false</code></td>
+    <td><code>true</code> — must measure offset</td>
+    <td><code>true</code> — must measure offset</td>
+</tr>
+<tr>
+    <td><b>Extrinsic calibration</b></td>
+    <td>Factory-calibrated (datasheet)</td>
+    <td>Manual measurement + <code>extrinsic_est_en: true</code></td>
+    <td>Manual measurement + <code>extrinsic_est_en: true</code></td>
+</tr>
+<tr>
+    <td><b>Deskew quality</b></td>
+    <td class="yes">Excellent (&lt; 1 ms alignment)</td>
+    <td style="color:#fcd34d;">Good if clock offset is measured accurately</td>
+    <td style="color:#fcd34d;">Good if clock offset is measured accurately</td>
+</tr>
+<tr>
+    <td><b>FAST-LIO2 <code>lidar_type</code></b></td>
+    <td><code>1</code> (Livox)</td>
+    <td><code>0</code> (conventional spinning)</td>
+    <td><code>0</code> (conventional spinning)</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-red">
+<b>No built-in IMU = you must provide one.</b> The Pandar40P and VLP-16
+have no onboard IMU. To use FAST-LIO2 (or any lidar-inertial SLAM), you
+need an <b>external IMU</b> rigidly mounted near the LiDAR. Candidates:
+WitMotion WT901C, Bosch BMI088, or any 6-axis IMU at ≥ 200 Hz. You must then:
+<ul style="margin-top:6px;">
+<li>Set <code>time_sync_en: true</code></li>
+<li>Measure <code>time_offset_lidar_to_imu</code> (record simultaneous
+    data, cross-correlate timestamps)</li>
+<li>Physically measure and set <code>extrinsic_T</code> (IMU-to-LiDAR
+    translation in meters)</li>
+<li>Calibrate <code>extrinsic_R</code> (IMU-to-LiDAR rotation — use
+    <code>extrinsic_est_en: true</code> for one run, then lock)</li>
+</ul>
+</div>
+
+<div class="callout callout-yellow">
+<b>VLP-16 on the rotating platform — double deskewing:</b> If you spin the
+VLP-16 on the turntable to extend its 30° vertical FOV to full-spherical,
+the platform rotation adds <b>continuous motion on top of robot motion</b>.
+You need <b>two stages</b> of deskewing:
+<ol style="margin-top:6px;">
+<li><b>Encoder-based deskew</b> — transform each point from the rotating
+    sensor frame to the stationary base frame using the AS5600 encoder angle
+    at that point's timestamp. This is the live deskew node from the
+    rotating LiDAR build notes.</li>
+<li><b>IMU-based deskew</b> — FAST-LIO2 (or KISS-ICP) then corrects for
+    robot motion during the sweep, as usual.</li>
+</ol>
+Without stage 1, SLAM sees the world doing backflips and instantly diverges.
+Without stage 2, you get the normal motion smear on top of the corrected cloud.
+</div>
+
+<div class="callout callout-blue">
+<b>Alternative: IMU-free SLAM.</b> If you don't want to deal with IMU clock
+sync, <b>CT-ICP</b> and <b>KISS-ICP</b> can deskew without an IMU — CT-ICP
+uses continuous-time elastic ICP (linear interpolation between start/end
+pose), KISS-ICP uses a constant-velocity model. Both work well at vehicle
+speeds but struggle with aggressive rotation (&gt; 90 deg/s). For the
+Pandar40P on a slow-moving rover this is a viable option.
+</div>
+</div>
+
+<!-- ================================================================ -->
+<h2 class="section-title">How Deskewing Works
+    <span class="tag t-info">concept</span>
+</h2>
+
+<div class="explainer" style="padding:0; border:0; background:transparent;">
+<div class="flow-wrap">
+    <div class="flow-node">
+        <div class="fn-title">LiDAR Sweep Begins</div>
+        <div class="fn-detail">Mid-360 starts emitting laser pulses. First point measured at t₀.</div>
+        <div class="fn-topic">Robot at pose P₀</div>
+    </div>
+    <div class="flow-arrow green"></div>
+    <div class="flow-node">
+        <div class="fn-title">Robot Moves During Sweep</div>
+        <div class="fn-detail">~100 ms pass. Robot translates and rotates. IMU records gyro + accel at 200 Hz.</div>
+        <div class="fn-topic">~20 IMU samples captured inside this window</div>
+    </div>
+    <div class="flow-arrow green"></div>
+    <div class="flow-node">
+        <div class="fn-title">LiDAR Sweep Ends</div>
+        <div class="fn-detail">Last point measured at t₁ = t₀ + ~100 ms. Robot now at pose P₁.</div>
+        <div class="fn-topic">/livox/lidar published as one PointCloud2</div>
+    </div>
+    <div class="flow-arrow"></div>
+    <div class="flow-label">without deskewing</div>
+    <div class="flow-arrow red"></div>
+    <div class="flow-split">
+        <div class="flow-branch">
+            <div class="flow-branch-label">Skewed (raw)</div>
+            <div class="flow-node inactive">
+                <div class="fn-title">All Points Plotted at P₁</div>
+                <div class="fn-detail">Every point placed as if measured at the end pose. Points from t₀ are in the wrong position by the robot's motion over 100 ms.</div>
+                <div class="fn-topic" style="color:#fca5a5;">Walls smear, edges double, map drifts</div>
+            </div>
+        </div>
+        <div class="flow-branch">
+            <div class="flow-branch-label">Deskewed (corrected)</div>
+            <div class="flow-node active">
+                <div class="fn-title">Each Point Transformed to P_ref</div>
+                <div class="fn-detail">For each point, interpolate the robot pose at that point's exact timestamp using IMU data. Transform the point from its measurement pose back to a single reference pose.</div>
+                <div class="fn-topic" style="color:#86efac;">Clean, consistent cloud — crisp walls and edges</div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<div class="explainer">
+<h3>The Math (simplified)</h3>
+For each point <b>pᵢ</b> measured at time <b>tᵢ</b> within the sweep [t₀, t₁]:
+<ol style="margin:10px 0; padding-left: 20px;">
+<li>Use IMU gyroscope + accelerometer to estimate the robot's pose change <b>ΔT(tᵢ)</b> from the reference time to tᵢ</li>
+<li>Compute the rigid transformation: <code>p_corrected = ΔT(tᵢ)⁻¹ · pᵢ</code></li>
+<li>The corrected point is now in the reference frame as if all points were measured simultaneously</li>
+</ol>
+<div class="callout callout-blue">
+<b>Why the IMU must be hardware time-synced:</b> The correction depends on
+knowing <b>exactly</b> which IMU sample corresponds to which LiDAR point.
+The Mid-360's onboard ICM40609 shares a clock domain with the LiDAR
+firmware — timestamps align to &lt; 1 ms. An external IMU (like the
+WitMotion WT901C) uses ROS-stamped host time, which can drift 5–10 ms.
+That's enough skew to warp the deskewed cloud and introduce drift. This is
+why <code>fast_lio_mid360.yaml</code> subscribes to <code>/livox/imu_ms2</code>
+(the unit-corrected Mid-360 IMU), not <code>/imu/data</code> (WitMotion).
+</div>
+</div>
+
+<!-- ================================================================ -->
+<h2 class="section-title">When You Need Deskewing
+    <span class="tag t-info">decision guide</span>
+</h2>
+
+<div class="explainer">
+<h3>Smear Budget</h3>
+<p>The amount of geometric error (smear) from skipping deskewing depends on
+two things: <b>robot speed</b> and <b>sweep duration</b>.</p>
+<p style="margin-top:8px;"><code>smear = velocity × sweep_time</code></p>
+
+<table class="decision-table">
+<thead><tr><th>Speed</th><th>Sweep (100 ms)</th><th>Smear</th><th>Impact</th></tr></thead>
+<tbody>
+<tr><td>0.1 m/s (slow indoor)</td><td>100 ms</td><td>1 cm</td><td class="na">Negligible — skip deskewing</td></tr>
+<tr><td>0.3 m/s (walking pace)</td><td>100 ms</td><td>3 cm</td><td class="na">Minor — 2D scan matching absorbs it</td></tr>
+<tr><td>0.5 m/s (fast indoor)</td><td>100 ms</td><td>5 cm</td><td style="color:#fcd34d;">Visible in 3D cloud — walls thicken</td></tr>
+<tr><td>1.0 m/s (hallway cruise)</td><td>100 ms</td><td>10 cm</td><td class="no">Significant — 3D SLAM needs deskewing</td></tr>
+<tr><td>2.0 m/s (outdoor rover)</td><td>100 ms</td><td>20 cm</td><td class="no">Severe — map corrupts without deskewing</td></tr>
+</tbody>
+</table>
+
+<p style="margin-top:8px;"><b>Rotation is worse:</b> At 90 deg/s yaw
+(a quick turn), points 100 ms apart are rotated 9 degrees from each other.
+A wall 3 m away smears by <code>3 × sin(9°) ≈ 47 cm</code>.</p>
+
+<div class="callout callout-green">
+<b>Rule of thumb:</b> If max smear &gt; <b>half your voxel/grid resolution</b>,
+you need deskewing. FAST-LIO2's <code>filter_size_surf: 0.3</code> means
+deskewing matters above ~15 cm smear (&gt; 1.5 m/s translation or
+&gt; 60 deg/s rotation at 3 m range).
+</div>
+
+<table class="decision-table" style="margin-top:16px;">
+<thead><tr><th>Scenario</th><th>Need Deskewing?</th><th>Reason</th></tr></thead>
+<tbody>
+<tr><td>Mecanum rover, indoor, &lt; 0.3 m/s, 2D SLAM</td><td class="no">No</td><td>3 cm smear, 2D scan matching absorbs it</td></tr>
+<tr><td>Mecanum rover, indoor, &lt; 0.3 m/s, 3D SLAM</td><td class="yes">Yes (free)</td><td>FAST-LIO2 does it automatically</td></tr>
+<tr><td>Go2 quadruped, walking gait, 3D SLAM</td><td class="yes">Yes (critical)</td><td>Gait oscillation + 0.5–1.0 m/s ≈ 5–10 cm smear per sweep</td></tr>
+<tr><td>Outdoor rover, 1–2 m/s, 3D SLAM</td><td class="yes">Yes (critical)</td><td>10–20 cm smear destroys ICP registration</td></tr>
+<tr><td>Stationary scanner (survey)</td><td class="no">No</td><td>Zero motion = zero smear</td></tr>
+<tr><td>Rotating LiDAR platform (VLP-16 on turntable)</td><td class="yes">Yes (mandatory)</td><td>Platform rotation = continuous motion; must deskew per encoder angle</td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- ================================================================ -->
+<h2 class="section-title">Interactive Parameters
+    <span class="tag t-cfg">fast_lio_mid360.yaml</span>
+</h2>
+
+<div class="cards">
+
+<!-- Card 1: Sweep time vs speed smear visualizer -->
+<div class="card span-2">
+  <div class="card-head">
+    <span class="paramName">Deskew Smear Visualizer</span>
+    <span class="paramFile">Conceptual — not a single YAML parameter</span>
+    <span class="paramDesc">See how robot speed and sweep duration combine to produce
+    geometric smear. The canvas shows a wall segment as seen by a moving LiDAR —
+    raw (skewed, red) vs deskewed (corrected, green).</span>
+  </div>
+  <canvas id="cv-smear" height="260"></canvas>
+  <div class="stat" id="stat-smear">—</div>
+  <div class="card-controls">
+    <div class="slider-row">
+      <label>robot speed</label>
+      <input type="range" id="smear-speed" min="0" max="2.5" step="0.05" value="0.5">
+      <span class="val" id="smear-speedVal">0.50 m/s</span>
+      <span class="default-hint match">default 0.3</span>
+    </div>
+    <div class="slider-row">
+      <label>sweep time</label>
+      <input type="range" id="smear-sweep" min="10" max="200" step="5" value="100">
+      <span class="val" id="smear-sweepVal">100 ms</span>
+      <span class="default-hint match">Mid-360</span>
+    </div>
+    <div class="slider-row">
+      <label>yaw rate</label>
+      <input type="range" id="smear-yaw" min="0" max="180" step="5" value="0">
+      <span class="val" id="smear-yawVal">0 deg/s</span>
+      <span class="default-hint match">straight</span>
+    </div>
+    <div class="slider-row">
+      <label>wall distance</label>
+      <input type="range" id="smear-dist" min="0.5" max="8" step="0.25" value="3">
+      <span class="val" id="smear-distVal">3.00 m</span>
+      <span class="default-hint"></span>
+    </div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What it shows:</b> A flat wall as measured by a moving LiDAR.
+    <span style="color:#fca5a5">Red points</span> = raw/skewed (no motion correction).
+    <span style="color:#86efac">Green points</span> = deskewed (each point transformed
+    to account for robot motion during the sweep). The spread between red and green
+    is the smear you're correcting.</div>
+    <div class="ex-up"><b>Smear grows with:</b> higher speed, longer sweep time, higher
+    yaw rate, greater wall distance (for rotation).</div>
+    <div class="ex-down"><b>Smear shrinks with:</b> slower motion, shorter sweep, closer
+    objects (translation-dominated smear).</div>
+  </div>
+</div>
+
+<!-- Card 2: time_sync_en -->
+<div class="card">
+  <div class="card-head">
+    <span class="paramName">time_sync_en</span>
+    <span class="paramFile">config/fast_lio_mid360.yaml:32</span>
+    <span class="paramDesc">Enables FAST-LIO2's <b>manual</b> software time offset
+    between LiDAR and IMU timestamps. When <code>false</code>, FAST-LIO2 trusts
+    that the IMU and LiDAR share a clock domain (hardware-synced). When
+    <code>true</code>, it applies <code>time_offset_lidar_to_imu</code> to
+    every IMU sample before using it for deskewing.</span>
+    <div class="modes">
+      <span class="mode-chip mode-3d">3D · FAST-LIO2</span>
+    </div>
+  </div>
+  <canvas id="cv-timesync" height="180"></canvas>
+  <div class="stat" id="stat-timesync">—</div>
+  <div class="card-controls">
+    <div class="toggle-row">
+      <input type="checkbox" id="timesync-en">
+      <span>time_sync_en</span>
+      <span class="default-hint match">default: false</span>
+    </div>
+    <div class="slider-row" id="timesync-offset-row" style="opacity:0.3;">
+      <label>time_offset</label>
+      <input type="range" id="timesync-offset" min="-50" max="50" step="1" value="0" disabled>
+      <span class="val" id="timesync-offsetVal">0.0 ms</span>
+      <span class="default-hint match">default 0.0</span>
+    </div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What it controls:</b> Whether FAST-LIO2 adds a fixed time
+    shift to IMU samples before using them for deskewing. The Mid-360's onboard
+    ICM40609 is hardware-synced to the LiDAR, so <code>false</code> is correct.</div>
+    <div class="ex-up"><b>Set to true if:</b> You're using an <b>external</b> IMU
+    (not the Mid-360's built-in one) and need to manually correct a known clock
+    offset. Measure the offset with <code>lidar_diagnostics.py</code>.</div>
+    <div class="ex-down"><b>Keep false if:</b> Using the Mid-360's onboard IMU
+    (our setup). Enabling it with the wrong offset <b>worsens</b> deskewing
+    by misaligning IMU samples with the wrong LiDAR points.</div>
+  </div>
+</div>
+
+<!-- Card 3: IMU covariance and deskew quality -->
+<div class="card">
+  <div class="card-head">
+    <span class="paramName">acc_cov · gyr_cov</span>
+    <span class="paramFile">config/fast_lio_mid360.yaml:53–54</span>
+    <span class="paramDesc">IMU noise covariance for the acceleration and gyroscope.
+    These control how much FAST-LIO2 <b>trusts the IMU prediction</b> vs the
+    <b>ICP scan match</b>. Since deskewing is driven by IMU prediction, these
+    directly affect deskew quality.</span>
+    <div class="modes">
+      <span class="mode-chip mode-3d">3D · FAST-LIO2</span>
+    </div>
+  </div>
+  <canvas id="cv-imu-cov" height="180"></canvas>
+  <div class="stat" id="stat-imu-cov">—</div>
+  <div class="card-controls">
+    <div class="slider-row">
+      <label>acc_cov</label>
+      <input type="range" id="cov-acc" min="0.01" max="2" step="0.01" value="0.5">
+      <span class="val" id="cov-accVal">0.50</span>
+      <span class="default-hint match">default 0.5</span>
+    </div>
+    <div class="slider-row">
+      <label>gyr_cov</label>
+      <input type="range" id="cov-gyr" min="0.01" max="1" step="0.01" value="0.1">
+      <span class="val" id="cov-gyrVal">0.10</span>
+      <span class="default-hint match">default 0.1</span>
+    </div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What they control:</b> FAST-LIO2's ESIKF (Error-State
+    Iterated Kalman Filter) uses these covariances to weight the IMU prediction
+    step. Higher covariance = less trust in IMU = ICP dominates. The IMU prediction
+    is what drives the per-point deskew correction within each sweep.</div>
+    <div class="ex-up"><b>Raise acc_cov if:</b> Odometry lags during quick turns
+    (IMU prediction drags pose along stale samples). Current 0.5 was tuned for
+    the unit-corrected <code>/livox/imu_ms2</code> stream.</div>
+    <div class="ex-down"><b>Lower acc_cov if:</b> <code>/Odometry</code> shakes or
+    jitters at rest. Try 0.3 — gives IMU more weight to smooth the pose.</div>
+  </div>
+</div>
+
+<!-- Card 4: extrinsic_T (IMU-to-LiDAR lever arm) -->
+<div class="card">
+  <div class="card-head">
+    <span class="paramName">extrinsic_T</span>
+    <span class="paramFile">config/fast_lio_mid360.yaml:69</span>
+    <span class="paramDesc">Translation vector from IMU frame to LiDAR frame (meters).
+    A wrong extrinsic means the deskew correction is applied at the wrong lever
+    arm — the further the robot moves, the more the corrected points drift from
+    their true positions.</span>
+    <div class="modes">
+      <span class="mode-chip mode-3d">3D · FAST-LIO2</span>
+    </div>
+  </div>
+  <canvas id="cv-extrinsic" height="180"></canvas>
+  <div class="stat" id="stat-extrinsic">—</div>
+  <div class="card-controls">
+    <div class="slider-row">
+      <label>ext_x</label>
+      <input type="range" id="ext-x" min="-0.2" max="0.2" step="0.001" value="-0.011">
+      <span class="val" id="ext-xVal">-0.011 m</span>
+      <span class="default-hint match">-0.011</span>
+    </div>
+    <div class="slider-row">
+      <label>ext_y</label>
+      <input type="range" id="ext-y" min="-0.2" max="0.2" step="0.001" value="-0.02329">
+      <span class="val" id="ext-yVal">-0.023 m</span>
+      <span class="default-hint match">-0.02329</span>
+    </div>
+    <div class="slider-row">
+      <label>ext_z</label>
+      <input type="range" id="ext-z" min="-0.2" max="0.2" step="0.001" value="0.04412">
+      <span class="val" id="ext-zVal">0.044 m</span>
+      <span class="default-hint match">0.04412</span>
+    </div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What it controls:</b> The physical offset from the IMU chip
+    to the LiDAR optical center, from the Livox Mid-360 datasheet. FAST-LIO2 uses this
+    to transform IMU-predicted motion into the LiDAR frame for deskewing. The Mid-360's
+    onboard ICM40609 is factory-calibrated, so these values are precise.</div>
+    <div class="ex-up"><b>Wrong extrinsic causes:</b> Systematic deskew error that grows
+    with rotation speed. Walls appear to wobble during fast turns. Use
+    <code>extrinsic_est_en: true</code> once to auto-calibrate, then lock back to
+    <code>false</code>.</div>
+  </div>
+</div>
+
+<!-- Card 5: filter_size_surf interaction with deskewing -->
+<div class="card">
+  <div class="card-head">
+    <span class="paramName">filter_size_surf</span>
+    <span class="paramFile">config/fast_lio_mid360.yaml:64</span>
+    <span class="paramDesc">Voxel grid resolution for downsampling each scan before
+    ICP registration. Interacts with deskewing: if the voxel size is <b>larger</b>
+    than the deskew correction, the correction is invisible — points that were
+    shifted 2 cm by deskewing get merged into the same 30 cm voxel anyway.</span>
+    <div class="modes">
+      <span class="mode-chip mode-3d">3D · FAST-LIO2</span>
+    </div>
+  </div>
+  <canvas id="cv-voxel" height="180"></canvas>
+  <div class="stat" id="stat-voxel">—</div>
+  <div class="card-controls">
+    <div class="slider-row">
+      <label>filter_size</label>
+      <input type="range" id="voxel-size" min="0.05" max="1" step="0.05" value="0.3">
+      <span class="val" id="voxel-sizeVal">0.30 m</span>
+      <span class="default-hint match">default 0.3</span>
+    </div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What it controls:</b> The voxel edge length used to
+    downsample each scan before ICP. <b>Deskewing matters most when smear exceeds
+    the voxel size</b> — below that threshold, voxel averaging already absorbs the
+    error.</div>
+    <div class="ex-up"><b>Raise if:</b> CPU-bound. Larger voxels reduce ICP cost but
+    mask deskew corrections — acceptable at low speed.</div>
+    <div class="ex-down"><b>Lower if:</b> Indoor, feature-poor rooms. 0.3 keeps enough
+    points for ICP; 0.5 drops too many in sparse Mid-360 sweeps indoors
+    ("No Effective Points!" → drift).</div>
+  </div>
+</div>
+
+<!-- Card 6: blind zone interaction -->
+<div class="card">
+  <div class="card-head">
+    <span class="paramName">blind</span>
+    <span class="paramFile">config/fast_lio_mid360.yaml:42</span>
+    <span class="paramDesc">Minimum range filter — points closer than this are discarded.
+    Doesn't directly affect deskewing, but removing near-field points can remove the
+    ground plane constraint that helps ICP converge <b>after</b> deskewing.</span>
+    <div class="modes">
+      <span class="mode-chip mode-3d">3D · FAST-LIO2</span>
+    </div>
+  </div>
+  <canvas id="cv-blind" height="180"></canvas>
+  <div class="stat" id="stat-blind">—</div>
+  <div class="card-controls">
+    <div class="slider-row">
+      <label>blind</label>
+      <input type="range" id="blind-val" min="0.1" max="2" step="0.05" value="0.5">
+      <span class="val" id="blind-valVal">0.50 m</span>
+      <span class="default-hint match">default 0.5</span>
+    </div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-what"><b>What it controls:</b> Minimum range cutoff. Points closer
+    than <code>blind</code> meters are dropped. Removes self-hits from the
+    fixture frame, battery, and buck converter (confirmed at 0.2–0.5 m in
+    ±90°/±150° azimuths). Floor returns start at 2.07 m (9" fixture) so 0.5 m
+    never touches ground data.</div>
+    <div class="ex-up"><b>Raise if:</b> You see self-hit artifacts (points on
+    the chassis or mounting hardware).</div>
+    <div class="ex-down"><b>Lower if:</b> Mounted &lt; 0.5 m above ground —
+    0.5 m blind filters the ground plane, leaving no Z constraint. Pose drops
+    through the floor.</div>
+  </div>
+</div>
+
+</div><!-- /cards -->
+
+<!-- ================================================================ -->
+<h2 class="section-title">IMU-LiDAR Clock Alignment
+    <span class="tag t-cfg">why time_sync_en stays false</span>
+</h2>
+
+<div class="explainer">
+<h3>The Three IMUs on This Rover</h3>
+<table class="decision-table">
+<thead><tr><th>IMU</th><th>Topic</th><th>Clock Source</th><th>Deskew-Safe?</th><th>Used By</th></tr></thead>
+<tbody>
+<tr>
+    <td>Mid-360 ICM40609</td>
+    <td><code>/livox/imu_ms2</code></td>
+    <td>Hardware-synced to LiDAR (shared FPGA clock)</td>
+    <td class="yes">Yes</td>
+    <td>FAST-LIO2 (deskewing + state estimation)</td>
+</tr>
+<tr>
+    <td>D435 BMI085</td>
+    <td><code>/d435_front/.../imu</code></td>
+    <td>Hardware-synced to camera (shared USB frame clock)</td>
+    <td class="no">No — wrong clock domain</td>
+    <td>Not used in current stack</td>
+</tr>
+<tr>
+    <td>WitMotion WT901C</td>
+    <td><code>/imu/data</code></td>
+    <td>ROS host timestamp (software-stamped on arrival)</td>
+    <td class="no">No — 5–10 ms jitter</td>
+    <td>Backup / attitude reference</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-red">
+<b>The unit-correction trap:</b> The Livox driver publishes
+<code>/livox/imu</code> with acceleration in <b>units of g</b> (1.0 at rest).
+FAST-LIO2 expects <b>m/s²</b> (9.81 at rest). Subscribing to the raw topic
+silently degrades pose estimation — gravity init reads 1.0, acc covariance is
+over-weighted by ~96x, and the IMU prediction step contributes effectively
+nothing to deskewing. The <code>imu_units_node.py</code> republisher
+multiplies by 9.80665 and publishes <code>/livox/imu_ms2</code>. Always
+subscribe to the corrected topic.
+</div>
+
+<div class="callout callout-green">
+<b>Diagnostic check:</b> Run <code>lidar_diagnostics.py</code> — it monitors
+IMU↔LiDAR timestamp offsets and warns if &gt; 50 ms. If you see that warning,
+check that you're using the Mid-360's built-in IMU, not the WitMotion.
+</div>
+</div>
+
+<!-- ================================================================ -->
+<h2 class="section-title">Examples: Before and After
+    <span class="tag t-info">visual</span>
+</h2>
+
+<div class="cards">
+<div class="card span-2">
+  <div class="card-head">
+    <span class="paramName">Deskewing Effect on Wall Geometry</span>
+    <span class="paramDesc">Interactive comparison: a corridor wall scanned while the
+    robot translates at varying speeds. Click "Animate" to see the sweep happen in
+    slow motion.</span>
+  </div>
+  <canvas id="cv-wall-demo" height="300"></canvas>
+  <div class="stat" id="stat-wall-demo">—</div>
+  <div class="card-controls">
+    <div class="slider-row">
+      <label>robot speed</label>
+      <input type="range" id="wall-speed" min="0" max="2" step="0.05" value="1.0">
+      <span class="val" id="wall-speedVal">1.00 m/s</span>
+      <span class="default-hint"></span>
+    </div>
+    <div class="slider-row">
+      <label>show deskew</label>
+      <input type="range" id="wall-deskew" min="0" max="1" step="1" value="1">
+      <span class="val" id="wall-deskewVal">ON</span>
+      <span class="default-hint"></span>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ================================================================ -->
+<h2 class="section-title">Summary: Your Stack
+    <span class="tag t-on">status</span>
+</h2>
+
+<div class="explainer">
+<table class="decision-table">
+<thead><tr><th>Aspect</th><th>Status</th><th>Detail</th></tr></thead>
+<tbody>
+<tr>
+    <td>Is deskewing active?</td>
+    <td class="yes">3D: Yes (always-on in FAST-LIO2)</td>
+    <td>Built into the ESIKF loop — no flag to toggle</td>
+</tr>
+<tr>
+    <td></td>
+    <td class="no">2D: No</td>
+    <td>slam_toolbox uses discrete scans, no per-point correction</td>
+</tr>
+<tr>
+    <td>What enables it?</td>
+    <td colspan="2">Hardware time-sync between Mid-360 LiDAR and onboard ICM40609 IMU</td>
+</tr>
+<tr>
+    <td><code>time_sync_en</code></td>
+    <td><code>false</code> (correct)</td>
+    <td>Hardware-synced → no manual offset needed</td>
+</tr>
+<tr>
+    <td>IMU topic</td>
+    <td><code>/livox/imu_ms2</code></td>
+    <td>Unit-corrected (g → m/s²) via <code>imu_units_node.py</code></td>
+</tr>
+<tr>
+    <td>Extrinsic</td>
+    <td><code>[-0.011, -0.023, 0.044]</code> m</td>
+    <td>Factory-calibrated from Livox Mid-360 datasheet</td>
+</tr>
+<tr>
+    <td>Does the 2D stack need it?</td>
+    <td class="no">Not at current speeds</td>
+    <td>&lt; 0.3 m/s indoor → 3 cm smear → slam_toolbox absorbs it</td>
+</tr>
+<tr>
+    <td>When would you add it to 2D?</td>
+    <td colspan="2">If rover exceeds 1 m/s or rotates &gt; 60 deg/s during mapping</td>
+</tr>
+<tr>
+    <td colspan="3" style="padding-top:16px; border-top: 2px solid rgba(122, 45, 255, 0.3);">
+    <span style="font-family: var(--font-display-alt); font-size: 12px; color: #c4a8ff; text-transform: uppercase; letter-spacing: 0.05em;">Pandar40P / VLP-16 (No Built-in IMU)</span></td>
+</tr>
+<tr>
+    <td>Built-in IMU?</td>
+    <td class="no">No</td>
+    <td>Must provide an external IMU (WitMotion, BMI088, etc.)</td>
+</tr>
+<tr>
+    <td><code>time_sync_en</code></td>
+    <td><code>true</code> (required)</td>
+    <td>Must measure and set <code>time_offset_lidar_to_imu</code></td>
+</tr>
+<tr>
+    <td>Extrinsic calibration</td>
+    <td>Manual</td>
+    <td>Physically measure IMU-to-LiDAR offset, or use <code>extrinsic_est_en: true</code> once</td>
+</tr>
+<tr>
+    <td><code>lidar_type</code></td>
+    <td><code>0</code> (conventional spinning)</td>
+    <td>Different from Mid-360's <code>1</code> (Livox)</td>
+</tr>
+<tr>
+    <td>VLP-16 on rotating platform</td>
+    <td class="no">Double deskewing needed</td>
+    <td>Stage 1: encoder-based (platform spin) → Stage 2: IMU-based (robot motion)</td>
+</tr>
+<tr>
+    <td>IMU-free alternative</td>
+    <td colspan="2">CT-ICP or KISS-ICP — no IMU needed, but limited to moderate speeds/rotation</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+</div><!-- /wrap -->
+
+<script>
+// ─── Utility ───────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+
+function getCanvasCtx(id) {
+    const c = $(id);
+    const dpr = window.devicePixelRatio || 1;
+    const rect = c.getBoundingClientRect();
+    c.width = rect.width * dpr;
+    c.height = rect.height * dpr;
+    const ctx = c.getContext('2d');
+    ctx.scale(dpr, dpr);
+    return { c, ctx, w: rect.width, h: rect.height };
+}
+
+// ─── Card 1: Smear visualizer ──────────────────────────────
+function drawSmear() {
+    const speed = parseFloat($('smear-speed').value);
+    const sweep = parseFloat($('smear-sweep').value);
+    const yaw   = parseFloat($('smear-yaw').value);
+    const dist  = parseFloat($('smear-dist').value);
+
+    $('smear-speedVal').textContent = speed.toFixed(2) + ' m/s';
+    $('smear-sweepVal').textContent = sweep.toFixed(0) + ' ms';
+    $('smear-yawVal').textContent   = yaw.toFixed(0) + ' deg/s';
+    $('smear-distVal').textContent  = dist.toFixed(2) + ' m';
+
+    const smearTrans = speed * (sweep / 1000);
+    const smearRot = dist * Math.sin((yaw * (sweep / 1000)) * Math.PI / 180);
+    const totalSmear = Math.sqrt(smearTrans * smearTrans + smearRot * smearRot);
+
+    const { ctx, w, h } = getCanvasCtx('cv-smear');
+    ctx.clearRect(0, 0, w, h);
+
+    // Draw a top-down view: robot moving right, wall ahead
+    const cx = w / 2, cy = h / 2;
+    const scale = Math.min(w, h) / 10;  // 10 meters across
+
+    // Wall (at 'dist' meters ahead)
+    const wallX = cx + dist * scale * 0.3;
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(wallX, 20);
+    ctx.lineTo(wallX, h - 20);
+    ctx.stroke();
+    ctx.fillStyle = '#64748b';
+    ctx.font = '11px JetBrains Mono';
+    ctx.fillText('wall @ ' + dist.toFixed(1) + 'm', wallX + 6, 30);
+
+    // Robot
+    const robotX = cx - dist * scale * 0.3;
+    const robotY = cy;
+    ctx.fillStyle = '#475569';
+    ctx.fillRect(robotX - 12, robotY - 8, 24, 16);
+    ctx.fillStyle = var_brand_blue;
+    ctx.fillRect(robotX + 8, robotY - 4, 6, 8);
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '10px JetBrains Mono';
+    ctx.fillText('rover', robotX - 14, robotY + 24);
+
+    // Speed arrow
+    if (speed > 0.01) {
+        const arrowLen = Math.min(speed * 40, 80);
+        ctx.strokeStyle = '#fcd34d';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(robotX, robotY - 20);
+        ctx.lineTo(robotX + arrowLen, robotY - 20);
+        ctx.lineTo(robotX + arrowLen - 6, robotY - 24);
+        ctx.moveTo(robotX + arrowLen, robotY - 20);
+        ctx.lineTo(robotX + arrowLen - 6, robotY - 16);
+        ctx.stroke();
+        ctx.fillStyle = '#fcd34d';
+        ctx.font = '10px JetBrains Mono';
+        ctx.fillText(speed.toFixed(1) + ' m/s', robotX + arrowLen + 4, robotY - 16);
+    }
+
+    // Yaw arrow
+    if (yaw > 1) {
+        ctx.strokeStyle = '#c4a8ff';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(robotX, robotY, 20, -0.5, -0.5 + Math.min(yaw / 90, 1.5));
+        ctx.stroke();
+        ctx.fillStyle = '#c4a8ff';
+        ctx.font = '10px JetBrains Mono';
+        ctx.fillText(yaw + ' deg/s', robotX - 14, robotY - 28);
+    }
+
+    // Scan points on wall
+    const nPoints = 30;
+    for (let i = 0; i < nPoints; i++) {
+        const t = i / (nPoints - 1);  // 0..1 within sweep
+        const wallY = cy - (h * 0.35) + t * (h * 0.7);
+
+        // Skewed position: robot moved during sweep
+        const dxTrans = speed * (sweep / 1000) * t;
+        const dyRot = dist * Math.sin((yaw * (sweep / 1000) * t) * Math.PI / 180);
+
+        // Red: skewed (raw)
+        ctx.beginPath();
+        ctx.arc(wallX - dxTrans * scale * 0.3, wallY + dyRot * scale * 0.3, 3, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(252, 165, 165, 0.7)';
+        ctx.fill();
+
+        // Green: deskewed (corrected)
+        ctx.beginPath();
+        ctx.arc(wallX, wallY, 3, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(134, 239, 172, 0.7)';
+        ctx.fill();
+    }
+
+    // Legend
+    ctx.fillStyle = 'rgba(252, 165, 165, 0.9)';
+    ctx.fillRect(20, h - 40, 10, 10);
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '11px JetBrains Mono';
+    ctx.fillText('skewed (raw)', 34, h - 31);
+
+    ctx.fillStyle = 'rgba(134, 239, 172, 0.9)';
+    ctx.fillRect(20, h - 24, 10, 10);
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText('deskewed', 34, h - 15);
+
+    // Stat
+    let severity = 'ok';
+    if (totalSmear > 0.15) severity = 'warn';
+    if (totalSmear > 0.3)  severity = 'bad';
+    $('stat-smear').innerHTML =
+        `Total smear: <span class="${severity}">${(totalSmear * 100).toFixed(1)} cm</span>` +
+        ` (trans: ${(smearTrans * 100).toFixed(1)} cm, rot: ${(smearRot * 100).toFixed(1)} cm)` +
+        (totalSmear > 0.15 ? ' — <span class="bad">deskewing recommended</span>' : ' — <span class="ok">deskewing optional</span>');
+}
+const var_brand_blue = '#00b8ff';
+const var_brand_pink = '#ff3d7f';
+const var_brand_purple = '#7a2dff';
+
+['smear-speed','smear-sweep','smear-yaw','smear-dist'].forEach(id =>
+    $(id).addEventListener('input', drawSmear));
+
+// ─── Card 2: time_sync_en ──────────────────────────────────
+function drawTimesync() {
+    const en = $('timesync-en').checked;
+    const offset = parseFloat($('timesync-offset').value);
+
+    $('timesync-offsetVal').textContent = offset.toFixed(1) + ' ms';
+    $('timesync-offset-row').style.opacity = en ? '1' : '0.3';
+    $('timesync-offset').disabled = !en;
+
+    const hintEn = $('timesync-en').closest('.toggle-row').querySelector('.default-hint');
+    hintEn.className = 'default-hint ' + (en ? 'diff' : 'match');
+    hintEn.textContent = en ? 'changed' : 'default: false';
+
+    const hintOff = $('timesync-offset-row').querySelector('.default-hint');
+    hintOff.className = 'default-hint ' + (en && offset !== 0 ? 'diff' : 'match');
+
+    const { ctx, w, h } = getCanvasCtx('cv-timesync');
+    ctx.clearRect(0, 0, w, h);
+
+    const mid = h / 2;
+    const margin = 40;
+    const lineW = w - margin * 2;
+
+    // LiDAR timeline
+    ctx.fillStyle = '#64748b';
+    ctx.font = '10px JetBrains Mono';
+    ctx.fillText('LiDAR points', margin, mid - 38);
+    ctx.strokeStyle = var_brand_blue;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(margin, mid - 20);
+    ctx.lineTo(margin + lineW, mid - 20);
+    ctx.stroke();
+
+    // IMU timeline
+    ctx.fillStyle = '#64748b';
+    ctx.fillText('IMU samples', margin, mid + 12);
+    ctx.strokeStyle = var_brand_pink;
+    ctx.lineWidth = 2;
+    const imuShift = en ? offset * (lineW / 200) : 0;
+    ctx.beginPath();
+    ctx.moveTo(margin + imuShift, mid + 20);
+    ctx.lineTo(margin + lineW + imuShift, mid + 20);
+    ctx.stroke();
+
+    // LiDAR ticks (10 points in 100ms)
+    for (let i = 0; i < 10; i++) {
+        const x = margin + (i / 9) * lineW;
+        ctx.fillStyle = var_brand_blue;
+        ctx.beginPath();
+        ctx.arc(x, mid - 20, 4, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // IMU ticks (20 samples in 100ms at 200 Hz)
+    for (let i = 0; i < 20; i++) {
+        const x = margin + imuShift + (i / 19) * lineW;
+        if (x >= margin - 5 && x <= margin + lineW + 5) {
+            ctx.fillStyle = var_brand_pink;
+            ctx.beginPath();
+            ctx.arc(x, mid + 20, 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    // Alignment lines
+    ctx.strokeStyle = en && offset !== 0 ? 'rgba(252, 165, 165, 0.3)' : 'rgba(134, 239, 172, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    for (let i = 0; i < 5; i++) {
+        const x = margin + (i / 4) * lineW;
+        ctx.beginPath();
+        ctx.moveTo(x, mid - 20);
+        ctx.lineTo(x + imuShift, mid + 20);
+        ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    // Offset indicator
+    if (en && Math.abs(offset) > 0.5) {
+        ctx.fillStyle = '#fca5a5';
+        ctx.font = '11px JetBrains Mono';
+        ctx.fillText('↔ ' + offset.toFixed(1) + ' ms offset applied', margin, h - 10);
+    }
+
+    // Stat
+    const aligned = !en || Math.abs(offset) < 1;
+    $('stat-timesync').innerHTML = aligned
+        ? '<span class="ok">Hardware time-synced — IMU and LiDAR clocks aligned</span>'
+        : `<span class="warn">Manual offset: ${offset.toFixed(1)} ms — only correct if measured</span>`;
+}
+$('timesync-en').addEventListener('change', drawTimesync);
+$('timesync-offset').addEventListener('input', drawTimesync);
+
+// ─── Card 3: IMU covariance ────────────────────────────────
+function drawImuCov() {
+    const accCov = parseFloat($('cov-acc').value);
+    const gyrCov = parseFloat($('cov-gyr').value);
+
+    $('cov-accVal').textContent = accCov.toFixed(2);
+    $('cov-gyrVal').textContent = gyrCov.toFixed(2);
+
+    const hintAcc = $('cov-acc').closest('.slider-row').querySelector('.default-hint');
+    hintAcc.className = 'default-hint ' + (Math.abs(accCov - 0.5) < 0.01 ? 'match' : 'diff');
+    hintAcc.textContent = Math.abs(accCov - 0.5) < 0.01 ? 'default 0.5' : 'changed';
+
+    const hintGyr = $('cov-gyr').closest('.slider-row').querySelector('.default-hint');
+    hintGyr.className = 'default-hint ' + (Math.abs(gyrCov - 0.1) < 0.01 ? 'match' : 'diff');
+    hintGyr.textContent = Math.abs(gyrCov - 0.1) < 0.01 ? 'default 0.1' : 'changed';
+
+    const { ctx, w, h } = getCanvasCtx('cv-imu-cov');
+    ctx.clearRect(0, 0, w, h);
+
+    const margin = 40;
+    const barW = (w - margin * 2 - 20) / 2;
+    const barH = h - margin * 2;
+
+    // IMU trust bar
+    const imuTrust = 1 - Math.min((accCov + gyrCov) / 2.5, 1);
+    ctx.fillStyle = 'rgba(30, 41, 59, 0.6)';
+    ctx.fillRect(margin, margin, barW, barH);
+    const imuColor = imuTrust > 0.6 ? '#86efac' : imuTrust > 0.3 ? '#fcd34d' : '#fca5a5';
+    ctx.fillStyle = imuColor;
+    ctx.fillRect(margin, margin + barH * (1 - imuTrust), barW, barH * imuTrust);
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '11px JetBrains Mono';
+    ctx.textAlign = 'center';
+    ctx.fillText('IMU Trust', margin + barW / 2, h - 8);
+    ctx.fillText((imuTrust * 100).toFixed(0) + '%', margin + barW / 2, margin - 8);
+
+    // ICP trust bar
+    const icpTrust = 1 - imuTrust;
+    ctx.fillStyle = 'rgba(30, 41, 59, 0.6)';
+    ctx.fillRect(margin + barW + 20, margin, barW, barH);
+    const icpColor = icpTrust > 0.6 ? '#93c5fd' : icpTrust > 0.3 ? '#fcd34d' : '#fca5a5';
+    ctx.fillStyle = icpColor;
+    ctx.fillRect(margin + barW + 20, margin + barH * (1 - icpTrust), barW, barH * icpTrust);
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText('ICP Trust', margin + barW + 20 + barW / 2, h - 8);
+    ctx.fillText((icpTrust * 100).toFixed(0) + '%', margin + barW + 20 + barW / 2, margin - 8);
+    ctx.textAlign = 'left';
+
+    // Annotations
+    ctx.fillStyle = '#64748b';
+    ctx.font = '10px JetBrains Mono';
+    ctx.fillText('← Deskew quality', margin, margin + 14);
+    ctx.fillText('← Driven by IMU prediction', margin, margin + 26);
+
+    $('stat-imu-cov').innerHTML = imuTrust > 0.5
+        ? `<span class="ok">IMU-dominant</span> — smooth deskewing, may lag during fast ICP corrections`
+        : imuTrust > 0.2
+        ? `<span class="warn">Balanced</span> — good compromise for unit-corrected Mid-360 IMU`
+        : `<span class="bad">ICP-dominant</span> — deskew prediction weak, IMU nearly ignored`;
+}
+['cov-acc', 'cov-gyr'].forEach(id => $(id).addEventListener('input', drawImuCov));
+
+// ─── Card 4: Extrinsic ────────────────────────────────────
+function drawExtrinsic() {
+    const ex = parseFloat($('ext-x').value);
+    const ey = parseFloat($('ext-y').value);
+    const ez = parseFloat($('ext-z').value);
+
+    $('ext-xVal').textContent = ex.toFixed(3) + ' m';
+    $('ext-yVal').textContent = ey.toFixed(3) + ' m';
+    $('ext-zVal').textContent = ez.toFixed(3) + ' m';
+
+    const defX = -0.011, defY = -0.02329, defZ = 0.04412;
+    [['ext-x', ex, defX], ['ext-y', ey, defY], ['ext-z', ez, defZ]].forEach(([id, v, d]) => {
+        const hint = $(id).closest('.slider-row').querySelector('.default-hint');
+        hint.className = 'default-hint ' + (Math.abs(v - d) < 0.001 ? 'match' : 'diff');
+        hint.textContent = Math.abs(v - d) < 0.001 ? d.toFixed(3) : 'changed';
+    });
+
+    const { ctx, w, h } = getCanvasCtx('cv-extrinsic');
+    ctx.clearRect(0, 0, w, h);
+
+    const cx = w / 2, cy = h / 2;
+    const scale = 600;
+
+    // IMU reference point
+    ctx.fillStyle = var_brand_pink;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '11px JetBrains Mono';
+    ctx.fillText('IMU', cx + 12, cy + 4);
+
+    // LiDAR offset point
+    const lx = cx + ex * scale;
+    const ly = cy - ey * scale;
+    ctx.fillStyle = var_brand_blue;
+    ctx.beginPath();
+    ctx.arc(lx, ly, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText('LiDAR', lx + 12, ly + 4);
+
+    // Arrow
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(lx, ly);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Distance label
+    const dist = Math.sqrt(ex * ex + ey * ey + ez * ez);
+    const mx = (cx + lx) / 2;
+    const my = (cy + ly) / 2;
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '12px JetBrains Mono';
+    ctx.fillText((dist * 1000).toFixed(1) + ' mm', mx + 8, my - 8);
+
+    // Z indicator
+    ctx.fillStyle = '#c4a8ff';
+    ctx.font = '10px JetBrains Mono';
+    ctx.fillText('Z offset: ' + (ez * 1000).toFixed(1) + ' mm (up)', 20, h - 10);
+
+    // Error from default
+    const errX = Math.abs(ex - defX) * 1000;
+    const errY = Math.abs(ey - defY) * 1000;
+    const errZ = Math.abs(ez - defZ) * 1000;
+    const totalErr = Math.sqrt(errX*errX + errY*errY + errZ*errZ);
+
+    let sev = 'ok';
+    if (totalErr > 5) sev = 'warn';
+    if (totalErr > 20) sev = 'bad';
+    $('stat-extrinsic').innerHTML = totalErr < 0.5
+        ? '<span class="ok">Factory-calibrated (Livox datasheet)</span>'
+        : `<span class="${sev}">Deviation from factory: ${totalErr.toFixed(1)} mm</span>` +
+          (totalErr > 10 ? ' — <span class="bad">will cause deskew wobble during rotation</span>' : '');
+}
+['ext-x', 'ext-y', 'ext-z'].forEach(id => $(id).addEventListener('input', drawExtrinsic));
+
+// ─── Card 5: Voxel size interaction ─────────────────────────
+function drawVoxel() {
+    const voxSize = parseFloat($('voxel-size').value);
+    $('voxel-sizeVal').textContent = voxSize.toFixed(2) + ' m';
+
+    const hint = $('voxel-size').closest('.slider-row').querySelector('.default-hint');
+    hint.className = 'default-hint ' + (Math.abs(voxSize - 0.3) < 0.01 ? 'match' : 'diff');
+    hint.textContent = Math.abs(voxSize - 0.3) < 0.01 ? 'default 0.3' : 'changed';
+
+    const { ctx, w, h } = getCanvasCtx('cv-voxel');
+    ctx.clearRect(0, 0, w, h);
+
+    const margin = 30;
+    const gridSize = Math.min(w - margin * 2, h - margin * 2);
+    const ox = (w - gridSize) / 2;
+    const oy = margin;
+
+    // Scale: 2m across the grid
+    const mPerPx = 2 / gridSize;
+    const cellPx = voxSize / mPerPx;
+
+    // Draw voxel grid
+    ctx.strokeStyle = 'rgba(71, 85, 105, 0.4)';
+    ctx.lineWidth = 0.5;
+    for (let x = ox; x <= ox + gridSize; x += cellPx) {
+        ctx.beginPath(); ctx.moveTo(x, oy); ctx.lineTo(x, oy + gridSize); ctx.stroke();
+    }
+    for (let y = oy; y <= oy + gridSize; y += cellPx) {
+        ctx.beginPath(); ctx.moveTo(ox, y); ctx.lineTo(ox + gridSize, y); ctx.stroke();
+    }
+
+    // Simulate points: a wall at y=1m, with 5cm smear
+    const smear = 0.05;  // 5cm smear at ~0.5m/s
+    const nPts = 40;
+    for (let i = 0; i < nPts; i++) {
+        const wallX = 0.2 + (i / nPts) * 1.6;
+        const wallY = 1.0;
+
+        // Skewed point
+        const skewedY = wallY + (Math.random() - 0.3) * smear;
+        const sx = ox + wallX / mPerPx;
+        const sy = oy + skewedY / mPerPx;
+
+        ctx.beginPath();
+        ctx.arc(sx, sy, 2, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(252, 165, 165, 0.6)';
+        ctx.fill();
+
+        // Deskewed point
+        ctx.beginPath();
+        ctx.arc(ox + wallX / mPerPx, oy + wallY / mPerPx, 2, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(134, 239, 172, 0.6)';
+        ctx.fill();
+    }
+
+    // Highlight one voxel
+    const hlX = ox + 0.8 / mPerPx;
+    const hlY = oy + (1.0 - voxSize / 2) / mPerPx;
+    ctx.strokeStyle = var_brand_blue;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(hlX - cellPx / 2, hlY, cellPx, cellPx);
+    ctx.fillStyle = 'rgba(0, 184, 255, 0.06)';
+    ctx.fillRect(hlX - cellPx / 2, hlY, cellPx, cellPx);
+
+    // Annotation
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '10px JetBrains Mono';
+    ctx.fillText('voxel: ' + (voxSize * 100).toFixed(0) + ' cm', hlX + cellPx / 2 + 6, hlY + cellPx / 2);
+    ctx.fillText('smear: ~5 cm', 20, h - 10);
+
+    const absorbed = smear < voxSize;
+    $('stat-voxel').innerHTML = absorbed
+        ? `<span class="ok">Smear (5 cm) < voxel (${(voxSize*100).toFixed(0)} cm)</span> — voxel averaging absorbs deskew error`
+        : `<span class="warn">Smear (5 cm) > voxel (${(voxSize*100).toFixed(0)} cm)</span> — deskewing is critical at this resolution`;
+}
+$('voxel-size').addEventListener('input', drawVoxel);
+
+// ─── Card 6: Blind zone ────────────────────────────────────
+function drawBlind() {
+    const blind = parseFloat($('blind-val').value);
+    $('blind-valVal').textContent = blind.toFixed(2) + ' m';
+
+    const hint = $('blind-val').closest('.slider-row').querySelector('.default-hint');
+    hint.className = 'default-hint ' + (Math.abs(blind - 0.5) < 0.01 ? 'match' : 'diff');
+    hint.textContent = Math.abs(blind - 0.5) < 0.01 ? 'default 0.5' : 'changed';
+
+    const { ctx, w, h } = getCanvasCtx('cv-blind');
+    ctx.clearRect(0, 0, w, h);
+
+    const cx = w * 0.35, cy = h / 2;
+    const scale = 50;  // px per meter
+
+    // LiDAR position
+    ctx.fillStyle = var_brand_blue;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '10px JetBrains Mono';
+    ctx.fillText('LiDAR', cx - 16, cy + 20);
+
+    // Blind zone circle
+    const blindR = blind * scale;
+    ctx.strokeStyle = 'rgba(252, 165, 165, 0.5)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.arc(cx, cy, blindR, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(252, 165, 165, 0.05)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, blindR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Label blind zone
+    ctx.fillStyle = '#fca5a5';
+    ctx.font = '10px JetBrains Mono';
+    ctx.fillText('blind: ' + blind.toFixed(2) + 'm', cx + blindR + 6, cy - 4);
+    ctx.fillText('(points dropped)', cx + blindR + 6, cy + 10);
+
+    // Fixture hits (0.2-0.5m)
+    const nHits = 8;
+    for (let i = 0; i < nHits; i++) {
+        const ang = -Math.PI/2 + Math.PI * (i / (nHits - 1));
+        const r = 0.2 + Math.random() * 0.3;
+        const px = cx + Math.cos(ang) * r * scale;
+        const py = cy + Math.sin(ang) * r * scale;
+        const filtered = r < blind;
+        ctx.beginPath();
+        ctx.arc(px, py, 3, 0, Math.PI * 2);
+        ctx.fillStyle = filtered ? 'rgba(252, 165, 165, 0.3)' : 'rgba(252, 165, 165, 0.9)';
+        ctx.fill();
+        if (filtered) {
+            ctx.strokeStyle = 'rgba(252, 165, 165, 0.5)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(px - 3, py - 3); ctx.lineTo(px + 3, py + 3);
+            ctx.moveTo(px + 3, py - 3); ctx.lineTo(px - 3, py + 3);
+            ctx.stroke();
+        }
+    }
+
+    // Ground returns (at ~2m for 9" fixture)
+    for (let i = 0; i < 12; i++) {
+        const px = cx + (2 + Math.random() * 2) * scale;
+        const py = cy + (Math.random() - 0.5) * h * 0.6;
+        ctx.beginPath();
+        ctx.arc(px, py, 2, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(134, 239, 172, 0.5)';
+        ctx.fill();
+    }
+
+    ctx.fillStyle = '#86efac';
+    ctx.font = '10px JetBrains Mono';
+    ctx.fillText('ground + walls (kept)', cx + 2 * scale + 10, 20);
+    ctx.fillStyle = '#fca5a5';
+    ctx.fillText('fixture self-hits (dropped)', cx - 20, h - 10);
+
+    const fixtureH = 0.2286;  // 9 inches in meters
+    const groundDist = fixtureH / Math.tan(7 * Math.PI / 180);
+    $('stat-blind').innerHTML = blind < fixtureH
+        ? `<span class="bad">blind (${(blind*100).toFixed(0)} cm) < fixture height (23 cm) — fixture self-hits leak into scan</span>`
+        : blind > groundDist
+        ? `<span class="bad">blind (${(blind*100).toFixed(0)} cm) > ground return (${(groundDist*100).toFixed(0)} cm) — ground plane filtered!</span>`
+        : `<span class="ok">blind (${(blind*100).toFixed(0)} cm) filters fixture, keeps ground (nearest @ ${(groundDist*100).toFixed(0)} cm)</span>`;
+}
+$('blind-val').addEventListener('input', drawBlind);
+
+// ─── Card 7: Wall demo ─────────────────────────────────────
+function drawWallDemo() {
+    const speed = parseFloat($('wall-speed').value);
+    const showDeskew = parseInt($('wall-deskew').value);
+
+    $('wall-speedVal').textContent = speed.toFixed(2) + ' m/s';
+    $('wall-deskewVal').textContent = showDeskew ? 'ON' : 'OFF';
+
+    const { ctx, w, h } = getCanvasCtx('cv-wall-demo');
+    ctx.clearRect(0, 0, w, h);
+
+    const margin = 40;
+    const sweepMs = 100;
+    const smear = speed * sweepMs / 1000;
+
+    // Draw corridor top-down
+    const corridorTop = 60;
+    const corridorBot = h - 60;
+    const corridorLeft = margin + 40;
+    const corridorRight = w - margin - 40;
+
+    // Walls
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(corridorLeft, corridorTop);
+    ctx.lineTo(corridorRight, corridorTop);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(corridorLeft, corridorBot);
+    ctx.lineTo(corridorRight, corridorBot);
+    ctx.stroke();
+
+    ctx.fillStyle = '#64748b';
+    ctx.font = '10px JetBrains Mono';
+    ctx.fillText('left wall', corridorLeft, corridorTop - 8);
+    ctx.fillText('right wall', corridorLeft, corridorBot + 16);
+
+    // Robot
+    const robotX = corridorLeft + 60;
+    const robotY = (corridorTop + corridorBot) / 2;
+    ctx.fillStyle = '#475569';
+    ctx.fillRect(robotX - 10, robotY - 6, 20, 12);
+    ctx.fillStyle = var_brand_blue;
+    ctx.fillRect(robotX + 6, robotY - 3, 5, 6);
+
+    // Speed arrow
+    if (speed > 0.01) {
+        const arrowLen = Math.min(speed * 60, 100);
+        ctx.strokeStyle = '#fcd34d';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(robotX + 14, robotY);
+        ctx.lineTo(robotX + 14 + arrowLen, robotY);
+        ctx.stroke();
+        ctx.fillStyle = '#fcd34d';
+        ctx.font = '11px JetBrains Mono';
+        ctx.fillText(speed.toFixed(1) + ' m/s →', robotX + 14 + arrowLen + 4, robotY + 4);
+    }
+
+    // Scan rays and points
+    const nRays = 36;
+    const pxPerM = (corridorBot - corridorTop) / 6;  // 6m corridor width in view
+
+    for (let i = 0; i < nRays; i++) {
+        const t = i / (nRays - 1);
+        const angle = -Math.PI + t * Math.PI * 2;
+        const sweepFrac = t;
+
+        // Where does this ray hit a wall?
+        const dx = Math.cos(angle);
+        const dy = Math.sin(angle);
+
+        let hitDist = 100;
+        // Check top wall
+        if (dy < -0.01) {
+            const d = (corridorTop - robotY) / dy;
+            if (d > 0 && d < hitDist) hitDist = d;
+        }
+        // Check bottom wall
+        if (dy > 0.01) {
+            const d = (corridorBot - robotY) / dy;
+            if (d > 0 && d < hitDist) hitDist = d;
+        }
+        // Check left wall
+        if (dx < -0.01) {
+            const d = (corridorLeft - robotX) / dx;
+            if (d > 0 && d < hitDist) hitDist = d;
+        }
+        // Check right wall
+        if (dx > 0.01) {
+            const d = (corridorRight - robotX) / dx;
+            if (d > 0 && d < hitDist) hitDist = d;
+        }
+
+        if (hitDist > 50) continue;
+
+        const hitX = robotX + dx * hitDist;
+        const hitY = robotY + dy * hitDist;
+
+        // Skewed position: robot moved during sweep
+        const skewOffset = smear * sweepFrac * pxPerM / 2;
+        const skewX = hitX - skewOffset;
+
+        // Draw ray (faint)
+        ctx.strokeStyle = 'rgba(71, 85, 105, 0.15)';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(robotX, robotY);
+        ctx.lineTo(hitX, hitY);
+        ctx.stroke();
+
+        if (!showDeskew) {
+            // Show only raw/skewed
+            ctx.beginPath();
+            ctx.arc(skewX, hitY, 3, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(252, 165, 165, 0.8)';
+            ctx.fill();
+        } else {
+            // Show skewed (faint) and deskewed (bright)
+            ctx.beginPath();
+            ctx.arc(skewX, hitY, 2, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(252, 165, 165, 0.3)';
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(hitX, hitY, 3, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(134, 239, 172, 0.8)';
+            ctx.fill();
+        }
+    }
+
+    // Legend
+    const ly = 20;
+    if (showDeskew) {
+        ctx.fillStyle = 'rgba(134, 239, 172, 0.9)';
+        ctx.fillRect(w - 200, ly, 10, 10);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '10px JetBrains Mono';
+        ctx.fillText('deskewed', w - 186, ly + 9);
+
+        ctx.fillStyle = 'rgba(252, 165, 165, 0.5)';
+        ctx.fillRect(w - 200, ly + 14, 10, 10);
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillText('skewed (faint)', w - 186, ly + 23);
+    } else {
+        ctx.fillStyle = 'rgba(252, 165, 165, 0.9)';
+        ctx.fillRect(w - 200, ly, 10, 10);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '10px JetBrains Mono';
+        ctx.fillText('skewed (raw)', w - 186, ly + 9);
+    }
+
+    $('stat-wall-demo').innerHTML = showDeskew
+        ? `Smear: <span class="ok">${(smear*100).toFixed(1)} cm corrected</span> — walls align with true geometry`
+        : `Smear: <span class="${smear > 0.1 ? 'bad' : 'warn'}">${(smear*100).toFixed(1)} cm uncorrected</span> — walls shift in scan direction`;
+}
+['wall-speed', 'wall-deskew'].forEach(id => $(id).addEventListener('input', drawWallDemo));
+
+// ─── Initial draw ──────────────────────────────────────────
+window.addEventListener('load', () => {
+    drawSmear();
+    drawTimesync();
+    drawImuCov();
+    drawExtrinsic();
+    drawVoxel();
+    drawBlind();
+    drawWallDemo();
+});
+window.addEventListener('resize', () => {
+    drawSmear();
+    drawTimesync();
+    drawImuCov();
+    drawExtrinsic();
+    drawVoxel();
+    drawBlind();
+    drawWallDemo();
+});
+</script>
+</body>
+</html>

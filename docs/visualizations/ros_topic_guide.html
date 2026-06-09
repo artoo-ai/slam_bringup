@@ -1,0 +1,1513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ROS Topic Guide — Make or Code</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Audiowide&family=JetBrains+Mono:wght@400;500;600;700&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+/* ── Brand atoms ─────────────────────────────────────────── */
+:root {
+    --brand-pink:   #ff3d7f;
+    --brand-blue:   #00b8ff;
+    --brand-purple: #7a2dff;
+    --brand-bg:     #0a0a14;
+    --brand-bg-2:   #140820;
+    --font-display:     'Audiowide', 'Orbitron', sans-serif;
+    --font-display-alt: 'Orbitron', 'Audiowide', sans-serif;
+    --font-ui:          'JetBrains Mono', 'Fira Mono', monospace;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    background:
+        radial-gradient(ellipse at top, var(--brand-bg-2) 0%, var(--brand-bg) 60%),
+        var(--brand-bg);
+    background-attachment: fixed;
+    color: #e2e8f0;
+    font-family: var(--font-ui);
+    min-height: 100vh;
+    padding: 32px 16px 80px;
+}
+.wrap { max-width: 1200px; margin: 0 auto; }
+h1 {
+    font-family: var(--font-display);
+    font-size: 36px;
+    font-weight: 400;
+    color: var(--brand-pink);
+    letter-spacing: 0.04em;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    text-shadow: 0 0 24px rgba(255, 61, 127, 0.35);
+}
+h1 .sub { color: var(--brand-blue); text-shadow: 0 0 24px rgba(0, 184, 255, 0.45); }
+.lede {
+    color: #94a3b8; font-size: 14px; line-height: 1.65;
+    margin-bottom: 28px; max-width: 960px;
+}
+.lede b { color: #cbd5e1; }
+.lede code {
+    background: rgba(0, 184, 255, 0.08); color: var(--brand-blue);
+    padding: 1px 5px; border-radius: 3px; font-size: 12px;
+}
+
+/* ── Section titles ──────────────────────────────────────── */
+.section-title {
+    font-family: var(--font-display-alt);
+    font-size: 22px; font-weight: 700; color: #f1f5f9;
+    letter-spacing: 0.07em; text-transform: uppercase;
+    margin: 48px 0 18px;
+    border-bottom: 1px solid rgba(122, 45, 255, 0.45);
+    padding-bottom: 12px;
+    display: flex; align-items: center; gap: 14px;
+}
+
+/* ── Flow diagram ────────────────────────────────────────── */
+.flow { display: flex; flex-direction: column; align-items: center; gap: 0; margin: 24px 0 48px; }
+.flow-tier { width: 100%; display: flex; flex-direction: column; align-items: center; }
+.tier-label {
+    font-family: var(--font-display-alt);
+    font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
+    text-transform: uppercase; color: #64748b;
+    margin-bottom: 10px; width: 100%; text-align: center;
+    position: relative;
+}
+.tier-label::before, .tier-label::after {
+    content: ''; position: absolute; top: 50%;
+    width: 80px; height: 1px; background: #334155;
+}
+.tier-label::before { right: calc(50% + 140px); }
+.tier-label::after  { left:  calc(50% + 140px); }
+.tier-nodes {
+    display: flex; flex-wrap: wrap; justify-content: center;
+    gap: 10px; width: 100%; max-width: 1100px;
+}
+.fnode {
+    border: 1px solid #334155; border-radius: 8px;
+    padding: 10px 14px; min-width: 140px; max-width: 220px;
+    cursor: pointer; transition: all 0.2s ease;
+    background: rgba(15, 23, 42, 0.7);
+    text-align: center; flex: 0 1 auto;
+}
+.fnode:hover { border-color: var(--brand-blue); box-shadow: 0 0 16px rgba(0, 184, 255, 0.12); transform: translateY(-1px); }
+.fnode.active { border-color: var(--brand-pink); box-shadow: 0 0 20px rgba(255, 61, 127, 0.18); }
+.fnode-name {
+    font-size: 12px; font-weight: 600; color: var(--brand-blue);
+    word-break: break-all;
+}
+.fnode-hw {
+    font-size: 9px; color: #64748b; text-transform: uppercase;
+    letter-spacing: 0.06em; margin-top: 2px;
+}
+.fnode-msg {
+    font-size: 9px; color: #94a3b8; margin-top: 4px;
+    font-style: italic;
+}
+/* Hardware device nodes */
+.fnode.hw-device {
+    background: rgba(255, 61, 127, 0.06);
+    border-color: rgba(255, 61, 127, 0.3);
+}
+.fnode.hw-device .fnode-name { color: var(--brand-pink); }
+/* Processing nodes */
+.fnode.proc-node {
+    background: rgba(122, 45, 255, 0.06);
+    border-color: rgba(122, 45, 255, 0.3);
+}
+.fnode.proc-node .fnode-name { color: #c4a8ff; }
+
+/* Tier-specific accent */
+.tier-raw .fnode        { border-left: 3px solid rgba(0, 184, 255, 0.5); }
+.tier-proc .fnode       { border-left: 3px solid rgba(122, 45, 255, 0.5); }
+.tier-slam .fnode       { border-left: 3px solid rgba(255, 61, 127, 0.5); }
+.tier-nav .fnode        { border-left: 3px solid rgba(52, 211, 153, 0.5); }
+.tier-ctrl .fnode       { border-left: 3px solid rgba(251, 191, 36, 0.5); }
+
+/* Arrow connectors */
+.arrow-row { display: flex; justify-content: center; padding: 4px 0; }
+.arrow-row svg { display: block; }
+
+/* ── Topic cards ─────────────────────────────────────────── */
+.cards { display: flex; flex-direction: column; gap: 14px; }
+.card {
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid #334155; border-radius: 10px;
+    padding: 20px 22px; display: flex; flex-direction: column; gap: 10px;
+}
+.card-head { display: flex; flex-direction: column; gap: 2px; }
+.card-head .topic-name {
+    font-size: 16px; font-weight: 600; color: var(--brand-blue);
+    text-shadow: 0 0 12px rgba(0, 184, 255, 0.25);
+    word-break: break-all;
+}
+.card-head .msg-type {
+    font-size: 11px; color: #94a3b8; font-style: italic;
+}
+.card-body { font-size: 13px; color: #cbd5e1; line-height: 1.65; }
+.card-body b { color: #e2e8f0; }
+.card-body code {
+    background: rgba(0, 184, 255, 0.08); color: var(--brand-blue);
+    padding: 1px 5px; border-radius: 3px; font-size: 11px;
+}
+
+/* Metadata grid inside cards */
+.meta-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 10px; margin-top: 4px;
+}
+@media (max-width: 700px) { .meta-grid { grid-template-columns: 1fr; } }
+.meta-cell {
+    background: rgba(30, 41, 59, 0.4); border-radius: 6px;
+    padding: 10px 12px; border: 1px solid rgba(51, 65, 85, 0.4);
+}
+.meta-cell .mc-label {
+    font-size: 10px; font-weight: 700; color: #64748b;
+    text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px;
+}
+.meta-cell .mc-val { font-size: 12px; color: #cbd5e1; line-height: 1.5; }
+.meta-cell .mc-val code {
+    background: rgba(0, 184, 255, 0.08); color: var(--brand-blue);
+    padding: 1px 4px; border-radius: 3px; font-size: 11px;
+}
+.meta-cell.mc-producer { border-left: 3px solid var(--brand-pink); }
+.meta-cell.mc-consumer { border-left: 3px solid var(--brand-blue); }
+.meta-cell.mc-rviz     { border-left: 3px solid #86efac; }
+.meta-cell.mc-foxglove { border-left: 3px solid #c4a8ff; }
+.meta-cell.mc-qos      { border-left: 3px solid #fcd34d; }
+.meta-cell.mc-chain    { border-left: 3px solid #f87171; }
+
+/* Chain arrow inline */
+.chain-arrow {
+    display: inline-block; color: #64748b; margin: 0 4px;
+    font-weight: 700; font-size: 13px;
+}
+
+/* Category chips */
+.cat-chip {
+    display: inline-block; font-size: 9px; padding: 2px 8px;
+    border-radius: 3px; font-weight: 700; letter-spacing: 0.5px;
+    text-transform: uppercase; border: 1px solid;
+    vertical-align: 2px; margin-left: 8px;
+}
+.cat-raw  { background: rgba(0, 184, 255, 0.12);  color: #7fdbff; border-color: rgba(0, 184, 255, 0.35); }
+.cat-proc { background: rgba(122, 45, 255, 0.12); color: #c4a8ff; border-color: rgba(122, 45, 255, 0.35); }
+.cat-slam { background: rgba(255, 61, 127, 0.12); color: #ffb3cd; border-color: rgba(255, 61, 127, 0.35); }
+.cat-nav  { background: rgba(52, 211, 153, 0.12); color: #86efac; border-color: rgba(52, 211, 153, 0.35); }
+.cat-ctrl { background: rgba(251, 191, 36, 0.12); color: #fcd34d; border-color: rgba(251, 191, 36, 0.35); }
+.cat-sys  { background: rgba(148, 163, 184, 0.12); color: #94a3b8; border-color: rgba(148, 163, 184, 0.35); }
+
+/* Section anchor badges */
+.group-title {
+    font-family: var(--font-display);
+    font-size: 17px; color: var(--brand-pink);
+    margin: 32px 0 14px; display: flex; align-items: center; gap: 10px;
+}
+.group-title .gt-icon { font-size: 20px; }
+
+/* ── Filter bar ──────────────────────────────────────────── */
+.filter-bar {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin: 0 0 20px; padding: 14px 16px;
+    background: rgba(15, 23, 42, 0.5); border: 1px solid #334155;
+    border-radius: 8px;
+}
+.filter-bar label {
+    font-size: 11px; color: #94a3b8; cursor: pointer;
+    display: flex; align-items: center; gap: 5px;
+    padding: 4px 10px; border-radius: 4px;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+}
+.filter-bar label:hover { border-color: #475569; }
+.filter-bar input[type="checkbox"] { accent-color: var(--brand-blue); }
+.filter-bar .fb-label {
+    font-size: 10px; font-weight: 700; color: #64748b;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    margin-right: 8px;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>ROS Topic <span class="sub">Guide</span></h1>
+<p class="lede">
+    Every piece of data flowing through your SLAM stack is a <b>ROS topic</b> — a named
+    stream of messages that one node publishes and others subscribe to. This page catalogues
+    <b>every topic</b> in the project, explains what hardware or algorithm produces it,
+    who consumes it, and exactly how to view it in <b>RViz2</b> and <b>Foxglove</b>.
+    <br><br>
+    The vertical flow diagram below shows how data moves from <b>physical sensors</b> at the top
+    through <b>processing</b>, <b>SLAM</b>, and <b>navigation</b> down to <b>motor commands</b>
+    at the bottom. Click any topic node for details, or scroll to the full reference cards.
+</p>
+
+<!-- ═══════════════════════════════════════════════════════════
+     VERTICAL FLOW DIAGRAM
+     ═══════════════════════════════════════════════════════════ -->
+<div class="section-title">Data Flow — Sensors to Motors</div>
+
+<div class="flow" id="flow">
+
+    <!-- ── Tier 0: Physical hardware ── -->
+    <div class="flow-tier">
+        <div class="tier-label">Physical Hardware</div>
+        <div class="tier-nodes">
+            <div class="fnode hw-device" onclick="scrollTo('livox-lidar')">
+                <div class="fnode-name">Livox Mid-360</div>
+                <div class="fnode-hw">3D LiDAR + IMU</div>
+            </div>
+            <div class="fnode hw-device" onclick="scrollTo('d435-color')">
+                <div class="fnode-name">RealSense D435</div>
+                <div class="fnode-hw">RGB-D Camera (front)</div>
+            </div>
+            <div class="fnode hw-device" onclick="scrollTo('imu-data')">
+                <div class="fnode-name">WitMotion WT901C</div>
+                <div class="fnode-hw">9-axis IMU (reference)</div>
+            </div>
+            <div class="fnode hw-device" onclick="scrollTo('cmd-vel')">
+                <div class="fnode-name">YB-ERF01 Chassis</div>
+                <div class="fnode-hw">STM32 Mecanum Drive</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="arrow-row"><svg width="24" height="32" viewBox="0 0 24 32"><line x1="12" y1="0" x2="12" y2="24" stroke="#475569" stroke-width="2"/><polygon points="6,24 12,32 18,24" fill="#475569"/></svg></div>
+
+    <!-- ── Tier 1: Raw sensor topics ── -->
+    <div class="flow-tier tier-raw">
+        <div class="tier-label">Tier 1 — Raw Sensor Topics</div>
+        <div class="tier-nodes">
+            <div class="fnode" data-topic="livox-lidar" onclick="scrollTo('livox-lidar')">
+                <div class="fnode-name">/livox/lidar</div>
+                <div class="fnode-msg">PointCloud2</div>
+            </div>
+            <div class="fnode" data-topic="livox-imu" onclick="scrollTo('livox-imu')">
+                <div class="fnode-name">/livox/imu</div>
+                <div class="fnode-msg">Imu (raw, in g)</div>
+            </div>
+            <div class="fnode" data-topic="d435-color" onclick="scrollTo('d435-color')">
+                <div class="fnode-name">/d435_front/.../image_raw</div>
+                <div class="fnode-msg">Image + CameraInfo</div>
+            </div>
+            <div class="fnode" data-topic="d435-depth" onclick="scrollTo('d435-depth')">
+                <div class="fnode-name">/d435_front/.../depth</div>
+                <div class="fnode-msg">Image (16UC1)</div>
+            </div>
+            <div class="fnode" data-topic="imu-data" onclick="scrollTo('imu-data')">
+                <div class="fnode-name">/imu/data</div>
+                <div class="fnode-msg">Imu (WT901C)</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="arrow-row"><svg width="24" height="32" viewBox="0 0 24 32"><line x1="12" y1="0" x2="12" y2="24" stroke="#475569" stroke-width="2"/><polygon points="6,24 12,32 18,24" fill="#475569"/></svg></div>
+
+    <!-- ── Tier 2: Processed / converted ── -->
+    <div class="flow-tier tier-proc">
+        <div class="tier-label">Tier 2 — Processed & Converted</div>
+        <div class="tier-nodes">
+            <div class="fnode" data-topic="imu-ms2" onclick="scrollTo('imu-ms2')">
+                <div class="fnode-name">/livox/imu_ms2</div>
+                <div class="fnode-msg">Imu (m/s²)</div>
+            </div>
+            <div class="fnode" data-topic="scan" onclick="scrollTo('scan')">
+                <div class="fnode-name">/scan</div>
+                <div class="fnode-msg">LaserScan</div>
+            </div>
+            <div class="fnode" data-topic="d435-points" onclick="scrollTo('d435-points')">
+                <div class="fnode-name">/d435_front/.../points</div>
+                <div class="fnode-msg">PointCloud2 (RGB)</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="arrow-row"><svg width="24" height="32" viewBox="0 0 24 32"><line x1="12" y1="0" x2="12" y2="24" stroke="#475569" stroke-width="2"/><polygon points="6,24 12,32 18,24" fill="#475569"/></svg></div>
+
+    <!-- ── Tier 3: SLAM outputs ── -->
+    <div class="flow-tier tier-slam">
+        <div class="tier-label">Tier 3 — SLAM & Odometry Outputs</div>
+        <div class="tier-nodes">
+            <div class="fnode" data-topic="odometry-fl" onclick="scrollTo('odometry-fl')">
+                <div class="fnode-name">/Odometry</div>
+                <div class="fnode-msg">Odometry (FAST-LIO)</div>
+            </div>
+            <div class="fnode" data-topic="odom-rf2o" onclick="scrollTo('odom-rf2o')">
+                <div class="fnode-name">/odom</div>
+                <div class="fnode-msg">Odometry (rf2o)</div>
+            </div>
+            <div class="fnode" data-topic="cloud-registered" onclick="scrollTo('cloud-registered')">
+                <div class="fnode-name">/cloud_registered</div>
+                <div class="fnode-msg">PointCloud2</div>
+            </div>
+            <div class="fnode" data-topic="cloud-body" onclick="scrollTo('cloud-body')">
+                <div class="fnode-name">/cloud_registered_body</div>
+                <div class="fnode-msg">PointCloud2</div>
+            </div>
+            <div class="fnode" data-topic="map" onclick="scrollTo('map')">
+                <div class="fnode-name">/map</div>
+                <div class="fnode-msg">OccupancyGrid</div>
+            </div>
+            <div class="fnode" data-topic="cloud-clipped" onclick="scrollTo('cloud-clipped')">
+                <div class="fnode-name">/cloud_viz_clipped</div>
+                <div class="fnode-msg">PointCloud2 (viz)</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="arrow-row"><svg width="24" height="32" viewBox="0 0 24 32"><line x1="12" y1="0" x2="12" y2="24" stroke="#475569" stroke-width="2"/><polygon points="6,24 12,32 18,24" fill="#475569"/></svg></div>
+
+    <!-- ── Tier 4: Navigation ── -->
+    <div class="flow-tier tier-nav">
+        <div class="tier-label">Tier 4 — Navigation (Nav2)</div>
+        <div class="tier-nodes">
+            <div class="fnode" data-topic="global-costmap" onclick="scrollTo('global-costmap')">
+                <div class="fnode-name">/global_costmap/costmap</div>
+                <div class="fnode-msg">OccupancyGrid</div>
+            </div>
+            <div class="fnode" data-topic="local-costmap" onclick="scrollTo('local-costmap')">
+                <div class="fnode-name">/local_costmap/costmap</div>
+                <div class="fnode-msg">OccupancyGrid</div>
+            </div>
+            <div class="fnode" data-topic="plan" onclick="scrollTo('plan')">
+                <div class="fnode-name">/plan</div>
+                <div class="fnode-msg">Path</div>
+            </div>
+            <div class="fnode" data-topic="local-plan" onclick="scrollTo('local-plan')">
+                <div class="fnode-name">/local_plan</div>
+                <div class="fnode-msg">Path</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="arrow-row"><svg width="24" height="32" viewBox="0 0 24 32"><line x1="12" y1="0" x2="12" y2="24" stroke="#475569" stroke-width="2"/><polygon points="6,24 12,32 18,24" fill="#475569"/></svg></div>
+
+    <!-- ── Tier 5: Control ── -->
+    <div class="flow-tier tier-ctrl">
+        <div class="tier-label">Tier 5 — Control & Interaction</div>
+        <div class="tier-nodes">
+            <div class="fnode" data-topic="cmd-vel" onclick="scrollTo('cmd-vel')">
+                <div class="fnode-name">/cmd_vel</div>
+                <div class="fnode-msg">Twist</div>
+            </div>
+            <div class="fnode" data-topic="goal-pose" onclick="scrollTo('goal-pose')">
+                <div class="fnode-name">/goal_pose</div>
+                <div class="fnode-msg">PoseStamped</div>
+            </div>
+            <div class="fnode" data-topic="initialpose" onclick="scrollTo('initialpose')">
+                <div class="fnode-name">/initialpose</div>
+                <div class="fnode-msg">PoseWithCovariance</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Tier: TF (alongside everything) ── -->
+    <div class="flow-tier" style="margin-top:16px;">
+        <div class="tier-label">Parallel — Transform Tree (connects all tiers)</div>
+        <div class="tier-nodes">
+            <div class="fnode" data-topic="tf" onclick="scrollTo('tf')" style="border-left:3px solid #94a3b8;">
+                <div class="fnode-name">/tf</div>
+                <div class="fnode-msg">TFMessage (dynamic)</div>
+            </div>
+            <div class="fnode" data-topic="tf-static" onclick="scrollTo('tf-static')" style="border-left:3px solid #94a3b8;">
+                <div class="fnode-name">/tf_static</div>
+                <div class="fnode-msg">TFMessage (static)</div>
+            </div>
+            <div class="fnode" data-topic="robot-desc" onclick="scrollTo('robot-desc')" style="border-left:3px solid #94a3b8;">
+                <div class="fnode-name">/robot_description</div>
+                <div class="fnode-msg">String (URDF XML)</div>
+            </div>
+        </div>
+    </div>
+
+</div><!-- /flow -->
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     FILTER BAR
+     ═══════════════════════════════════════════════════════════ -->
+<div class="section-title">Topic Reference Cards</div>
+<div class="filter-bar" id="filter-bar">
+    <span class="fb-label">Show:</span>
+    <label><input type="checkbox" value="raw" checked> Raw Sensor</label>
+    <label><input type="checkbox" value="proc" checked> Processed</label>
+    <label><input type="checkbox" value="slam" checked> SLAM Output</label>
+    <label><input type="checkbox" value="nav" checked> Navigation</label>
+    <label><input type="checkbox" value="ctrl" checked> Control</label>
+    <label><input type="checkbox" value="sys" checked> System / TF</label>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     TOPIC CARDS — RAW SENSOR
+     ═══════════════════════════════════════════════════════════ -->
+<div class="cards" id="cards">
+
+<div class="group-title" data-cat="raw">Raw Sensor Topics</div>
+
+<!-- /livox/lidar -->
+<div class="card" id="livox-lidar" data-cat="raw">
+<div class="card-head">
+    <div class="topic-name">/livox/lidar <span class="cat-chip cat-raw">raw</span></div>
+    <div class="msg-type">sensor_msgs/PointCloud2 &nbsp;(or livox_ros_driver2/CustomMsg when xfer_format=1)</div>
+</div>
+<div class="card-body">
+    The <b>primary 3D point cloud</b> from the Livox Mid-360 LiDAR. Each message contains one scan cycle (~100 ms) of 3D range returns in the sensor's body frame. The Mid-360's non-repetitive scan pattern means each frame covers a different slice of its 360°×59° FOV, building up density over ~0.5 s.
+</div>
+<div class="meta-grid">
+    <div class="meta-cell mc-producer">
+        <div class="mc-label">Produced by</div>
+        <div class="mc-val"><b>Livox ROS Driver 2</b> — reads UDP packets from the Mid-360 (IP <code>192.168.1.202</code>). Config: <code>config/mid360.json</code>.</div>
+    </div>
+    <div class="meta-cell mc-consumer">
+        <div class="mc-label">Consumed by</div>
+        <div class="mc-val">
+            <b>FAST-LIO2</b> (3D SLAM) — tightly coupled with IMU for odometry<br>
+            <b>pointcloud_to_laserscan</b> (2D path) — flattens to <code>/scan</code><br>
+            <b>RViz / Foxglove</b> — "LiDAR (live)" display
+        </div>
+    </div>
+    <div class="meta-cell mc-rviz">
+        <div class="mc-label">View in RViz2</div>
+        <div class="mc-val">Add <b>PointCloud2</b> display → Topic: <code>/livox/lidar</code>. Set Reliability to <b>Best Effort</b>. Style: Points, Size: 1px, Color: FlatColor (grey) or AxisColor for Z-height. Off by default in all configs — enable manually to inspect raw returns.</div>
+    </div>
+    <div class="meta-cell mc-foxglove">
+        <div class="mc-label">View in Foxglove</div>
+        <div class="mc-val">Add a <b>3D Panel</b> → enable <code>/livox/lidar</code> in the topic sidebar. Set point size to 1-2. Works with the PointCloud2 format only (<code>xfer_format=0</code>); CustomMsg requires conversion.</div>
+    </div>
+    <div class="meta-cell mc-qos">
+        <div class="mc-label">QoS</div>
+        <div class="mc-val">Best Effort · Volatile · Keep Last · Depth 5</div>
+    </div>
+    <div class="meta-cell mc-chain">
+        <div class="mc-label">Data Chain</div>
+        <div class="mc-val">
+            <b>Mid-360 UDP</b> <span class="chain-arrow">→</span> <code>/livox/lidar</code>
+            <span class="chain-arrow">→</span> FAST-LIO2 <span class="chain-arrow">→</span> <code>/cloud_registered</code>, <code>/Odometry</code><br>
+            <b>Mid-360 UDP</b> <span class="chain-arrow">→</span> <code>/livox/lidar</code>
+            <span class="chain-arrow">→</span> pointcloud_to_laserscan <span class="chain-arrow">→</span> <code>/scan</code>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- /livox/imu -->
+<div class="card" id="livox-imu" data-cat="raw">
+<div class="card-head">
+    <div class="topic-name">/livox/imu <span class="cat-chip cat-raw">raw</span></div>
+    <div class="msg-type">sensor_msgs/Imu</div>
+</div>
+<div class="card-body">
+    Raw IMU data from the Mid-360's <b>built-in accelerometer + gyroscope</b>. The linear acceleration values are in <b>g units</b> (not m/s²), which violates REP-145. This topic is never consumed directly by SLAM — it passes through the unit conversion node first.
+</div>
+<div class="meta-grid">
+    <div class="meta-cell mc-producer">
+        <div class="mc-label">Produced by</div>
+        <div class="mc-val"><b>Livox ROS Driver 2</b> — same driver as the point cloud. IMU runs at ~200 Hz.</div>
+    </div>
+    <div class="meta-cell mc-consumer">
+        <div class="mc-label">Consumed by</div>
+        <div class="mc-val"><b>imu_units_g_to_ms2</b> node — converts g→m/s² and republishes as <code>/livox/imu_ms2</code>.</div>
+    </div>
+    <div class="meta-cell mc-rviz">
+        <div class="mc-label">View in RViz2</div>
+        <div class="mc-val">RViz has no built-in IMU display. Use <code>ros2 topic echo /livox/imu</code> in a terminal, or install the <b>rviz_imu_plugin</b> package for an orientation overlay.</div>
+    </div>
+    <div class="meta-cell mc-foxglove">
+        <div class="mc-label">View in Foxglove</div>
+        <div class="mc-val">Add a <b>Plot Panel</b> → subscribe to <code>/livox/imu.linear_acceleration.x</code> (and y, z). Shows the raw accel waveforms. Also available in a <b>Raw Messages Panel</b> for full struct inspection.</div>
+    </div>
+    <div class="meta-cell mc-qos">
+        <div class="mc-label">QoS</div>
+        <div class="mc-val">Reliable · Volatile · Keep Last · Depth 10</div>
+    </div>
+    <div class="meta-cell mc-chain">
+        <div class="mc-label">Data Chain</div>
+        <div class="mc-val">
+            <b>Mid-360 IMU</b> <span class="chain-arrow">→</span> <code>/livox/imu</code> (g)
+            <span class="chain-arrow">→</span> imu_units_node <span class="chain-arrow">→</span> <code>/livox/imu_ms2</code> (m/s²)
+            <span class="chain-arrow">→</span> FAST-LIO2
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- /d435_front color image -->
+<div class="card" id="d435-color" data-cat="raw">
+<div class="card-head">
+    <div class="topic-name">/d435_front/camera/color/image_raw <span class="cat-chip cat-raw">raw</span></div>
+    <div class="msg-type">sensor_msgs/Image &nbsp;+&nbsp; .../color/camera_info (sensor_msgs/CameraInfo)</div>
+</div>
+<div class="card-body">
+    The <b>RGB color image</b> from the front-facing RealSense D435. Published as a pair: the image itself and a <code>camera_info</code> message with intrinsic calibration (focal length, distortion). RTABMap uses this for visual loop closure — recognising previously-seen places by matching image features.
+</div>
+<div class="meta-grid">
+    <div class="meta-cell mc-producer">
+        <div class="mc-label">Produced by</div>
+        <div class="mc-val"><b>realsense2_camera_node</b> — Intel RealSense ROS wrapper. Runs at 30 fps, 640×480 by default.</div>
+    </div>
+    <div class="meta-cell mc-consumer">
+        <div class="mc-label">Consumed by</div>
+        <div class="mc-val"><b>RTABMap</b> — remapped as <code>rgb/image</code> and <code>rgb/camera_info</code> for visual feature extraction and loop closure detection.</div>
+    </div>
+    <div class="meta-cell mc-rviz">
+        <div class="mc-label">View in RViz2</div>
+        <div class="mc-val">Add an <b>Image</b> display → Topic: <code>/d435_front/camera/color/image_raw</code>. Opens a 2D image window inside RViz. Alternatively add a <b>Camera</b> display to see the image overlaid on the 3D view.</div>
+    </div>
+    <div class="meta-cell mc-foxglove">
+        <div class="mc-label">View in Foxglove</div>
+        <div class="mc-val">Add an <b>Image Panel</b> → select the color topic. Foxglove renders the stream at full frame rate. Use side-by-side layout with a 3D panel for context.</div>
+    </div>
+    <div class="meta-cell mc-qos">
+        <div class="mc-label">QoS</div>
+        <div class="mc-val">Best Effort · Volatile · Keep Last · Depth 5</div>
+    </div>
+    <div class="meta-cell mc-chain">
+        <div class="mc-label">Data Chain</div>
+        <div class="mc-val">
+            <b>D435 sensor</b> <span class="chain-arrow">→</span> <code>/d435_front/.../image_raw</code>
+            <span class="chain-arrow">→</span> RTABMap (feature extraction + loop closure)
+            <span class="chain-arrow">→</span> map correction
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- /d435_front depth -->
+<div class="card" id="d435-depth" data-cat="raw">
+<div class="card-head">
+    <div class="topic-name">/d435_front/camera/aligned_depth_to_color/image_raw <span class="cat-chip cat-raw">raw</span></div>
+    <div class="msg-type">sensor_msgs/Image (16UC1 — depth in mm)</div>
+</div>
+<div class="card-body">
+    The <b>depth image aligned to the color camera frame</b>. Each pixel is a 16-bit unsigned int representing distance in millimeters. "Aligned" means every depth pixel corresponds 1:1 to the color image — so RTABMap can read color and depth from the same pixel coordinate. Only published when <code>align_depth:=true</code> (SLAM mode).
+</div>
+<div class="meta-grid">
+    <div class="meta-cell mc-producer">
+        <div class="mc-label">Produced by</div>
+        <div class="mc-val"><b>realsense2_camera_node</b> with <code>align_depth:=true</code>. The on-chip alignment costs ~5% CPU on Jetson. Also publishes <code>.../camera_info</code>.</div>
+    </div>
+    <div class="meta-cell mc-consumer">
+        <div class="mc-label">Consumed by</div>
+        <div class="mc-val"><b>RTABMap</b> — remapped as <code>depth/image</code>. Used to build the 3D structure behind each visual feature, enabling depth-aware ICP refinement.</div>
+    </div>
+    <div class="meta-cell mc-rviz">
+        <div class="mc-label">View in RViz2</div>
+        <div class="mc-val">Add an <b>Image</b> display → Topic: the aligned depth topic. RViz auto-normalizes 16UC1 into a greyscale image (near = bright, far = dark). Useful for checking depth fill rate and holes.</div>
+    </div>
+    <div class="meta-cell mc-foxglove">
+        <div class="mc-label">View in Foxglove</div>
+        <div class="mc-val">Add an <b>Image Panel</b> → select the depth topic. Foxglove shows depth as a colorized heatmap by default. Switch to "mono" for raw greyscale.</div>
+    </div>
+    <div class="meta-cell mc-qos">
+        <div class="mc-label">QoS</div>
+        <div class="mc-val">Best Effort · Volatile · Keep Last · Depth 5</div>
+    </div>
+    <div class="meta-cell mc-chain">
+        <div class="mc-label">Data Chain</div>
+        <div class="mc-val">
+            <b>D435 IR stereo</b> <span class="chain-arrow">→</span> on-chip depth <span class="chain-arrow">→</span> alignment
+            <span class="chain-arrow">→</span> <code>aligned_depth_to_color/image_raw</code>
+            <span class="chain-arrow">→</span> RTABMap (3D reconstruction)
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- /imu/data -->
+<div class="card" id="imu-data" data-cat="raw">
+<div class="card-head">
+    <div class="topic-name">/imu/data <span class="cat-chip cat-raw">raw</span></div>
+    <div class="msg-type">sensor_msgs/Imu</div>
+</div>
+<div class="card-body">
+    IMU data from the <b>WitMotion WT901C</b> — a standalone 9-axis IMU mounted on the sensor rig. Provides acceleration, angular velocity, and fused orientation (roll/pitch/yaw). Currently used as a <b>reference/diagnostic</b> source; the primary SLAM IMU is the Mid-360's built-in unit. Available for future EKF fusion if needed.
+</div>
+<div class="meta-grid">
+    <div class="meta-cell mc-producer">
+        <div class="mc-label">Produced by</div>
+        <div class="mc-val"><b>wt901c_imu_node</b> — custom parser for WitMotion 0x61 protocol over USB-serial (<code>/dev/ttyUSB0</code>, 115200 baud). Configurable 10-200 Hz.</div>
+    </div>
+    <div class="meta-cell mc-consumer">
+        <div class="mc-label">Consumed by</div>
+        <div class="mc-val">Currently <b>no active consumer</b> in the main stack. Available for EKF sensor fusion or attitude reference.</div>
+    </div>
+    <div class="meta-cell mc-rviz">
+        <div class="mc-label">View in RViz2</div>
+        <div class="mc-val">Install <b>rviz_imu_plugin</b> → add an <b>Imu</b> display → Topic: <code>/imu/data</code>. Shows an orientation box on the robot. Or use <code>ros2 topic echo</code> for raw values.</div>
+    </div>
+    <div class="meta-cell mc-foxglove">
+        <div class="mc-label">View in Foxglove</div>
+        <div class="mc-val"><b>Plot Panel</b> to graph accel/gyro axes over time. <b>3D Panel</b> can show the orientation quaternion as a pose if you also publish a PoseStamped.</div>
+    </div>
+    <div class="meta-cell mc-qos">
+        <div class="mc-label">QoS</div>
+        <div class="mc-val">Default (Reliable · Keep Last · Depth 50)</div>
+    </div>
+    <div class="meta-cell mc-chain">
+        <div class="mc-label">Data Chain</div>
+        <div class="mc-val">
+            <b>WT901C serial</b> <span class="chain-arrow">→</span> wt901c_imu_node <span class="chain-arrow">→</span> <code>/imu/data</code>
+            <span class="chain-arrow">→</span> (available for EKF / diagnostics)
+        </div>
+    </div>
+</div>
+</div>
+
+
+<!-- ═══ PROCESSED ═══ -->
+<div class="group-title" data-cat="proc">Processed & Converted Topics</div>
+
+<!-- /livox/imu_ms2 -->
+<div class="card" id="imu-ms2" data-cat="proc">
+<div class="card-head">
+    <div class="topic-name">/livox/imu_ms2 <span class="cat-chip cat-proc">processed</span></div>
+    <div class="msg-type">sensor_msgs/Imu</div>
+</div>
+<div class="card-body">
+    The Mid-360 IMU data <b>after unit conversion</b> — linear acceleration converted from g to m/s² (×9.80665) per REP-145. Angular velocity and orientation are passed through unchanged. The node auto-detects on the first message whether conversion is needed (some firmware versions already output m/s²).
+</div>
+<div class="meta-grid">
+    <div class="meta-cell mc-producer">
+        <div class="mc-label">Produced by</div>
+        <div class="mc-val"><b>imu_units_g_to_ms2</b> node. Subscribes to <code>/livox/imu</code> (Best Effort), publishes as Reliable for downstream consumers.</div>
+    </div>
+    <div class="meta-cell mc-consumer">
+        <div class="mc-label">Consumed by</div>
+        <div class="mc-val"><b>FAST-LIO2</b> — used for IMU pre-integration and tightly-coupled lidar-inertial odometry. This is the critical IMU input for 3D SLAM.</div>
+    </div>
+    <div class="meta-cell mc-rviz">
+        <div class="mc-label">View in RViz2</div>
+        <div class="mc-val">Same as <code>/livox/imu</code> — use rviz_imu_plugin or <code>ros2 topic echo</code>. The values should now read ~9.8 m/s² on the gravity axis when stationary.</div>
+    </div>
+    <div class="meta-cell mc-foxglove">
+        <div class="mc-label">View in Foxglove</div>
+        <div class="mc-val"><b>Plot Panel</b> — plot <code>.linear_acceleration.z</code> and verify it reads ~9.81 at rest. Good sanity check that the conversion is working.</div>
+    </div>
+    <div class="meta-cell mc-qos">
+        <div class="mc-label">QoS</div>
+        <div class="mc-val">Reliable · Volatile · Keep Last · Depth 10</div>
+    </div>
+    <div class="meta-cell mc-chain">
+        <div class="mc-label">Data Chain</div>
+        <div class="mc-val">
+            <code>/livox/imu</code> (g) <span class="chain-arrow">→</span> imu_units_node (×9.80665) <span class="chain-arrow">→</span> <code>/livox/imu_ms2</code> (m/s²) <span class="chain-arrow">→</span> FAST-LIO2
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- /scan -->
+<div class="card" id="scan" data-cat="proc">
+<div class="card-head">
+    <div class="topic-name">/scan <span class="cat-chip cat-proc">processed</span></div>
+    <div class="msg-type">sensor_msgs/LaserScan</div>
+</div>
+<div class="card-body">
+    A <b>2D horizontal ring of range measurements</b> — the 3D point cloud collapsed into a single plane. Produced by <code>pointcloud_to_laserscan</code>, which takes all 3D points within a Z band (<code>scan_z_min</code> to <code>scan_z_max</code>) and projects them into a 360° range array. The input source differs by mode: <code>/livox/lidar</code> in the 2D path, <code>/cloud_registered_body</code> in the 3D nav path.
+</div>
+<div class="meta-grid">
+    <div class="meta-cell mc-producer">
+        <div class="mc-label">Produced by</div>
+        <div class="mc-val"><b>pointcloud_to_laserscan</b> node.<br>
+        2D SLAM: input = <code>/livox/lidar</code><br>
+        3D Nav: input = <code>/cloud_registered_body</code></div>
+    </div>
+    <div class="meta-cell mc-consumer">
+        <div class="mc-label">Consumed by</div>
+        <div class="mc-val">
+            <b>rf2o_laser_odometry</b> — laser-only odom (2D path)<br>
+            <b>slam_toolbox</b> — 2D grid mapping<br>
+            <b>Nav2 costmap</b> — obstacle layer (both paths)
+        </div>
+    </div>
+    <div class="meta-cell mc-rviz">
+        <div class="mc-label">View in RViz2</div>
+        <div class="mc-val">Add a <b>LaserScan</b> display → Topic: <code>/scan</code>. Set Reliability to <b>Best Effort</b>. Style: Points, Size 3-4px, FlatColor cyan. Shows a ring of dots around the robot — the wall contour at the scan height.</div>
+    </div>
+    <div class="meta-cell mc-foxglove">
+        <div class="mc-label">View in Foxglove</div>
+        <div class="mc-val"><b>3D Panel</b> renders the LaserScan as a ring of points. You can also add a <b>Plot Panel</b> and graph <code>/scan.ranges</code> to see range-vs-angle for debugging specific dead sectors.</div>
+    </div>
+    <div class="meta-cell mc-qos">
+        <div class="mc-label">QoS</div>
+        <div class="mc-val">Best Effort · Volatile · Keep Last · Depth 5</div>
+    </div>
+    <div class="meta-cell mc-chain">
+        <div class="mc-label">Data Chain</div>
+        <div class="mc-val">
+            <code>/livox/lidar</code> or <code>/cloud_registered_body</code>
+            <span class="chain-arrow">→</span> pointcloud_to_laserscan (Z-band filter + projection)
+            <span class="chain-arrow">→</span> <code>/scan</code>
+            <span class="chain-arrow">→</span> rf2o / slam_toolbox / Nav2 costmap
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- /d435_front depth/color/points -->
+<div class="card" id="d435-points" data-cat="proc">
+<div class="card-head">
+    <div class="topic-name">/d435_front/camera/depth/color/points <span class="cat-chip cat-proc">processed</span></div>
+    <div class="msg-type">sensor_msgs/PointCloud2 (with RGB fields)</div>
+</div>
+<div class="card-body">
+    An <b>organized RGB-D point cloud</b> computed from the D435's depth + color images. Each point carries XYZ position and RGB color. Covers the camera's ~87°×58° FOV. This is the RealSense driver's on-board depth-to-pointcloud conversion. Disabled in SLAM mode (<code>pointcloud:=false</code>) because RTABMap builds its own cloud internally — enable it in raw/perception mode for direct visualization.
+</div>
+<div class="meta-grid">
+    <div class="meta-cell mc-producer">
+        <div class="mc-label">Produced by</div>
+        <div class="mc-val"><b>realsense2_camera_node</b> with <code>pointcloud:=true</code>. CPU-intensive (~15% on Jetson); only enable when needed.</div>
+    </div>
+    <div class="meta-cell mc-consumer">
+        <div class="mc-label">Consumed by</div>
+        <div class="mc-val"><b>RViz / Foxglove only</b> — pure visualization. RTABMap reads the depth image directly, not this point cloud.</div>
+    </div>
+    <div class="meta-cell mc-rviz">
+        <div class="mc-label">View in RViz2</div>
+        <div class="mc-val">Add a <b>PointCloud2</b> display → Topic: the depth/color/points topic. Set Color Transformer to <b>RGB8</b> to see the real colors. Size: 2px. Best Effort reliability.</div>
+    </div>
+    <div class="meta-cell mc-foxglove">
+        <div class="mc-label">View in Foxglove</div>
+        <div class="mc-val"><b>3D Panel</b> → enable the topic. Foxglove renders the RGB colors automatically. Great for side-by-side comparison with the lidar cloud to check extrinsic alignment.</div>
+    </div>
+    <div class="meta-cell mc-qos">
+        <div class="mc-label">QoS</div>
+        <div class="mc-val">Best Effort · Volatile · Keep Last · Depth 5</div>
+    </div>
+    <div class="meta-cell mc-chain">
+        <div class="mc-label">Data Chain</div>
+        <div class="mc-val">
+            <b>D435 IR stereo</b> <span class="chain-arrow">→</span> depth image + color image
+            <span class="chain-arrow">→</span> RealSense driver (depth→cloud)
+            <span class="chain-arrow">→</span> <code>.../depth/color/points</code>
+            <span class="chain-arrow">→</span> RViz / Foxglove
+        </div>
+    </div>
+</div>
+</div>
+
+
+<!-- ═══ SLAM OUTPUTS ═══ -->
+<div class="group-title" data-cat="slam">SLAM & Odometry Outputs</div>
+
+<!-- /Odometry -->
+<div class="card" id="odometry-fl" data-cat="slam">
+<div class="card-head">
+    <div class="topic-name">/Odometry <span class="cat-chip cat-slam">slam</span></div>
+    <div class="msg-type">nav_msgs/Odometry</div>
+</div>
+<div class="card-body">
+    <b>IMU-fused lidar-inertial odometry</b> from FAST-LIO2. This is the robot's estimated 6-DOF pose (position + orientation) and velocity in the <code>camera_init</code> frame. Updated at ~10 Hz. FAST-LIO2 tightly couples the Mid-360's point cloud with the corrected IMU to produce drift-resistant odometry that serves as the backbone of the 3D SLAM pipeline.
+</div>
+<div class="meta-grid">
+    <div class="meta-cell mc-producer">
+        <div class="mc-label">Produced by</div>
+        <div class="mc-val"><b>FAST-LIO2</b> (fastlio_mapping node). Inputs: <code>/livox/lidar</code> + <code>/livox/imu_ms2</code>. Also publishes TF: <code>camera_init</code> → <code>body</code>.</div>
+    </div>
+    <div class="meta-cell mc-consumer">
+        <div class="mc-label">Consumed by</div>
+        <div class="mc-val">
+            <b>RTABMap</b> — remapped as <code>odom</code>; used as the odometry prior for graph optimization<br>
+            <b>Nav2 controller_server</b> — robot velocity feedback<br>
+            <b>RViz</b> — Odometry display (red arrows)
+        </div>
+    </div>
+    <div class="meta-cell mc-rviz">
+        <div class="mc-label">View in RViz2</div>
+        <div class="mc-val">Add an <b>Odometry</b> display → Topic: <code>/Odometry</code>. Set Reliability to <b>Best Effort</b>. Shape: Arrow, Color: red, Keep: 100. Draws a trail of arrows showing the robot's path.</div>
+    </div>
+    <div class="meta-cell mc-foxglove">
+        <div class="mc-label">View in Foxglove</div>
+        <div class="mc-val"><b>3D Panel</b> renders the odometry as arrow markers. Add a <b>Plot Panel</b> to graph <code>/Odometry.twist.twist.linear.x</code> for velocity over time — great for spotting jerks or drift.</div>
+    </div>
+    <div class="meta-cell mc-qos">
+        <div class="mc-label">QoS</div>
+        <div class="mc-val">Best Effort · Volatile · Keep Last · Depth 5</div>
+    </div>
+    <div class="meta-cell mc-chain">
+        <div class="mc-label">Data Chain</div>
+        <div class="mc-val">
+            <code>/livox/lidar</code> + <code>/livox/imu_ms2</code>
+            <span class="chain-arrow">→</span> FAST-LIO2 (iterated EKF)
+            <span class="chain-arrow">→</span> <code>/Odometry</code>
+            <span class="chain-arrow">→</span> RTABMap / Nav2 / RViz
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- /odom -->
+<div class="card" id="odom-rf2o" data-cat="slam">
+<div class="card-head">
+    <div class="topic-name">/odom <span class="cat-chip cat-slam">slam</span></div>
+    <div class="msg-type">nav_msgs/Odometry</div>
+</div>
+<div class="card-body">
+    <b>Laser-only 2D odometry</b> from rf2o_laser_odometry. Estimates the robot's 2D pose (x, y, yaw) by scan-matching consecutive <code>/scan</code> frames. Used exclusively in the 2D SLAM path as the odometry source for slam_toolbox. Lighter weight than FAST-LIO2 but 2D-only and more drift-prone without IMU fusion.
+</div>
+<div class="meta-grid">
+    <div class="meta-cell mc-producer">
+        <div class="mc-label">Produced by</div>
+        <div class="mc-val"><b>rf2o_laser_odometry</b> node. Input: <code>/scan</code>. Also publishes TF: <code>odom</code> → <code>base_link</code> (when <code>publish_tf:=true</code>).</div>
+    </div>
+    <div class="meta-cell mc-consumer">
+        <div class="mc-label">Consumed by</div>
+        <div class="mc-val">
+            <b>slam_toolbox</b> — odometry input for pose-graph SLAM<br>
+            <b>Nav2</b> — via TF tree (odom → base_link)<br>
+            <b>RViz</b> — Odometry display (green arrows)
+        </div>
+    </div>
+    <div class="meta-cell mc-rviz">
+        <div class="mc-label">View in RViz2</div>
+        <div class="mc-val">Add an <b>Odometry</b> display → Topic: <code>/odom</code>. Set Reliability to <b>Reliable</b> (rf2o publishes Reliable, unlike FAST-LIO). Shape: Arrow, Color: green, Keep: 100.</div>
+    </div>
+    <div class="meta-cell mc-foxglove">
+        <div class="mc-label">View in Foxglove</div>
+        <div class="mc-val">Same approach as <code>/Odometry</code> — 3D Panel for the arrow trail, Plot Panel for velocity graphs.</div>
+    </div>
+    <div class="meta-cell mc-qos">
+        <div class="mc-label">QoS</div>
+        <div class="mc-val">Reliable · Volatile · Keep Last · Depth 100</div>
+    </div>
+    <div class="meta-cell mc-chain">
+        <div class="mc-label">Data Chain</div>
+        <div class="mc-val">
+            <code>/livox/lidar</code> <span class="chain-arrow">→</span> pointcloud_to_laserscan <span class="chain-arrow">→</span> <code>/scan</code>
+            <span class="chain-arrow">→</span> rf2o (scan matching) <span class="chain-arrow">→</span> <code>/odom</code>
+            <span class="chain-arrow">→</span> slam_toolbox / Nav2
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- /cloud_registered -->
+<div class="card" id="cloud-registered" data-cat="slam">
+<div class="card-head">
+    <div class="topic-name">/cloud_registered <span class="cat-chip cat-slam">slam</span></div>
+    <div class="msg-type">sensor_msgs/PointCloud2</div>
+</div>
+<div class="card-body">
+    The <b>accumulated world-frame point cloud</b> from FAST-LIO2 — every scan stitched together in the <code>camera_init</code> (world) frame. This grows continuously as the robot drives, forming a dense 3D model of the environment. Fed into the viz_clip node for ceiling-removal before display. Also the basis for RTABMap's 3D map overlay.
+</div>
+<div class="meta-grid">
+    <div class="meta-cell mc-producer">
+        <div class="mc-label">Produced by</div>
+        <div class="mc-val"><b>FAST-LIO2</b> — outputs the current map after each lidar-inertial update cycle.</div>
+    </div>
+    <div class="meta-cell mc-consumer">
+        <div class="mc-label">Consumed by</div>
+        <div class="mc-val"><b>viz_clip_node</b> → clips Z range → publishes as <code>/cloud_viz_clipped</code>. Also viewable raw in RViz.</div>
+    </div>
+    <div class="meta-cell mc-rviz">
+        <div class="mc-label">View in RViz2</div>
+        <div class="mc-val">Add a <b>PointCloud2</b> display → Topic: <code>/cloud_registered</code>. Best Effort. AxisColor on Z with rainbow. Usually you view <code>/cloud_viz_clipped</code> instead (ceiling removed), but this shows the full unfiltered cloud.</div>
+    </div>
+    <div class="meta-cell mc-foxglove">
+        <div class="mc-label">View in Foxglove</div>
+        <div class="mc-val"><b>3D Panel</b> → subscribe to the topic. Color by position.z. Large clouds may need point decimation in Foxglove settings for smooth rendering.</div>
+    </div>
+    <div class="meta-cell mc-qos">
+        <div class="mc-label">QoS</div>
+        <div class="mc-val">Best Effort · Volatile · Keep Last · Depth 5</div>
+    </div>
+    <div class="meta-cell mc-chain">
+        <div class="mc-label">Data Chain</div>
+        <div class="mc-val">
+            FAST-LIO2 <span class="chain-arrow">→</span> <code>/cloud_registered</code> (world frame)
+            <span class="chain-arrow">→</span> viz_clip_node <span class="chain-arrow">→</span> <code>/cloud_viz_clipped</code>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- /cloud_registered_body -->
+<div class="card" id="cloud-body" data-cat="slam">
+<div class="card-head">
+    <div class="topic-name">/cloud_registered_body <span class="cat-chip cat-slam">slam</span></div>
+    <div class="msg-type">sensor_msgs/PointCloud2</div>
+</div>
+<div class="card-body">
+    The current scan registered in the <b>body frame</b> — same data as <code>/cloud_registered</code> but expressed relative to the robot, not the world. This is what RTABMap uses for ICP (Iterative Closest Point) refinement, and what <code>pointcloud_to_laserscan</code> uses in the 3D nav path to produce <code>/scan</code>.
+</div>
+<div class="meta-grid">
+    <div class="meta-cell mc-producer">
+        <div class="mc-label">Produced by</div>
+        <div class="mc-val"><b>FAST-LIO2</b> — body-frame output of the current scan, post-registration.</div>
+    </div>
+    <div class="meta-cell mc-consumer">
+        <div class="mc-label">Consumed by</div>
+        <div class="mc-val">
+            <b>RTABMap</b> — remapped as <code>scan_cloud</code> for ICP loop closure<br>
+            <b>pointcloud_to_laserscan</b> (3D nav path) — flattens to <code>/scan</code>
+        </div>
+    </div>
+    <div class="meta-cell mc-rviz">
+        <div class="mc-label">View in RViz2</div>
+        <div class="mc-val">Add a <b>PointCloud2</b> display → Topic: <code>/cloud_registered_body</code>. Best Effort. This cloud moves with the robot — useful for checking what the current frame looks like before accumulation.</div>
+    </div>
+    <div class="meta-cell mc-foxglove">
+        <div class="mc-label">View in Foxglove</div>
+        <div class="mc-val"><b>3D Panel</b> — the cloud appears attached to the robot since it's in body frame.</div>
+    </div>
+    <div class="meta-cell mc-qos">
+        <div class="mc-label">QoS</div>
+        <div class="mc-val">Best Effort · Volatile · Keep Last · Depth 5</div>
+    </div>
+    <div class="meta-cell mc-chain">
+        <div class="mc-label">Data Chain</div>
+        <div class="mc-val">
+            FAST-LIO2 <span class="chain-arrow">→</span> <code>/cloud_registered_body</code>
+            <span class="chain-arrow">→</span> RTABMap (ICP) + pointcloud_to_laserscan <span class="chain-arrow">→</span> <code>/scan</code>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- /cloud_viz_clipped -->
+<div class="card" id="cloud-clipped" data-cat="slam">
+<div class="card-head">
+    <div class="topic-name">/cloud_viz_clipped <span class="cat-chip cat-slam">slam</span></div>
+    <div class="msg-type">sensor_msgs/PointCloud2</div>
+</div>
+<div class="card-body">
+    The accumulated world cloud with <b>ceiling and floor points removed</b> by Z-axis clipping. Parameters <code>z_min</code> (default -3.0 m) and <code>z_max</code> (default 3.0 m) in the <code>camera_init</code> frame control the band. Visualization-only — does not affect SLAM or navigation. Makes the 3D view much cleaner by removing ceiling geometry that would otherwise obscure the map from an orbit camera.
+</div>
+<div class="meta-grid">
+    <div class="meta-cell mc-producer">
+        <div class="mc-label">Produced by</div>
+        <div class="mc-val"><b>viz_z_clip</b> node. Input: <code>/cloud_registered</code>. Parameters are runtime-tunable via <code>ros2 param set</code>.</div>
+    </div>
+    <div class="meta-cell mc-consumer">
+        <div class="mc-label">Consumed by</div>
+        <div class="mc-val"><b>RViz / Foxglove only</b> — the "Cloud (world)" display in all 3D configs.</div>
+    </div>
+    <div class="meta-cell mc-rviz">
+        <div class="mc-label">View in RViz2</div>
+        <div class="mc-val">This is the default <b>Cloud (world)</b> display in slam.rviz and nav.rviz. PointCloud2, AxisColor on Z, rainbow, 2px points. The main visual during 3D SLAM — watch the map grow.</div>
+    </div>
+    <div class="meta-cell mc-foxglove">
+        <div class="mc-label">View in Foxglove</div>
+        <div class="mc-val"><b>3D Panel</b> → <code>/cloud_viz_clipped</code>. Color by position.z. Same experience as RViz but works over Foxglove Bridge from a remote workstation.</div>
+    </div>
+    <div class="meta-cell mc-qos">
+        <div class="mc-label">QoS</div>
+        <div class="mc-val">Best Effort · Volatile · Keep Last · Depth 5</div>
+    </div>
+    <div class="meta-cell mc-chain">
+        <div class="mc-label">Data Chain</div>
+        <div class="mc-val">
+            <code>/cloud_registered</code>
+            <span class="chain-arrow">→</span> viz_z_clip (strip z &lt; -3 and z &gt; 3)
+            <span class="chain-arrow">→</span> <code>/cloud_viz_clipped</code>
+            <span class="chain-arrow">→</span> RViz / Foxglove
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- /map -->
+<div class="card" id="map" data-cat="slam">
+<div class="card-head">
+    <div class="topic-name">/map <span class="cat-chip cat-slam">slam</span></div>
+    <div class="msg-type">nav_msgs/OccupancyGrid</div>
+</div>
+<div class="card-body">
+    The <b>2D occupancy grid</b> — the floorplan that SLAM builds. Each cell is a probability 0-100 (free → occupied) or -1 (unknown). Black = wall, white = free, grey = unexplored. Produced by RTABMap (3D path) or slam_toolbox (2D path). This is the persistent spatial knowledge Nav2 uses for global planning. Uses Transient Local durability so late-joining subscribers (like RViz started after SLAM) receive the last published map immediately.
+</div>
+<div class="meta-grid">
+    <div class="meta-cell mc-producer">
+        <div class="mc-label">Produced by</div>
+        <div class="mc-val"><b>RTABMap</b> (3D) or <b>slam_toolbox</b> (2D). Updated when the robot explores new areas or loop closures correct the graph.</div>
+    </div>
+    <div class="meta-cell mc-consumer">
+        <div class="mc-label">Consumed by</div>
+        <div class="mc-val">
+            <b>Nav2 global_costmap</b> — static layer reads this as the base obstacle data<br>
+            <b>Nav2 planner_server</b> — plans paths through free cells<br>
+            <b>RViz / Foxglove</b> — the Map display
+        </div>
+    </div>
+    <div class="meta-cell mc-rviz">
+        <div class="mc-label">View in RViz2</div>
+        <div class="mc-val">Add a <b>Map</b> display → Topic: <code>/map</code>. Set Reliability to <b>Reliable</b>, Durability to <b>Transient Local</b>. Color Scheme: map. Alpha: 0.7, Draw Behind: true. This is the background floorplan everything else renders on top of.</div>
+    </div>
+    <div class="meta-cell mc-foxglove">
+        <div class="mc-label">View in Foxglove</div>
+        <div class="mc-val">Use a dedicated <b>Map Panel</b> for a top-down 2D view (great for seeing the full floorplan). Also renders in the <b>3D Panel</b> as a floor texture. Foxglove handles Transient Local QoS automatically.</div>
+    </div>
+    <div class="meta-cell mc-qos">
+        <div class="mc-label">QoS</div>
+        <div class="mc-val">Reliable · Transient Local · Keep Last · Depth 1</div>
+    </div>
+    <div class="meta-cell mc-chain">
+        <div class="mc-label">Data Chain</div>
+        <div class="mc-val">
+            <b>3D:</b> <code>/livox/lidar</code> + <code>/livox/imu_ms2</code> → FAST-LIO2 → <code>/cloud_registered_body</code> + <code>/Odometry</code> + D435 images → RTABMap → <code>/map</code><br>
+            <b>2D:</b> <code>/livox/lidar</code> → pointcloud_to_laserscan → <code>/scan</code> → slam_toolbox → <code>/map</code>
+        </div>
+    </div>
+</div>
+</div>
+
+
+<!-- ═══ NAVIGATION ═══ -->
+<div class="group-title" data-cat="nav">Navigation Topics (Nav2)</div>
+
+<!-- /global_costmap/costmap -->
+<div class="card" id="global-costmap" data-cat="nav">
+<div class="card-head">
+    <div class="topic-name">/global_costmap/costmap <span class="cat-chip cat-nav">nav</span></div>
+    <div class="msg-type">nav_msgs/OccupancyGrid</div>
+</div>
+<div class="card-body">
+    The <b>inflated global obstacle map</b> — Nav2 takes the raw <code>/map</code> and expands every occupied cell by the robot's inscribed radius plus an inflation zone. The result is a cost gradient: lethal near walls, decreasing cost with distance, zero in open space. The global planner uses this to find the cheapest (safest) route from A to B. Covers the entire known environment.
+</div>
+<div class="meta-grid">
+    <div class="meta-cell mc-producer">
+        <div class="mc-label">Produced by</div>
+        <div class="mc-val"><b>Nav2 global_costmap</b> node. Reads: <code>/map</code> (static layer) + <code>/scan</code> (obstacle layer). Robot radius: 0.4 m.</div>
+    </div>
+    <div class="meta-cell mc-consumer">
+        <div class="mc-label">Consumed by</div>
+        <div class="mc-val"><b>Nav2 planner_server</b> (NavFn/Smac) — plans the global path through inflated-free space. <b>RViz / Foxglove</b> for visualization.</div>
+    </div>
+    <div class="meta-cell mc-rviz">
+        <div class="mc-label">View in RViz2</div>
+        <div class="mc-val">Add a <b>Map</b> display → Topic: <code>/global_costmap/costmap</code>. Reliable + Transient Local. Color Scheme: <b>costmap</b> (rainbow inflation gradient). Alpha: 0.5. Overlays the inflation zones on top of the base map.</div>
+    </div>
+    <div class="meta-cell mc-foxglove">
+        <div class="mc-label">View in Foxglove</div>
+        <div class="mc-val"><b>3D Panel</b> → enable the costmap topic. Use "costmap" color map. Toggle on/off to compare with the base map underneath.</div>
+    </div>
+    <div class="meta-cell mc-qos">
+        <div class="mc-label">QoS</div>
+        <div class="mc-val">Reliable · Transient Local · Keep Last · Depth 1</div>
+    </div>
+    <div class="meta-cell mc-chain">
+        <div class="mc-label">Data Chain</div>
+        <div class="mc-val">
+            <code>/map</code> (static layer) + <code>/scan</code> (obstacle layer)
+            <span class="chain-arrow">→</span> Nav2 global_costmap (inflation)
+            <span class="chain-arrow">→</span> <code>/global_costmap/costmap</code>
+            <span class="chain-arrow">→</span> planner_server → <code>/plan</code>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- /local_costmap/costmap -->
+<div class="card" id="local-costmap" data-cat="nav">
+<div class="card-head">
+    <div class="topic-name">/local_costmap/costmap <span class="cat-chip cat-nav">nav</span></div>
+    <div class="msg-type">nav_msgs/OccupancyGrid</div>
+</div>
+<div class="card-body">
+    A <b>rolling-window costmap centered on the robot</b> — typically 3-5 m in each direction. Updates rapidly from live <code>/scan</code> data to detect new obstacles the static map doesn't know about (people, doors, furniture that moved). The local controller reads this for real-time collision avoidance. Unlike the global costmap, this one doesn't depend on the map being correct — it trusts the live sensor.
+</div>
+<div class="meta-grid">
+    <div class="meta-cell mc-producer">
+        <div class="mc-label">Produced by</div>
+        <div class="mc-val"><b>Nav2 local_costmap</b> node. Reads: <code>/scan</code> (obstacle layer). Publishes at ~5 Hz, rolling-window geometry.</div>
+    </div>
+    <div class="meta-cell mc-consumer">
+        <div class="mc-label">Consumed by</div>
+        <div class="mc-val"><b>Nav2 controller_server</b> (DWB/MPPI) — scores candidate trajectories against this costmap for reactive obstacle avoidance.</div>
+    </div>
+    <div class="meta-cell mc-rviz">
+        <div class="mc-label">View in RViz2</div>
+        <div class="mc-val">Add a <b>Map</b> display → Topic: <code>/local_costmap/costmap</code>. Same settings as global costmap. You'll see a small colored square that moves with the robot — obstacles within it light up in real time.</div>
+    </div>
+    <div class="meta-cell mc-foxglove">
+        <div class="mc-label">View in Foxglove</div>
+        <div class="mc-val"><b>3D Panel</b> — renders identically to the global costmap but as a smaller rolling patch. Useful to toggle independently from the global costmap to reduce visual clutter.</div>
+    </div>
+    <div class="meta-cell mc-qos">
+        <div class="mc-label">QoS</div>
+        <div class="mc-val">Reliable · Transient Local · Keep Last · Depth 1</div>
+    </div>
+    <div class="meta-cell mc-chain">
+        <div class="mc-label">Data Chain</div>
+        <div class="mc-val">
+            <code>/scan</code> (live sensor)
+            <span class="chain-arrow">→</span> Nav2 local_costmap (obstacle + inflation layers)
+            <span class="chain-arrow">→</span> <code>/local_costmap/costmap</code>
+            <span class="chain-arrow">→</span> controller_server → <code>/cmd_vel</code>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- /plan -->
+<div class="card" id="plan" data-cat="nav">
+<div class="card-head">
+    <div class="topic-name">/plan <span class="cat-chip cat-nav">nav</span></div>
+    <div class="msg-type">nav_msgs/Path</div>
+</div>
+<div class="card-body">
+    The <b>global navigation path</b> — a sequence of poses from the robot's current position to the goal. Computed by the Nav2 global planner (NavFn or Smac) over the global costmap. Drawn as a green line in RViz. Recomputes periodically or when the robot deviates too far. If this path takes a weird detour, the problem is in the global costmap (inflation too aggressive, obstacle where there isn't one).
+</div>
+<div class="meta-grid">
+    <div class="meta-cell mc-producer">
+        <div class="mc-label">Produced by</div>
+        <div class="mc-val"><b>Nav2 planner_server</b>. Triggered by <code>/goal_pose</code> via the behavior tree navigator.</div>
+    </div>
+    <div class="meta-cell mc-consumer">
+        <div class="mc-label">Consumed by</div>
+        <div class="mc-val"><b>Nav2 controller_server</b> — follows this path with the local controller. <b>RViz / Foxglove</b> — the green path overlay.</div>
+    </div>
+    <div class="meta-cell mc-rviz">
+        <div class="mc-label">View in RViz2</div>
+        <div class="mc-val">Add a <b>Path</b> display → Topic: <code>/plan</code>. Reliable QoS. Color: green (25, 255, 0), Line Width: 0.05. The classic green planning line.</div>
+    </div>
+    <div class="meta-cell mc-foxglove">
+        <div class="mc-label">View in Foxglove</div>
+        <div class="mc-val"><b>3D Panel</b> renders Path messages as lines automatically. Color customizable in panel settings.</div>
+    </div>
+    <div class="meta-cell mc-qos">
+        <div class="mc-label">QoS</div>
+        <div class="mc-val">Reliable · Volatile · Keep Last · Depth 5</div>
+    </div>
+    <div class="meta-cell mc-chain">
+        <div class="mc-label">Data Chain</div>
+        <div class="mc-val">
+            <code>/goal_pose</code> <span class="chain-arrow">→</span> bt_navigator <span class="chain-arrow">→</span> planner_server
+            + <code>/global_costmap/costmap</code>
+            <span class="chain-arrow">→</span> <code>/plan</code>
+            <span class="chain-arrow">→</span> controller_server
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- /local_plan -->
+<div class="card" id="local-plan" data-cat="nav">
+<div class="card-head">
+    <div class="topic-name">/local_plan <span class="cat-chip cat-nav">nav</span></div>
+    <div class="msg-type">nav_msgs/Path</div>
+</div>
+<div class="card-body">
+    The <b>short-horizon trajectory</b> the local controller is executing right now — typically 1-3 seconds of lookahead. The controller (DWB or MPPI) samples hundreds of candidate trajectories, scores each against the local costmap and the global plan, and picks the best. This blue line shows you what the robot is about to do. If the robot oscillates, this line will flicker between alternatives.
+</div>
+<div class="meta-grid">
+    <div class="meta-cell mc-producer">
+        <div class="mc-label">Produced by</div>
+        <div class="mc-val"><b>Nav2 controller_server</b> (DWB or MPPI plugin). Updated at the controller frequency (~20 Hz).</div>
+    </div>
+    <div class="meta-cell mc-consumer">
+        <div class="mc-label">Consumed by</div>
+        <div class="mc-val"><b>RViz / Foxglove only</b> — pure visualization. The controller internally converts this to <code>/cmd_vel</code>.</div>
+    </div>
+    <div class="meta-cell mc-rviz">
+        <div class="mc-label">View in RViz2</div>
+        <div class="mc-val">Add a <b>Path</b> display → Topic: <code>/local_plan</code>. Reliable QoS. Color: blue (0, 0, 255), Line Width: 0.04. A short blue curve that updates in real time.</div>
+    </div>
+    <div class="meta-cell mc-foxglove">
+        <div class="mc-label">View in Foxglove</div>
+        <div class="mc-val"><b>3D Panel</b> → enable <code>/local_plan</code>. Blue line. Compare against <code>/plan</code> (green) to see how closely the local controller is tracking the global path.</div>
+    </div>
+    <div class="meta-cell mc-qos">
+        <div class="mc-label">QoS</div>
+        <div class="mc-val">Reliable · Volatile · Keep Last · Depth 5</div>
+    </div>
+    <div class="meta-cell mc-chain">
+        <div class="mc-label">Data Chain</div>
+        <div class="mc-val">
+            <code>/plan</code> + <code>/local_costmap/costmap</code> + <code>/Odometry</code>
+            <span class="chain-arrow">→</span> controller_server (trajectory scoring)
+            <span class="chain-arrow">→</span> <code>/local_plan</code> (viz) + <code>/cmd_vel</code> (action)
+        </div>
+    </div>
+</div>
+</div>
+
+
+<!-- ═══ CONTROL & INTERACTION ═══ -->
+<div class="group-title" data-cat="ctrl">Control & Interaction Topics</div>
+
+<!-- /cmd_vel -->
+<div class="card" id="cmd-vel" data-cat="ctrl">
+<div class="card-head">
+    <div class="topic-name">/cmd_vel <span class="cat-chip cat-ctrl">control</span></div>
+    <div class="msg-type">geometry_msgs/Twist</div>
+</div>
+<div class="card-body">
+    The <b>velocity command</b> sent to the chassis — linear.x (forward/back), linear.y (strafe, mecanum only), angular.z (rotation). This is the final output of the entire perception-planning-control pipeline. The yahboom_bridge_node reads it and sends serial motor commands to the YB-ERF01 STM32. Safety clamped to max_vx=0.5 m/s, max_vy=0.3 m/s, max_wz=1.0 rad/s. A 0.5 s watchdog stops the motors if no new message arrives.
+</div>
+<div class="meta-grid">
+    <div class="meta-cell mc-producer">
+        <div class="mc-label">Produced by</div>
+        <div class="mc-val"><b>Nav2 controller_server</b> (autonomous), <b>teleop_twist_keyboard</b> (manual), or any other Twist publisher.</div>
+    </div>
+    <div class="meta-cell mc-consumer">
+        <div class="mc-label">Consumed by</div>
+        <div class="mc-val"><b>yahboom_bridge_node</b> — converts Twist to Rosmaster_Lib serial protocol → STM32 → motor drivers → wheels. Note: SBUS RC silently overrides this — power off the Taranis when using <code>/cmd_vel</code>.</div>
+    </div>
+    <div class="meta-cell mc-rviz">
+        <div class="mc-label">View in RViz2</div>
+        <div class="mc-val">No built-in display. Use <code>ros2 topic echo /cmd_vel</code> in a terminal. Or install <b>rviz_2d_overlay_plugins</b> for a velocity gauge HUD overlay.</div>
+    </div>
+    <div class="meta-cell mc-foxglove">
+        <div class="mc-label">View in Foxglove</div>
+        <div class="mc-val"><b>Plot Panel</b> — graph <code>/cmd_vel.linear.x</code>, <code>.linear.y</code>, <code>.angular.z</code> over time. Shows the commanded velocity profile. Great for tuning controller gains.</div>
+    </div>
+    <div class="meta-cell mc-qos">
+        <div class="mc-label">QoS</div>
+        <div class="mc-val">Reliable · Volatile · Keep Last · Depth 10</div>
+    </div>
+    <div class="meta-cell mc-chain">
+        <div class="mc-label">Data Chain</div>
+        <div class="mc-val">
+            Nav2 controller_server <span class="chain-arrow">→</span> <code>/cmd_vel</code>
+            <span class="chain-arrow">→</span> yahboom_bridge_node (serial)
+            <span class="chain-arrow">→</span> STM32 <span class="chain-arrow">→</span> motor drivers <span class="chain-arrow">→</span> wheels
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- /goal_pose -->
+<div class="card" id="goal-pose" data-cat="ctrl">
+<div class="card-head">
+    <div class="topic-name">/goal_pose <span class="cat-chip cat-ctrl">control</span></div>
+    <div class="msg-type">geometry_msgs/PoseStamped</div>
+</div>
+<div class="card-body">
+    The <b>navigation goal</b> — where you want the robot to go. Published when you click the "2D Goal Pose" tool in RViz and drag an arrow on the map. The arrow direction sets the desired final orientation. Nav2's behavior tree navigator receives this and kicks off the full plan-follow-recover cycle.
+</div>
+<div class="meta-grid">
+    <div class="meta-cell mc-producer">
+        <div class="mc-label">Produced by</div>
+        <div class="mc-val"><b>RViz "2D Goal Pose" tool</b> (click + drag on the map). Also publishable via CLI: <code>ros2 topic pub /goal_pose geometry_msgs/PoseStamped ...</code></div>
+    </div>
+    <div class="meta-cell mc-consumer">
+        <div class="mc-label">Consumed by</div>
+        <div class="mc-val"><b>Nav2 bt_navigator</b> — triggers the navigation behavior tree which calls the planner, then the controller, with recovery behaviors on failure.</div>
+    </div>
+    <div class="meta-cell mc-rviz">
+        <div class="mc-label">View in RViz2</div>
+        <div class="mc-val">This is an <b>input tool</b>, not a display — you create it by selecting the "2D Goal Pose" button in the toolbar, then clicking on the map. The goal appears as a green arrow.</div>
+    </div>
+    <div class="meta-cell mc-foxglove">
+        <div class="mc-label">View in Foxglove</div>
+        <div class="mc-val">Foxglove's <b>3D Panel</b> supports "Publish" mode — click to publish a PoseStamped on a configured topic. Set the publish topic to <code>/goal_pose</code> in the panel settings.</div>
+    </div>
+    <div class="meta-cell mc-qos">
+        <div class="mc-label">QoS</div>
+        <div class="mc-val">Reliable · Volatile · Keep Last · Depth 1</div>
+    </div>
+    <div class="meta-cell mc-chain">
+        <div class="mc-label">Data Chain</div>
+        <div class="mc-val">
+            <b>Human click</b> <span class="chain-arrow">→</span> RViz/Foxglove <span class="chain-arrow">→</span> <code>/goal_pose</code>
+            <span class="chain-arrow">→</span> bt_navigator <span class="chain-arrow">→</span> planner_server <span class="chain-arrow">→</span> <code>/plan</code>
+            <span class="chain-arrow">→</span> controller_server <span class="chain-arrow">→</span> <code>/cmd_vel</code>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- /initialpose -->
+<div class="card" id="initialpose" data-cat="ctrl">
+<div class="card-head">
+    <div class="topic-name">/initialpose <span class="cat-chip cat-ctrl">control</span></div>
+    <div class="msg-type">geometry_msgs/PoseWithCovarianceStamped</div>
+</div>
+<div class="card-body">
+    A <b>manual pose hint</b> — tells RTABMap (or AMCL) "the robot is approximately here." Published when you click the "2D Pose Estimate" tool in RViz and drag on the map. Use this when the robot is lost (localization jumped or the map doesn't match). RTABMap re-seeds its localization search from this pose.
+</div>
+<div class="meta-grid">
+    <div class="meta-cell mc-producer">
+        <div class="mc-label">Produced by</div>
+        <div class="mc-val"><b>RViz "2D Pose Estimate" tool</b> — click + drag to set the robot's approximate position and heading.</div>
+    </div>
+    <div class="meta-cell mc-consumer">
+        <div class="mc-label">Consumed by</div>
+        <div class="mc-val"><b>RTABMap</b> (3D localization mode) or <b>slam_toolbox</b> (2D localization mode) — re-initializes the pose estimate for relocalization.</div>
+    </div>
+    <div class="meta-cell mc-rviz">
+        <div class="mc-label">View in RViz2</div>
+        <div class="mc-val">Input tool — click "2D Pose Estimate" in the toolbar, then click + drag on the map. The arrow represents position + heading.</div>
+    </div>
+    <div class="meta-cell mc-foxglove">
+        <div class="mc-label">View in Foxglove</div>
+        <div class="mc-val">Same publish mechanism as <code>/goal_pose</code> — configure a <b>3D Panel</b> publish topic to <code>/initialpose</code>. Note: Foxglove publishes PoseStamped, not PoseWithCovarianceStamped — some localization nodes may need adaptation.</div>
+    </div>
+    <div class="meta-cell mc-qos">
+        <div class="mc-label">QoS</div>
+        <div class="mc-val">Reliable · Volatile · Keep Last · Depth 1</div>
+    </div>
+    <div class="meta-cell mc-chain">
+        <div class="mc-label">Data Chain</div>
+        <div class="mc-val">
+            <b>Human click</b> <span class="chain-arrow">→</span> RViz/Foxglove <span class="chain-arrow">→</span> <code>/initialpose</code>
+            <span class="chain-arrow">→</span> RTABMap / slam_toolbox (relocalize)
+            <span class="chain-arrow">→</span> corrected TF + <code>/map</code>
+        </div>
+    </div>
+</div>
+</div>
+
+
+<!-- ═══ SYSTEM / TF ═══ -->
+<div class="group-title" data-cat="sys">System & Transform Topics</div>
+
+<!-- /tf -->
+<div class="card" id="tf" data-cat="sys">
+<div class="card-head">
+    <div class="topic-name">/tf <span class="cat-chip cat-sys">system</span></div>
+    <div class="msg-type">tf2_msgs/TFMessage</div>
+</div>
+<div class="card-body">
+    The <b>dynamic transform tree</b> — constantly-updating coordinate frame relationships. Multiple nodes publish here simultaneously: FAST-LIO2 publishes <code>camera_init → body</code>, RTABMap publishes <code>map → camera_init</code>, rf2o publishes <code>odom → base_link</code>, and the yahboom_bridge publishes <code>body → base_link</code>. Every other display depends on TF to know where data belongs in space.
+</div>
+<div class="meta-grid">
+    <div class="meta-cell mc-producer">
+        <div class="mc-label">Produced by</div>
+        <div class="mc-val"><b>Every node that knows where something is</b> — FAST-LIO2, RTABMap, rf2o, robot_state_publisher, static_transform_publisher, Nav2 (camera_init→odom alias).</div>
+    </div>
+    <div class="meta-cell mc-consumer">
+        <div class="mc-label">Consumed by</div>
+        <div class="mc-val"><b>Everything.</b> Every RViz display, Nav2, RTABMap, pointcloud_to_laserscan — all use TF to transform data between frames.</div>
+    </div>
+    <div class="meta-cell mc-rviz">
+        <div class="mc-label">View in RViz2</div>
+        <div class="mc-val">Add a <b>TF</b> display. Shows colored axes at every frame. Show Names: true to label them. If any display shows "Transform [x] does not exist," the problem is a missing TF publisher.</div>
+    </div>
+    <div class="meta-cell mc-foxglove">
+        <div class="mc-label">View in Foxglove</div>
+        <div class="mc-val"><b>3D Panel</b> shows transform frames in the sidebar under "Transforms." Toggle individual frames on/off. Foxglove also has a <b>Topic Graph</b> panel that visualizes the TF tree structure.</div>
+    </div>
+    <div class="meta-cell mc-qos">
+        <div class="mc-label">QoS</div>
+        <div class="mc-val">Best Effort · Volatile · Keep Last · Depth 100</div>
+    </div>
+    <div class="meta-cell mc-chain">
+        <div class="mc-label">Frame Chain (3D path)</div>
+        <div class="mc-val">
+            <code>map</code> <span class="chain-arrow">→</span> <code>camera_init</code> (RTABMap)
+            <span class="chain-arrow">→</span> <code>body</code> (FAST-LIO2)
+            <span class="chain-arrow">→</span> <code>base_link</code> (bridge)
+            <span class="chain-arrow">→</span> sensor frames (URDF)
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- /tf_static -->
+<div class="card" id="tf-static" data-cat="sys">
+<div class="card-head">
+    <div class="topic-name">/tf_static <span class="cat-chip cat-sys">system</span></div>
+    <div class="msg-type">tf2_msgs/TFMessage</div>
+</div>
+<div class="card-body">
+    <b>Static (non-moving) transforms</b> — published once with Transient Local durability so late-joining subscribers get them immediately. These are the fixed geometric relationships: sensor mount positions on the chassis, camera extrinsics, and URDF joint positions for non-moving joints. Published by <code>robot_state_publisher</code> from the URDF.
+</div>
+<div class="meta-grid">
+    <div class="meta-cell mc-producer">
+        <div class="mc-label">Produced by</div>
+        <div class="mc-val"><b>robot_state_publisher</b> (from URDF), <b>static_transform_publisher</b> launch nodes (explicit extrinsics).</div>
+    </div>
+    <div class="meta-cell mc-consumer">
+        <div class="mc-label">Consumed by</div>
+        <div class="mc-val"><b>Everything</b> — same as <code>/tf</code>. Static frames are cached permanently by the TF listener.</div>
+    </div>
+    <div class="meta-cell mc-rviz">
+        <div class="mc-label">View in RViz2</div>
+        <div class="mc-val">Appears automatically in the <b>TF</b> display alongside dynamic frames. Static frames have a "static" tag in the frame details.</div>
+    </div>
+    <div class="meta-cell mc-foxglove">
+        <div class="mc-label">View in Foxglove</div>
+        <div class="mc-val">Same as <code>/tf</code> — appears in the 3D Panel sidebar under Transforms. Foxglove handles the Transient Local durability automatically.</div>
+    </div>
+    <div class="meta-cell mc-qos">
+        <div class="mc-label">QoS</div>
+        <div class="mc-val">Reliable · Transient Local · Keep Last · Depth 1</div>
+    </div>
+    <div class="meta-cell mc-chain">
+        <div class="mc-label">Source</div>
+        <div class="mc-val">
+            <b>URDF/xacro</b> <span class="chain-arrow">→</span> robot_state_publisher <span class="chain-arrow">→</span> <code>/tf_static</code>
+            <span class="chain-arrow">→</span> all nodes (cached permanently)
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- /robot_description -->
+<div class="card" id="robot-desc" data-cat="sys">
+<div class="card-head">
+    <div class="topic-name">/robot_description <span class="cat-chip cat-sys">system</span></div>
+    <div class="msg-type">std_msgs/String (URDF XML)</div>
+</div>
+<div class="card-body">
+    The complete <b>URDF XML</b> describing the robot's geometry — every link, joint, visual mesh, collision shape, and sensor mount. Published once by <code>robot_state_publisher</code> as a latched parameter/topic. RViz reads this to render the RobotModel display. This is the single source of truth for the robot's physical structure.
+</div>
+<div class="meta-grid">
+    <div class="meta-cell mc-producer">
+        <div class="mc-label">Produced by</div>
+        <div class="mc-val"><b>robot_state_publisher</b> — processes the xacro file (e.g. <code>urdf/go2.urdf.xacro</code> or <code>urdf/yahboom.urdf.xacro</code>) at launch, publishes the resulting XML.</div>
+    </div>
+    <div class="meta-cell mc-consumer">
+        <div class="mc-label">Consumed by</div>
+        <div class="mc-val">
+            <b>robot_state_publisher itself</b> — derives the static TF tree from the URDF joints<br>
+            <b>RViz RobotModel display</b> — renders the meshes<br>
+            <b>Nav2</b> — reads the robot footprint
+        </div>
+    </div>
+    <div class="meta-cell mc-rviz">
+        <div class="mc-label">View in RViz2</div>
+        <div class="mc-val">Add a <b>RobotModel</b> display → Description Topic: <code>/robot_description</code>. Reliability: Reliable, Durability: Transient Local. Renders the full robot mesh positioned by TF.</div>
+    </div>
+    <div class="meta-cell mc-foxglove">
+        <div class="mc-label">View in Foxglove</div>
+        <div class="mc-val"><b>3D Panel</b> automatically picks up <code>/robot_description</code> and renders the URDF. Toggle in the panel sidebar under "URDF." Also viewable as raw XML in a <b>Raw Messages Panel</b>.</div>
+    </div>
+    <div class="meta-cell mc-qos">
+        <div class="mc-label">QoS</div>
+        <div class="mc-val">Reliable · Transient Local · Keep Last · Depth 1</div>
+    </div>
+    <div class="meta-cell mc-chain">
+        <div class="mc-label">Source</div>
+        <div class="mc-val">
+            <b>xacro files</b> <span class="chain-arrow">→</span> xacro processor (launch time)
+            <span class="chain-arrow">→</span> robot_state_publisher
+            <span class="chain-arrow">→</span> <code>/robot_description</code> + <code>/tf_static</code>
+        </div>
+    </div>
+</div>
+</div>
+
+</div><!-- /cards -->
+
+</div><!-- /wrap -->
+
+<script>
+function scrollTo(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    el.style.borderColor = 'var(--brand-pink)';
+    el.style.boxShadow = '0 0 24px rgba(255, 61, 127, 0.2)';
+    setTimeout(() => {
+        el.style.borderColor = '';
+        el.style.boxShadow = '';
+    }, 2000);
+}
+
+// Category filtering
+const filterBar = document.getElementById('filter-bar');
+filterBar.addEventListener('change', () => {
+    const checked = new Set(
+        [...filterBar.querySelectorAll('input:checked')].map(cb => cb.value)
+    );
+    document.querySelectorAll('.card[data-cat], .group-title[data-cat]').forEach(el => {
+        const cat = el.dataset.cat;
+        el.style.display = checked.has(cat) ? '' : 'none';
+    });
+});
+</script>
+</body>
+</html>

@@ -159,6 +159,17 @@ h1 .sub {
     padding-top: 4px;
 }
 .ex-cost code { font-size: 12px; }
+.ex-observe {
+    color: #cbd5e1;
+    padding-top: 4px;
+    margin-top: 4px;
+    background: rgba(52, 211, 153, 0.07);
+    padding: 12px 14px;
+    border-radius: 4px;
+    border-left: 3px solid #34d399;
+}
+.ex-observe b { color: #34d399; }
+.ex-observe code { font-size: 12px; }
 .cost-chip {
     font-family: 'JetBrains Mono', monospace;
     font-size: 10px;
@@ -457,6 +468,7 @@ h1 .sub {
     <div class="slider-row"><label>z_max</label><input type="range" id="zband-max" min="0" max="2" step="0.01" value="0.45"><span class="val" id="zband-maxVal">0.45 m</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>ros2 topic echo /scan --field ranges</code> in the terminal, or visualize <code>/scan</code> as a LaserScan in Foxglove/RViz. Watch the ray count and hit pattern change as you move the Z band — rays that were hitting obstacles appear or disappear in real time. Compare against the raw 3D cloud on <code>/livox/lidar</code> to see which points survived the Z slice.</div>
     <div class="ex-what"><b>What changes:</b> which heights in the cloud become obstacles in <code>/scan</code>. Default 0.15–0.45 is "chair-leg height" on the rover.</div>
     <div class="ex-up">↑ <b>Raise z_min:</b> ignore floor speckle, low cables, the rover's own wheels.</div>
     <div class="ex-down">↓ <b>Raise z_max:</b> catch tabletops, low countertops, hanging cables. Too high and the ceiling fan joins your map.</div>
@@ -503,6 +515,7 @@ h1 .sub {
     <div class="slider-row"><label>range_max</label><input type="range" id="range-max" min="2" max="20" step="0.1" value="20.0"><span class="val" id="range-maxVal">20.0 m</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/scan</code> in Foxglove/RViz (LaserScan display). The inner dead zone and outer cutoff are visible as the gap between the rover and the closest ray, and the farthest visible ray respectively. Check <code>ros2 topic echo /scan --field range_min</code> and <code>range_max</code> to confirm the header values match your settings.</div>
     <div class="ex-what"><b>What changes:</b> outer ring shrinks → walls past the limit disappear from <code>/scan</code>; inner ring grows → blind disc around the rover.</div>
     <div class="ex-up">↑ <b>Raise range_min:</b> hide the rover's own bumper, antennas, or D435 housing returns.</div>
     <div class="ex-down">↓ <b>Lower range_max:</b> ignore noisy far hits in big rooms; can speed up scan-match at the cost of losing distant landmarks.</div>
@@ -547,6 +560,7 @@ h1 .sub {
     <div class="slider-row"><label>°/bin</label><input type="range" id="angres-d" min="0.5" max="30" step="0.5" value="0.5"><span class="val" id="angres-dVal">0.5°</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/scan</code> in Foxglove/RViz — count the visible ray lines; fewer rays = coarser scan. Run <code>ros2 topic echo /scan --once</code> and check the <code>ranges</code> array length for the exact ray count. Also watch <code>top</code> for slam_toolbox CPU load — it scales directly with ray count.</div>
     <div class="ex-what"><b>What changes:</b> how finely the 360° around the robot is sliced. Each bin reports one min-range value.</div>
     <div class="ex-up">↑ <b>Larger °/bin:</b> fewer rays, less CPU, but a chair leg can hide behind the wall behind it ("angular aliasing").</div>
     <div class="ex-down">↓ <b>Smaller °/bin:</b> crisp scans (you can resolve thin obstacles), more memory + scan-match work per frame.</div>
@@ -570,6 +584,46 @@ h1 .sub {
         <span class="device-tag">Unitree L1 ~0.5°</span>
       </div>
       <span class="test-step" style="margin-top:6px">Native 2D lidars (RPLidar, Neato, Unitree L1) have their own intrinsic <code>angle_increment</code> baked into the driver's LaserScan output — typically can't go finer than the hardware. For 3D-→-2D projected scans (Mid-360, Velodyne, Hesai), <code>pointcloud_to_laserscan</code> sets this independently of the 3D sensor's resolution.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Card 3b: use_inf / inf_epsilon -->
+<div class="card slim">
+  <div class="card-head">
+    <span class="paramName">use_inf · inf_epsilon</span>
+    <span class="paramFile">launch/slam_2d.launch.py:338–339</span>
+    <span class="paramDesc">What <code>pointcloud_to_laserscan</code> writes when a ray bin has no hit. <code>use_inf: true</code> → the bin gets <code>inf</code>; <code>false</code> → it gets <code>range_max</code>. <code>inf_epsilon</code> is subtracted from <code>range_max</code> in the <code>false</code> path so the value is distinguishable from a real max-range hit.</span>
+    <div class="modes">
+      <span class="mode-chip mode-always">2D · always</span>
+      <span class="mode-chip mode-mapping">mapping</span>
+      <span class="mode-chip mode-loc">localization</span>
+    </div>
+  </div>
+  <div class="card-controls">
+    <div class="toggle-row"><input type="checkbox" id="useinf-en" checked><label for="useinf-en">use_inf</label><span class="default-hint match">default: true</span></div>
+    <div class="slider-row"><label>inf_epsilon</label><input type="range" id="useinf-eps" min="0.1" max="5.0" step="0.1" value="1.0" data-unit=" m" data-precision="1"><span class="val" id="useinf-epsVal">1.0 m</span><span class="default-hint match">default: 1.0</span></div>
+  </div>
+  <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> Foxglove LaserScan panel on <code>/scan</code> — <code>inf</code> bins show as alternating black-and-magenta arcs with the warning "N Infinity invalid values detected." With <code>use_inf: false</code>, those bins draw as solid rays at <code>range_max - inf_epsilon</code> instead. <code>ros2 topic echo /scan --field ranges</code> shows literal <code>inf</code> values in the array.</div>
+    <div class="ex-what"><b>What changes:</b> how "no obstacle" is encoded in the <code>/scan</code> message. With <code>use_inf: true</code> (default), empty bins are <code>inf</code> — slam_toolbox and Nav2 skip them correctly per the LaserScan spec. With <code>false</code>, empty bins become <code>range_max - inf_epsilon</code> (19.0 m at defaults), which slam_toolbox treats as a real wall at that distance.</div>
+    <div class="ex-up">↑ <b>Keep <code>use_inf: true</code> (recommended):</b> slam_toolbox distinguishes "no return" from "hit at max range" and doesn't hallucinate distant walls. Foxglove shows a cosmetic warning about infinity values — safe to ignore or silence in the panel's settings ("Show invalid ranges" off).</div>
+    <div class="ex-down">↓ <b>Set <code>use_inf: false</code>:</b> Foxglove warning disappears, but every empty bin becomes a phantom wall at 19 m. In large rooms this fills the map with false far-wall returns. Useful only if a downstream node can't handle <code>inf</code> (rare — all standard ROS2 consumers do).</div>
+    <div class="ex-deps">🔗 <b>Depends on:</b> <code>range_max</code> (20.0 m) — the <code>false</code> path writes <code>range_max - inf_epsilon</code>. If you lower <code>range_max</code> to 10 m and keep <code>inf_epsilon: 1.0</code>, phantom walls appear at 9 m. <b>slam_toolbox</b> and <b>Nav2</b> both handle <code>inf</code> correctly — no downstream reason to disable it.</div>
+    <div class="ex-cost">⚡ <b>Compute cost:</b> <span class="cost-chip cost-none">none</span> A single conditional per ray — the comparison is free. No downstream cost difference between the two modes.</div>
+    <div class="ex-test">🎬 <b>Real-world test</b> <span class="test-range">toggle true / false</span>
+      <span class="test-step">Run <code>./start_slam_2d.sh</code> with defaults (<code>use_inf:=true</code>). Open Foxglove on <code>/scan</code>. Note the "N Infinity invalid values" warning and the magenta arcs.</span>
+      <span class="test-step">Re-launch with <code>use_inf:=false</code>. The warning disappears but new solid rays appear at ~19 m in every direction without an obstacle — those are phantom walls.</span>
+      <span class="test-step">Map a room with each setting. With <code>false</code>, the saved map will have faint "ghost walls" at 19 m in open directions. With <code>true</code>, the map stays clean.</span>
+      <span class="test-step">Confirm slam_toolbox handles both: <code>ros2 topic echo /scan --field ranges | grep inf</code> — present with <code>true</code>, absent with <code>false</code>.</span>
+    </div>
+    <div class="ex-cross">🔄 <b>Cross-device:</b> <code>use_inf</code> is a <code>pointcloud_to_laserscan</code> parameter, not sensor-specific. Applies identically to any 3D source (Velodyne, Hesai, D435 depth cloud) fed through the same node. Native 2D lidars (RPLidar, Neato) set their own convention in the driver — typically <code>inf</code> for no-return.
+      <div style="margin-top:4px">
+        <span class="device-tag">pointcloud_to_laserscan</span>
+        <span class="device-tag">RPLidar: driver inf</span>
+        <span class="device-tag">Neato: driver inf</span>
+        <span class="device-tag">Unitree L1: driver inf</span>
+      </div>
     </div>
   </div>
 </div>
@@ -599,6 +653,7 @@ h1 .sub {
     <div class="slider-row"><label>cell size</label><input type="range" id="mapres-v" min="0.01" max="0.25" step="0.005" value="0.05"><span class="val" id="mapres-vVal">0.050 m</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/map</code> topic in Foxglove/RViz (OccupancyGrid display). Zoom into a doorway edge — pixelation increases with larger cell size. After saving, inspect the <code>map.pgm</code> file size and pixel dimensions. Check Nav2 costmap resolution matches via <code>ros2 param get /local_costmap/local_costmap resolution</code>.</div>
     <div class="ex-what"><b>What changes:</b> each pixel in the saved <code>map.pgm</code> covers this much real-world space. Same cell size must be used by Nav2.</div>
     <div class="ex-up">↑ <b>Larger cell:</b> small map file, fast Nav2 raycasts. Doorway edges look chunky; thin obstacles vanish.</div>
     <div class="ex-down">↓ <b>Smaller cell:</b> crisp walls, narrow doorways resolvable. Map file balloons (quadratic), planner gets slower.</div>
@@ -628,6 +683,7 @@ h1 .sub {
     <div class="slider-row"><label>distance</label><input type="range" id="keyspace-v" min="0.05" max="2.0" step="0.05" value="0.1"><span class="val" id="keyspace-vVal">0.10 m</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/slam_toolbox/graph_visualization</code> in RViz (MarkerArray) shows keyframe dots along the trajectory. Denser dots = more keyframes. Compare the dot spacing while driving at constant speed.</div>
     <div class="ex-what"><b>What changes:</b> spacing of red keyframe dots along the trajectory. Each keyframe is a scan that gets stored in the pose graph.</div>
     <div class="ex-up">↑ <b>Larger distance:</b> sparse graph, fast optimizer. Loop closures may miss because the robot moved past a feature without recording it.</div>
     <div class="ex-down">↓ <b>Smaller distance:</b> dense graph, optimizer slower, but more chances for loop closure and smoother trajectory.</div>
@@ -660,6 +716,7 @@ h1 .sub {
     <div class="slider-row"><label>max dist</label><input type="range" id="loop-d" min="0.5" max="10" step="0.1" value="3.0"><span class="val" id="loop-dVal">3.0 m</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/slam_toolbox/graph_visualization</code> in RViz — loop closure links appear as green lines between distant keyframes. When a closure fires, the trajectory snaps and <code>/map</code> visibly jumps. Watch the slam_toolbox terminal for "Loop Closed!" messages.</div>
     <div class="ex-what"><b>What changes:</b> green links between far-apart keyframes that close drift loops. Bigger radius catches more, but risks false matches.</div>
     <div class="ex-up">↑ <b>Larger distance:</b> catches drifted loops in big rooms — but a self-similar corridor can produce a wrong closure that warps the map.</div>
     <div class="ex-down">↓ <b>Disable / shrink:</b> map won't "snap" back together on re-visit; drift accumulates. Useful for debugging when wrong closures are warping the map.</div>
@@ -688,6 +745,7 @@ h1 .sub {
     <div class="slider-row"><label>heading (rad)</label><input type="range" id="mth-v" min="0.02" max="1.0" step="0.01" value="0.1" data-unit=" rad" data-precision="2"><span class="val" id="mth-vVal">0.10 rad</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/slam_toolbox/graph_visualization</code> in RViz — count keyframe dots during a pure spin-in-place test. <code>ros2 topic hz /slam_toolbox/update</code> shows the effective keyframe insertion rate.</div>
     <div class="ex-what"><b>What changes:</b> when slam_toolbox stops accepting scans without recording them. Default <code>0.2 s / 0.1 rad</code> ≈ keyframes every ~5 Hz max while moving.</div>
     <div class="ex-up">↑ <b>Larger time:</b> cheaper optimizer, fewer redundant keyframes when crawling slowly. Past 1.0 s on a moving rover and you risk missing turns.</div>
     <div class="ex-down">↓ <b>Smaller heading:</b> sensitive to pure rotation — useful for in-place surveys. Past 0.02 rad you'll get keyframes from rover wobble.</div>
@@ -714,6 +772,7 @@ h1 .sub {
     <div class="slider-row"><label>buf_size</label><input type="range" id="sbs-v" min="2" max="30" step="1" value="10" data-unit="" data-precision="0"><span class="val" id="sbs-vVal">10</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/map</code> in Foxglove/RViz — a warped or smeary map indicates too-low resp_fine (accepting bad matches). Watch slam_toolbox terminal for match-quality log lines. Pose jumps on <code>/tf</code> (map→odom discontinuities) indicate match failures.</div>
     <div class="ex-what"><b>What changes:</b> how strict slam_toolbox is about accepting scan-to-graph matches (lower threshold = more matches but more false ones), how far it searches, and how much scan history is queryable.</div>
     <div class="ex-up">↑ <b>resp_fine 0.3:</b> only accept very confident matches; map sharpens but loop closures are rarer. <b>scan_dist 3:</b> match against farther keyframes — slower but catches more.</div>
     <div class="ex-down">↓ <b>resp_fine 0.05:</b> accept marginal matches; the map can warp in featureless rooms. <b>buf_size 3:</b> tiny memory footprint but no quick re-matches.</div>
@@ -740,6 +799,7 @@ h1 .sub {
     <div class="slider-row"><label>chain_size</label><input type="range" id="lcs-v" min="2" max="30" step="1" value="10" data-unit="" data-precision="0"><span class="val" id="lcs-vVal">10</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> slam_toolbox console output for loop closure acceptance/rejection messages. <code>/slam_toolbox/graph_visualization</code> in RViz shows closure links. A false closure warps the map — visible as walls bending in <code>/map</code>.</div>
     <div class="ex-what"><b>What changes:</b> how confident slam_toolbox must be before declaring "I'm back where I was." Lower thresholds catch more closures (good) but also produce false ones (bad — map warps).</div>
     <div class="ex-up">↑ <b>Higher resp_*</b>: fewer but more reliable closures. Safer in self-similar environments (corridors, warehouses with identical aisles).</div>
     <div class="ex-down">↓ <b>Lower resp_*</b>: aggressive closure detection — necessary in feature-rich rooms but dangerous in repetitive ones.</div>
@@ -766,6 +826,7 @@ h1 .sub {
     <div class="slider-row"><label>smear_dev</label><input type="range" id="css-v" min="0.01" max="0.5" step="0.01" value="0.1" data-unit=" m" data-precision="2"><span class="val" id="css-vVal">0.10 m</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> slam_toolbox console for match failures ("Failed to process scan!"). <code>/tf</code> (map→odom) jumps indicate the search box was too small to find the new pose. <code>top</code> shows CPU spike if resolution is too fine.</div>
     <div class="ex-what"><b>What changes:</b> the local scan-to-graph match's working space. Larger dimension = bigger search box; finer resolution = more accurate match; smear smooths the rasterized scan for matching robustness.</div>
     <div class="ex-up">↑ <b>Larger dimension</b> (1.0–2.0 m): tolerates large odometry errors — useful with mecanum slip. <b>Larger smear:</b> robust to scan noise.</div>
     <div class="ex-down">↓ <b>Finer resolution</b> (0.005 m): more accurate match but cells grow as 1/r² — at 0.005 m and 1 m dim = 40k cells per scan. Past sensible point on Jetson.</div>
@@ -791,6 +852,7 @@ h1 .sub {
     <div class="slider-row"><label>smear_dev</label><input type="range" id="lss-v" min="0.01" max="0.2" step="0.005" value="0.03" data-unit=" m" data-precision="3"><span class="val" id="lss-vVal">0.030 m</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> slam_toolbox console for loop-closure timing. <code>top</code> for CPU spikes during loop-candidate evaluation. <code>/slam_toolbox/graph_visualization</code> in RViz for closure links.</div>
     <div class="ex-what"><b>What changes:</b> the rasterized scan grid used to evaluate loop closure candidates. Bigger grid + coarser resolution makes individual candidate evaluation cheap.</div>
     <div class="ex-up">↑ <b>Larger dimension</b> for big spaces (warehouses). <b>Coarser resolution</b> if optimizer falls behind.</div>
     <div class="ex-down">↓ <b>Finer resolution</b> for higher-quality loop matches. <b>Smaller dimension</b> in small rooms (saves memory).</div>
@@ -817,6 +879,7 @@ h1 .sub {
     <div class="slider-row"><label>min_angle</label><input type="range" id="map-v" min="0.1" max="3.0" step="0.05" value="0.9" data-unit="" data-precision="2"><span class="val" id="map-vVal">0.90</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/map</code> in Foxglove/RViz — persistent skew in wall angles or diagonal errors in a known room indicates penalty imbalance. Drive a known square and measure the map diagonal. These are rarely-tuned deep parameters.</div>
     <div class="ex-what"><b>What changes:</b> how the optimizer weighs different error sources during graph optimization. Higher = "this kind of error is expensive, trust the input more."</div>
     <div class="ex-up">↑ <b>Higher angle_var:</b> optimizer assumes the rover's yaw odometry is precise — good with a calibrated IMU, bad with mecanum slip.</div>
     <div class="ex-down">↓ <b>Lower dist_var:</b> trust scan matches over odometry — useful with bad wheel odometry (mecanum is your case).</div>
@@ -843,6 +906,7 @@ h1 .sub {
     <div class="slider-row"><label>buf_duration</label><input type="range" id="tbd-v" min="5" max="120" step="5" value="30" data-unit=" s" data-precision="0"><span class="val" id="tbd-vVal">30 s</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>ros2 topic hz /tf</code> to confirm the map→odom rate matches 1/tf_period. <code>ros2 topic hz /map</code> to confirm the map publish rate matches 1/map_update_interval. Foxglove map panel refresh — visible stuttering at slow update rates.</div>
     <div class="ex-what"><b>What changes:</b> <code>tf_period 0.05 s</code> = 20 Hz map→odom (smooth visualization). <code>map_update 1 s</code> = /map redraws once per second (Foxglove map refresh rate).</div>
     <div class="ex-up">↑ <b>Slower tf_period</b> (0.2 s = 5 Hz) saves CPU but visualization stutters. <b>Larger map_update</b> (5 s): less frequent map publishes; Foxglove sees a stale map but CPU drops.</div>
     <div class="ex-down">↓ <b>Faster tf_period</b> (0.02 s = 50 Hz): Nav2 controller sees fresher pose; useful for fast-moving rovers.</div>
@@ -868,6 +932,7 @@ h1 .sub {
     <div class="slider-row"><label>max_range</label><input type="range" id="mlr-v" min="2" max="40" step="0.5" value="20" data-unit=" m" data-precision="1"><span class="val" id="mlr-vVal">20.0 m</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/map</code> extent in Foxglove/RViz — distant walls disappear when the value is below their distance. <code>/scan</code> still shows far hits (max_laser_range filters inside slam_toolbox, not in the scan).</div>
     <div class="ex-what"><b>What changes:</b> the maximum scan range slam_toolbox uses for the graph and the occupancy grid. Far returns past this are silently dropped.</div>
     <div class="ex-up">↑ <b>Higher (25 m+):</b> long corridors visible in the map. Pairs with raising <code>scan_range_max</code>.</div>
     <div class="ex-down">↓ <b>Lower (5–10 m):</b> faster matching, less noisy in large rooms. Pairs with dropping <code>scan_range_max</code>.</div>
@@ -932,6 +997,7 @@ h1 .sub {
     </tr>
   </table>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/local_costmap/costmap</code> in Foxglove/RViz (costmap display with color scheme) shows the lethal + inflation rings. <code>/scan</code> shows which points survived range_min. <code>/plan</code> shows how the planned path threads between obstacles. Overlay all three to see the ring hierarchy.</div>
     <div class="ex-what"><b>Watch as you slide:</b> the yellow dashed ring (range_min) discards returns near the rover before they enter the map; the cyan solid ring (robot_radius) is a hard wall the path can't cross; the red gradient (inflation) bends the path toward open space without forbidding closer cells.</div>
     <div class="ex-deps">🔗 <b>They stack, they don't replace each other:</b> a sensor return survives <code>range_min</code> → it becomes an obstacle cell in the costmap → that cell gets a lethal ring of width <code>robot_radius</code> → which then gets an inflation gradient of width <code>inflation_radius</code> on top. So the total "no-go" distance from a true obstacle is <code>robot_radius + inflation_radius</code> (with the inner part hard-forbidden and the outer part soft-penalized).</div>
   </div>
@@ -954,6 +1020,7 @@ h1 .sub {
     <div class="slider-row"><label>radius</label><input type="range" id="robotr-v" min="0.05" max="0.5" step="0.005" value="0.18"><span class="val" id="robotr-vVal">0.18 m</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/local_costmap/costmap</code> in Foxglove/RViz — the LETHAL (value 254) cells around each obstacle form a ring equal to robot_radius. <code>/plan</code> (Nav2 global path) refuses to enter the lethal zone. <code>ros2 param get /local_costmap/local_costmap robot_radius</code> confirms the live value.</div>
     <div class="ex-what"><b>What changes:</b> cyan circle around the rover. Any cell whose center is inside this radius of an obstacle is FORBIDDEN.</div>
     <div class="ex-up">↑ <b>Too large:</b> planner refuses narrow doorways even when you'd fit. Yahboom mecanum is 0.32 m diameter → 0.18 m bounding circle is honest.</div>
     <div class="ex-down">↓ <b>Too small:</b> Nav2 plans you into walls. Don't shrink below the real bumper.</div>
@@ -987,6 +1054,7 @@ h1 .sub {
     <div class="slider-row"><label>scaling</label><input type="range" id="infl-k" min="0.5" max="10" step="0.1" value="3.0"><span class="val" id="infl-kVal">3.0</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/local_costmap/costmap</code> in Foxglove/RViz with gradient coloring — the inflation gradient is visible as a color halo around obstacles. <code>/plan</code> bends toward corridor centers when inflation is wide. Also check <code>/global_costmap/costmap</code> to confirm both costmaps match.</div>
     <div class="ex-what"><b>What changes:</b> cost gradient color around the obstacle. Bright = expensive (planner avoids); dark = cheap.</div>
     <div class="ex-up">↑ <b>Larger radius:</b> paths hug the middle of free space — safer, but doorways narrower than 2× radius become impassable.</div>
     <div class="ex-down">↓ <b>Higher scaling:</b> gradient falls off fast, so distant cells stay cheap and the planner only avoids close obstacles. Good for tight indoor maps; bad for dynamic obstacles.</div>
@@ -1021,6 +1089,7 @@ h1 .sub {
     <div class="slider-row"><label>raytrace</label><input type="range" id="pers-rt" min="1" max="20" step="0.5" value="15"><span class="val" id="pers-rtVal">15.0 m</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/local_costmap/costmap</code> in Foxglove/RViz — watch obstacle cells appear (marking) and disappear (raytracing) as a person walks past. Stale phantom cells remain after the person leaves. Enable the <code>/local_costmap/clearing_endpoints</code> marker to see raytrace endpoints.</div>
     <div class="ex-what"><b>What changes:</b> scrub <b>time</b> to walk a person across the room. Red blocks = obstacle cells currently in the costmap. Faded red = lingering cells (kept alive by <code>observation_persistence</code>). Green raytrace lines = the ray clearing path on the current scan.</div>
     <div class="ex-up">↑ <b>Raise observation_persistence:</b> stale cells stick around longer. Useful for slow-moving objects (a paused person you don't want to drive into), bad for actually-gone obstacles (a closed door now open).</div>
     <div class="ex-down">↓ <b>Default 0.0 s</b> = instant clearing the moment a ray passes through the cell. The rover reacts the fastest, but a brief sensor dropout can flicker obstacles in and out.</div>
@@ -1054,6 +1123,7 @@ h1 .sub {
     <div class="slider-row"><label>yaw_tol</label><input type="range" id="goal-yaw" min="0.05" max="1.5" step="0.01" value="0.40"><span class="val" id="goal-yawVal">0.40 rad</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> Nav2 action feedback on <code>/navigate_to_pose/_action/feedback</code> shows distance_remaining. Terminal output from Nav2 logs "Goal succeeded" or "Goal failed." Watch the rover physically — oscillation at the goal means yaw tolerance is too tight for mecanum.</div>
     <div class="ex-what"><b>What changes:</b> yellow disc = xy acceptance; yellow arc = yaw acceptance. Goal succeeds when the rover pose is inside both.</div>
     <div class="ex-up">↑ <b>Looser xy:</b> rover stops earlier — fine for "go-near" tasks. Too loose and it doesn't reach the docking pose.</div>
     <div class="ex-down">↓ <b>Tighter yaw on mecanum:</b> pure-rotation yaw is physically hard at goal; below ~0.30 rad the rover oscillates forever (see memory: <code>project_mecanum_yaw_stall</code>).</div>
@@ -1086,6 +1156,7 @@ h1 .sub {
     <div class="slider-row"><label>vθ</label><input type="range" id="vel-th" min="0.0" max="3.0" step="0.05" value="1.5"><span class="val" id="vel-thVal">1.50 rad/s</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/cmd_vel</code> in Foxglove/RViz — the commanded velocity should not exceed these limits. <code>ros2 topic echo /cmd_vel</code> to confirm saturation. Watch the rover physically — faster max_vel means brisker moves but harder braking.</div>
     <div class="ex-what"><b>What changes:</b> length of the green velocity arrow and the curvature it can drive in one control cycle.</div>
     <div class="ex-up">↑ <b>Higher vx:</b> rover covers ground faster, but odom drift per second grows. Mecanum slip scales with speed.</div>
     <div class="ex-down">↓ <b>Lower vθ:</b> smoother yaw, less impulse. Too low and the rover can't yaw quickly enough to track curving paths.</div>
@@ -1113,6 +1184,7 @@ h1 .sub {
     <div class="slider-row"><label>Hz</label><input type="range" id="cfreq-v" min="5" max="50" step="1" value="20" data-unit=" Hz" data-precision="0"><span class="val" id="cfreq-vVal">20 Hz</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>ros2 topic hz /cmd_vel</code> should match the controller frequency. <code>top</code> for controller_server CPU load. Foxglove topic frequency graph for <code>/cmd_vel</code>.</div>
     <div class="ex-what"><b>What changes:</b> control loop rate. At 20 Hz, the controller re-samples 1600 trajectories every 50 ms.</div>
     <div class="ex-up">↑ <b>30–50 Hz:</b> tighter control of fast rovers; reaction to costmap changes within ~30 ms. Doesn't help if the costmap publishes at only 5 Hz.</div>
     <div class="ex-down">↓ <b>5–10 Hz:</b> saves CPU; rover oscillates around path because corrections come too slowly.</div>
@@ -1140,6 +1212,7 @@ h1 .sub {
     <div class="slider-row"><label>sim_time</label><input type="range" id="stm-v" min="0.5" max="4.0" step="0.1" value="1.7" data-unit=" s" data-precision="1"><span class="val" id="stm-vVal">1.7 s</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/local_plan</code> in Foxglove/RViz shows the DWB trajectories sampled. <code>top</code> for controller_server CPU — sample count scales cost directly. Watch for jerky motion when samples are too few.</div>
     <div class="ex-what"><b>What changes:</b> total trajectories = vx × vy × vθ = 20 × 10 × 8 = 1600 (default). sim_time = how far each trajectory is rolled out (1.7 s = ~34 steps at 20 Hz).</div>
     <div class="ex-up">↑ <b>vy_samples = 20</b>: finer mecanum strafe planning. <b>sim_time 3 s</b>: rover plans further ahead, smoother in long corridors but slower to react.</div>
     <div class="ex-down">↓ <b>vy_samples = 1</b> for non-mecanum platforms (saves 90% CPU). <b>sim_time 0.7 s</b>: tight reactive control; bad in winding paths.</div>
@@ -1166,6 +1239,7 @@ h1 .sub {
     <div class="slider-row"><label>acc_theta</label><input type="range" id="alt-v" min="0.5" max="10.0" step="0.1" value="5.0" data-unit=" rad/s²" data-precision="1"><span class="val" id="alt-vVal">5.0 rad/s²</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/cmd_vel</code> in Foxglove — plot linear.x over time to see the acceleration ramp. Physical wheel slip when acc_lim is too high. Listen for motor whine during hard starts.</div>
     <div class="ex-what"><b>What changes:</b> the slope of the velocity ramp. From rest, time-to-max-vel = max_vel / acc_lim. Default: 0.5 m/s ÷ 2.5 m/s² = 0.2 s to max.</div>
     <div class="ex-up">↑ <b>Higher (5 m/s²):</b> snappy start, but mecanum slip + IMU saturation likely. <b>acc_theta 10:</b> sudden yaw whip, IMU may temporarily desaturate the EKF.</div>
     <div class="ex-down">↓ <b>Lower (0.5 m/s²):</b> smooth, predictable motion; the rover takes a full second to reach cruise speed. <b>Pairs with sim_time:</b> if sim_time × acc_lim < max_vel, the rover can never reach max_vel in a single planning horizon.</div>
@@ -1195,6 +1269,7 @@ h1 .sub {
     <div class="slider-row"><label>RotateToGoal</label><input type="range" id="rts-v" min="0" max="64" step="1" value="32" data-unit="" data-precision="0"><span class="val" id="rts-vVal">32</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/local_plan</code> in Foxglove/RViz — path shape changes as critic weights shift. <code>/cmd_vel</code> angular.z during final approach shows RotateToGoal dominance. Nav2 debug logs at DEBUG level show per-critic scores.</div>
     <div class="ex-what"><b>What changes:</b> <b>PathAlign</b> = hug the planned path's headings; <b>PathDist</b> = stay close to the path geometrically; <b>GoalAlign</b> = face the goal; <b>GoalDist</b> = head toward the goal; <b>BaseObstacle</b> = stay clear of obstacles; <b>RotateToGoal</b> = final yaw alignment.</div>
     <div class="ex-up">↑ <b>BaseObstacle to 0.2:</b> rover hugs centerline obsessively, may refuse narrow paths. <b>GoalDist to 50:</b> rover prioritizes reaching the goal over following the planner's path (cuts corners aggressively).</div>
     <div class="ex-down">↓ <b>PathAlign to 5:</b> rover ignores planner's preferred orientation; useful with omnidirectional mecanum that can strafe.</div>
@@ -1221,6 +1296,7 @@ h1 .sub {
     <div class="slider-row"><label>fwd_pt_dist</label><input type="range" id="fpd-v" min="0.05" max="1.0" step="0.05" value="0.1" data-unit=" m" data-precision="2"><span class="val" id="fpd-vVal">0.10 m</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/cmd_vel</code> angular.z during final approach — slowing_factor makes the rotation gentler near the goal heading. <code>/local_plan</code> forward point position shifts with forward_point_distance. Overshoot/oscillation at goal indicates these need tuning.</div>
     <div class="ex-what"><b>What changes:</b> the final-approach yaw alignment behavior. Affects whether the rover overshoots the goal pose or undershoots.</div>
     <div class="ex-up">↑ <b>slowing_factor 5–8:</b> hard brake near goal; rover stops fast at the cost of overshoot. <b>lookahead_time 2.0:</b> anticipates yaw further, smoother on mecanum.</div>
     <div class="ex-down">↓ <b>slowing_factor 1.0:</b> gentle approach, may cruise past goal before yawing. <b>lookahead_time -1.0:</b> disable yaw lookahead (used in 3D config).</div>
@@ -1248,6 +1324,7 @@ h1 .sub {
     <div class="slider-row"><label>global_pub</label><input type="range" id="gcp-v" min="0.2" max="10" step="0.1" value="1.0" data-unit=" Hz" data-precision="1"><span class="val" id="gcp-vVal">1.0 Hz</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>ros2 topic hz /local_costmap/costmap</code> and <code>/global_costmap/costmap</code> match the publish frequencies. <code>top</code> for costmap node CPU. Foxglove costmap display responsiveness — stale costmap at low publish rates.</div>
     <div class="ex-what"><b>What changes:</b> reactivity vs CPU. Local costmap defaults 5 Hz update, 2 Hz publish (rover reacts to obstacles within 200 ms). Global is slower (1 Hz) since it's mostly a static map.</div>
     <div class="ex-up">↑ <b>local 20 Hz:</b> reacts to dynamic obstacles within 50 ms. <b>publish_freq = update_freq:</b> Foxglove updates fast but bandwidth + CPU spike.</div>
     <div class="ex-down">↓ <b>local 1 Hz:</b> rover may collide with fast-moving obstacles (person walking). <b>global 0.2 Hz:</b> saves CPU but planner can stall while waiting for fresh global.</div>
@@ -1274,6 +1351,7 @@ h1 .sub {
     <div class="toggle-row"><input type="checkbox" id="lcrw-v" checked><label for="lcrw-v">rolling_window</label></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/local_costmap/costmap</code> in Foxglove/RViz — the visible costmap extent shrinks/grows with width/height. Obstacles beyond the window edge are invisible to the local planner. <code>ros2 param get /local_costmap/local_costmap width</code> to confirm.</div>
     <div class="ex-what"><b>What changes:</b> size of the local-planning "bubble" around the rover. Cells = (width × height) / resolution² = (6 × 6)/0.05² = 14400 cells at default.</div>
     <div class="ex-up">↑ <b>10 m:</b> rover sees obstacles farther — useful at higher speeds. <b>20 m:</b> overkill, costmap CPU quadruples.</div>
     <div class="ex-down">↓ <b>3 m:</b> tight bubble, rover misses obstacles at sensor range. <b>rolling_window: false</b> = fixed costmap at launch origin (don't do this; will run off-grid).</div>
@@ -1298,6 +1376,7 @@ h1 .sub {
     <div class="slider-row"><label>max_height</label><input type="range" id="moh-v" min="0.1" max="3.0" step="0.05" value="0.5" data-unit=" m" data-precision="2"><span class="val" id="moh-vVal">0.50 m</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/local_costmap/costmap</code> in Foxglove/RViz — tall objects above max_obstacle_height disappear from the costmap. Compare against <code>/scan</code> or <code>/livox/lidar</code> to see which points were filtered out.</div>
     <div class="ex-what"><b>What changes:</b> Z ceiling for the costmap obstacle layer. Should match the upstream Z slice's upper bound.</div>
     <div class="ex-up">↑ <b>Higher than scan_z_max:</b> wastes CPU (filters nothing the scan stage already filtered). Set just above scan_z_max.</div>
     <div class="ex-down">↓ <b>Lower than scan_z_max:</b> drops valid obstacle returns. The YAML comment warns: "Set lower silently drops legit obstacles."</div>
@@ -1323,6 +1402,7 @@ h1 .sub {
     <div class="toggle-row"><input type="checkbox" id="alu-v" checked><label for="alu-v">allow_unknown</label></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/plan</code> (global path) in Foxglove/RViz — A* vs Dijkstra paths differ at similar-cost branches. Nav2 "No valid path" errors when tolerance is too tight or unknown cells block the goal.</div>
     <div class="ex-what"><b>What changes:</b> <code>tolerance</code> lets the planner accept a plan that lands within X meters of the requested goal (useful if goal is inside an obstacle). <code>use_astar</code> = faster but slightly less optimal. <code>allow_unknown</code> = explore-as-you-go.</div>
     <div class="ex-up">↑ <b>tolerance 1.5 m:</b> useful when goals come from sloppy human input. <b>use_astar: true</b>: faster planning in big maps.</div>
     <div class="ex-down">↓ <b>tolerance 0.1 m:</b> strict goal acceptance. <b>allow_unknown: false</b>: rover refuses to enter unmapped territory (safer in autonomous exploration).</div>
@@ -1348,6 +1428,7 @@ h1 .sub {
     <div class="toggle-row"><input type="checkbox" id="smd-v"><label for="smd-v">do_refinement</label></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/plan</code> (global path) in Foxglove/RViz — smoothed paths have rounder corners. Compare with and without do_refinement enabled. Nav2 logs show smoother iteration count.</div>
     <div class="ex-what"><b>What changes:</b> how tightly the smoother converges. Tighter tolerance + more iterations = smoother path, more CPU.</div>
     <div class="ex-up">↑ <b>do_refinement: true</b>: extra pass over the smoothed path for extra polish.</div>
     <div class="ex-down">↓ <b>max_its 100:</b> faster smoothing, path may have visible kinks.</div>
@@ -1373,6 +1454,7 @@ h1 .sub {
     <div class="slider-row"><label>max_rot_vel</label><input type="range" id="bmr-v" min="0.2" max="3.0" step="0.1" value="1.5" data-unit=" rad/s" data-precision="1"><span class="val" id="bmr-vVal">1.5 rad/s</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> Nav2 recovery behavior activation visible in the terminal as "Executing recovery: spin/backup." Watch the rover physically spin or back up. <code>/cmd_vel</code> during recovery shows the backup/spin velocity commands.</div>
     <div class="ex-what"><b>What changes:</b> recovery behaviors' speed and lookahead. <code>simulate_ahead_time</code> = how far to predict collision before executing each step of the recovery.</div>
     <div class="ex-up">↑ <b>simulate_ahead_time 5 s:</b> conservative recovery; aborts if a long backup would clip a wall. <b>max_rot_vel 3.0:</b> aggressive spin recovery.</div>
     <div class="ex-down">↓ <b>simulate_ahead 0.5:</b> recovery is fast but may collide. <b>max_rot_vel 0.4:</b> gentle spin; takes longer to clear stuck state.</div>
@@ -1397,6 +1479,7 @@ h1 .sub {
     <div class="slider-row"><label>velocity_to</label><input type="range" id="vto-v" min="0.1" max="5.0" step="0.1" value="1.0" data-unit=" s" data-precision="1"><span class="val" id="vto-vVal">1.0 s</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/cmd_vel_smoothed</code> (output of the smoother) vs <code>/cmd_vel_nav</code> (input from Nav2) in Foxglove — overlay both to see the smoothing effect. Plot velocity over time to see ramp-up/ramp-down profiles.</div>
     <div class="ex-what"><b>What changes:</b> output rate of <code>/cmd_vel</code> and how the smoother handles dropped DWB outputs.</div>
     <div class="ex-up">↑ <b>smooth_Hz 50:</b> very smooth velocity; rover responds to changes within 20 ms. <b>velocity_timeout 5 s:</b> rover keeps driving for 5 s after last command (DANGEROUS — only for testing).</div>
     <div class="ex-down">↓ <b>velocity_timeout 0.2 s:</b> rover stops cleanly within 200 ms of any command interruption.</div>
@@ -1421,6 +1504,7 @@ h1 .sub {
     <div class="slider-row"><label>srv_to</label><input type="range" id="dsto-v" min="1" max="60" step="1" value="20" data-unit=" s" data-precision="0"><span class="val" id="dsto-vVal">20 s</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> Nav2 terminal output — "Timed out waiting for service" errors indicate timeout too short. BT loop duration visible in <code>ros2 topic hz /behavior_tree_log</code>. Slow BT loop = sluggish Nav2 reactions.</div>
     <div class="ex-what"><b>What changes:</b> how often the BT re-evaluates conditions (running 100 Hz at 10 ms) and how patient it is with slow action servers.</div>
     <div class="ex-up">↑ <b>bt_loop 50 ms:</b> 20 Hz tick — saves CPU but BT reacts slower to fresh conditions. <b>srv_timeout 60 s:</b> very patient; useful in low-CPU environments.</div>
     <div class="ex-down">↓ <b>bt_loop 1 ms:</b> 1000 Hz tick — wasteful. <b>srv_timeout 2 s:</b> aggressive, may abort goals during temporary stalls.</div>
@@ -1446,6 +1530,7 @@ h1 .sub {
     <div class="slider-row"><label>time_allow</label><input type="range" id="mta-v" min="2" max="60" step="1" value="25" data-unit=" s" data-precision="0"><span class="val" id="mta-vVal">25 s</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> Nav2 terminal "Robot is not making progress" triggers recovery when the rover fails to move required_movement_radius within movement_time_allowance. Watch the rover physically — stalling at a narrow passage triggers this.</div>
     <div class="ex-what"><b>What changes:</b> patience for stuck rovers. If rover hasn't moved <code>radius</code> meters OR rotated <code>angle</code> radians in <code>time_allow</code> seconds, the BT triggers recovery.</div>
     <div class="ex-up">↑ <b>radius 1.0 m:</b> harder to satisfy — rover declared stuck more often. <b>time_allow 60 s:</b> patient with slow yaw-at-goal.</div>
     <div class="ex-down">↓ <b>radius 0.05 m:</b> very loose check; rover that wiggles a tiny bit counts as "progressing." <b>time_allow 5 s:</b> aggressive abort.</div>
@@ -1472,6 +1557,7 @@ h1 .sub {
     <div class="slider-row"><label>fail_tol</label><input type="range" id="ft-v" min="0.05" max="5.0" step="0.05" value="0.3" data-unit=" s" data-precision="2"><span class="val" id="ft-vVal">0.30 s</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/cmd_vel</code> — values below the threshold get zeroed (dead-band). Watch the rover for creeping motion at very low velocities. Nav2 failure count visible in action feedback.</div>
     <div class="ex-what"><b>What changes:</b> velocity deadband (commands below are zero); stopped-velocity check; failure ride-out window.</div>
     <div class="ex-up">↑ <b>min_th_vel 0.2:</b> ignores tiny yaw commands — useful with noisy mecanum yaw, but causes coarse final alignment.</div>
     <div class="ex-down">↓ <b>min_th_vel 0.001:</b> hyper-sensitive yaw — every wiggle becomes a motor command (motor whine).</div>
@@ -1496,6 +1582,7 @@ h1 .sub {
     <div class="slider-row"><label>pause_dur</label><input type="range" id="wpd-v" min="0" max="10000" step="50" value="200" data-unit=" ms" data-precision="0"><span class="val" id="wpd-vVal">200 ms</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/waypoint_follower/_action/feedback</code> shows current waypoint index. Watch the rover pause between waypoints — duration matches waypoint_pause_duration. <code>ros2 topic hz /cmd_vel</code> during waypoint following.</div>
     <div class="ex-what"><b>What changes:</b> ticking rate of waypoint follower and how long the rover dwells at each waypoint.</div>
     <div class="ex-up">↑ <b>pause 5000 ms:</b> rover pauses 5 s at each waypoint — useful for photo capture, inspection routines.</div>
     <div class="ex-down">↓ <b>pause 0 ms:</b> seamless transition to next waypoint. Good for patrol paths.</div>
@@ -1531,6 +1618,7 @@ h1 .sub {
     <div class="slider-row"><label>blind</label><input type="range" id="blind-v" min="0.05" max="2.0" step="0.01" value="0.5"><span class="val" id="blind-vVal">0.50 m</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/cloud_registered</code> in Foxglove/RViz (PointCloud2) — the blind zone appears as a gap around the sensor origin. <code>/livox/lidar</code> (raw cloud) still contains near-range points; compare to see what blind filtered. Phantom obstacles glued to the rover that move with it are self-hits leaking through.</div>
     <div class="ex-what"><b>What changes:</b> dashed circle around the sensor. Returns inside the circle are dropped before ICP sees them.</div>
     <div class="ex-up">↑ <b>Larger blind:</b> filters more fixture self-hits (the 2040 frame, battery, buck converter at 0.2–0.5 m). Too large and you lose nearby obstacle info.</div>
     <div class="ex-down">↓ <b>Smaller blind:</b> sees obstacles closer to the rover, but self-hits become "phantom" obstacles glued to the rover that drag the map.</div>
@@ -1572,6 +1660,7 @@ h1 .sub {
     <div class="slider-row"><label>voxel</label><input type="range" id="voxel-v" min="0.05" max="1.0" step="0.01" value="0.3"><span class="val" id="voxel-vVal">0.30 m</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/cloud_registered</code> in Foxglove/RViz — point density drops visibly with larger voxels. <code>top</code> for fastlio_mapping CPU%. <code>ros2 topic hz /Odometry</code> — drops below 10 Hz when ICP is overloaded. FAST-LIO console for "No Effective Points!" warnings.</div>
     <div class="ex-what"><b>What changes:</b> grid overlay. The white dot in each cell is the one point that survives downsampling.</div>
     <div class="ex-up">↑ <b>Larger voxel:</b> few points → fast ICP. Past ~0.6 m the Mid-360's already-sparse cloud loses correspondences ("No Effective Points!" then drift).</div>
     <div class="ex-down">↓ <b>Smaller voxel:</b> more points, ICP can lock to fine features, but map memory grows fast and the Jetson Orin Nano slows.</div>
@@ -1615,6 +1704,7 @@ h1 .sub {
     <div class="slider-row"><label>gyr_cov</label><input type="range" id="imu-g" min="0.01" max="2.0" step="0.01" value="0.1"><span class="val" id="imu-gVal">0.10</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/Odometry</code> trajectory in Foxglove — jitter and lag visible during brisk turns. Plot <code>/Odometry</code> position over time and compare to <code>/imu/data</code> to see IMU prediction vs ICP correction. Smooth trajectory = good balance; jittery = too-high covariance; laggy = too-low.</div>
     <div class="ex-what"><b>What changes:</b> blue dashed line = IMU prediction; cyan solid = ICP-corrected pose. Lower covariance → trust IMU more → predictions dominate.</div>
     <div class="ex-up">↑ <b>Higher acc_cov:</b> ICP corrects fast motion without the IMU dragging stale samples. Default 0.5 tuned 2026-05-02 against unit-corrected <code>/livox/imu_ms2</code>.</div>
     <div class="ex-down">↓ <b>Lower gyr_cov:</b> smoother attitude through brief lidar dropouts. Too low and gyro bias drift bends the map.</div>
@@ -1656,6 +1746,7 @@ h1 .sub {
     <div class="slider-row"><label>det_range</label><input type="range" id="detrange-v" min="2" max="100" step="0.5" value="100"><span class="val" id="detrange-vVal">100.0 m</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/Laser_map</code> in Foxglove/RViz — the map extent caps at det_range distance from the sensor. <code>ros2 topic bw /Laser_map</code> for bandwidth (scales with kept points). <code>top</code> for memory usage over long sessions.</div>
     <div class="ex-what"><b>What changes:</b> outer ring. Mid-360 returns past this distance are dropped before mapping.</div>
     <div class="ex-up">↑ <b>Larger range:</b> long corridors, outdoor scenes get full landmark context. Map size grows.</div>
     <div class="ex-down">↓ <b>Smaller range:</b> caps memory in long sessions, kills noisy far returns. Too small in a big room and ICP loses lock as you move.</div>
@@ -1695,6 +1786,7 @@ h1 .sub {
     <div class="slider-row"><label>map voxel</label><input type="range" id="fmap-v" min="0.05" max="1.0" step="0.01" value="0.3" data-unit=" m" data-precision="2"><span class="val" id="fmap-vVal">0.30 m</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/Laser_map</code> in Foxglove/RViz — map detail (thin features like chair legs) fades at larger voxel sizes. <code>top</code> for RAM growth over time. Saved map file size reflects the voxel density.</div>
     <div class="ex-what"><b>What changes:</b> how many points the world map keeps per cubic voxel. Affects map memory growth, ICP correspondence quality, and how much of the room's detail survives long sessions.</div>
     <div class="ex-up">↑ <b>Larger:</b> map stays smaller, RAM grows slowly. Past 0.5 m on Mid-360 the map gets too sparse for reliable re-localization.</div>
     <div class="ex-down">↓ <b>Smaller:</b> richer map (visible thin features), but memory grows fast. Pairs poorly with long sessions on Jetson.</div>
@@ -1722,6 +1814,7 @@ h1 .sub {
     <div class="slider-row"><label>fov_degree</label><input type="range" id="fov-v" min="60" max="360" step="5" value="360" data-unit="°" data-precision="0"><span class="val" id="fov-vVal">360°</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/cloud_registered</code> in Foxglove/RViz — FOV cropping removes points outside the degree range. <code>ros2 topic echo /livox/lidar --field width</code> to check raw point count before filtering.</div>
     <div class="ex-what"><b>What changes:</b> how FAST-LIO buckets points by ring index (scan_line) and what angular sector it cares about (fov_degree).</div>
     <div class="ex-up">↑ <b>scan_line</b> for denser lidars: Velodyne VLP-16 = 16, Hesai Pandar40P = 40. <b>fov_degree</b> = 360 for any rotating lidar.</div>
     <div class="ex-down">↓ <b>fov_degree to 180</b> only if your sensor is forward-facing (e.g. an OAK-D Pro pointed forward). Cuts CPU roughly in half.</div>
@@ -1748,6 +1841,7 @@ h1 .sub {
     <div class="slider-row"><label>b_gyr_cov</label><input type="range" id="bgyr-v" min="0.00001" max="0.01" step="0.00001" value="0.0001" data-unit="" data-precision="5"><span class="val" id="bgyr-vVal">0.00010</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/Odometry</code> trajectory over long sessions (10+ min) — bias drift manifests as slow heading creep. Compare start heading vs return heading after a closed loop. FAST-LIO console logs may show bias estimation values.</div>
     <div class="ex-what"><b>What changes:</b> the EKF's belief about how the IMU's zero-offset drifts. Low values lock the bias estimate; high values let the EKF re-estimate the bias more eagerly.</div>
     <div class="ex-up">↑ <b>Higher:</b> bias is allowed to drift fast — useful after warm-up periods when the IMU is still thermalizing. Risk: EKF "absorbs" real motion into bias and pose lags.</div>
     <div class="ex-down">↓ <b>Lower:</b> bias treated as constant. Good if you let the IMU sit still for 30 s before launching (bias is well-calibrated). Bad if you re-launch frequently with different thermal states.</div>
@@ -1774,6 +1868,7 @@ h1 .sub {
     <div class="slider-row"><label>offset</label><input type="range" id="toff-v" min="-0.05" max="0.05" step="0.001" value="0.0" data-unit=" s" data-precision="3"><span class="val" id="toff-vVal">0.000 s</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> FAST-LIO console output for time sync warnings. Foxglove timeline — lidar and IMU timestamps should align. Misaligned timestamps cause pose jitter during fast motion, visible on <code>/Odometry</code>.</div>
     <div class="ex-what"><b>What changes:</b> alignment of lidar timestamps to IMU timestamps. Misalignment causes "ghost" motion in the map (points placed at where they would've been 10 ms ago).</div>
     <div class="ex-up">↑ <b>Enable time_sync_en</b> for IMU+lidar pairs without hardware sync (e.g. Velodyne VLP-16 + WT901 over USB). Lets EKF estimate the offset online.</div>
     <div class="ex-down">↓ <b>Leave OFF</b> for factory-synced IMUs (Mid-360 onboard). Adding online estimation costs CPU and can fight the true zero-offset.</div>
@@ -1799,6 +1894,7 @@ h1 .sub {
     <div class="toggle-row"><input type="checkbox" id="ext-en"><label for="ext-en">extrinsic_est_en</label></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> FAST-LIO console logs the estimated extrinsic after convergence. Compare to the YAML-configured values. Enable in a new environment, drive a complex path, then check if the estimated extrinsic improved pose consistency.</div>
     <div class="ex-what"><b>What changes:</b> FAST-LIO adds 6 extra states (3 trans + 3 rot) to the EKF and re-estimates the IMU-to-lidar transform as the rover moves.</div>
     <div class="ex-up">↑ <b>Enable temporarily</b> after sensor mount changes — drive 5 min of varied motion, log the converged extrinsic from <code>/Odometry</code>'s associated state vector, write those values to <code>extrinsic_T</code>/<code>R</code>, then DISABLE.</div>
     <div class="ex-down">↓ <b>Leave OFF</b> for normal operation. Online estimation can drift in low-motion environments and produce a worse extrinsic than the datasheet value.</div>
@@ -1835,6 +1931,7 @@ h1 .sub {
     <div class="slider-row"><label>MaxTrans</label><input type="range" id="icpmt-v" min="0.5" max="5.0" step="0.1" value="2.0" data-unit=" m" data-precision="1"><span class="val" id="icpmt-vVal">2.0 m</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/rtabmap/cloud_map</code> in Foxglove/RViz for the accumulated 3D map quality. <code>/rtabmap/odom</code> for odometry smoothness. RTABMap console shows ICP convergence stats per frame. <code>top</code> for CPU during ICP-heavy scans.</div>
     <div class="ex-what"><b>What changes:</b> ICP convergence quality. <code>Iterations</code> = passes through the optimizer. <code>VoxelSize</code> = downsample before ICP. <code>MaxCorrespondenceDistance</code> = how far apart two points can be to be considered a match. <code>MaxTranslation</code> = sanity cap.</div>
     <div class="ex-up">↑ <b>Iterations 30+:</b> tighter convergence at the cost of CPU. <b>MaxCorr 2.0:</b> tolerates more odometry drift between scans (useful with mecanum).</div>
     <div class="ex-down">↓ <b>VoxelSize 0.05:</b> denser ICP, slower but more accurate. <b>MaxCorr 0.3:</b> very strict matching; fails in fast motion.</div>
@@ -1860,6 +1957,7 @@ h1 .sub {
     <div class="slider-row"><label>LinearUpd</label><input type="range" id="rlu-v" min="0.01" max="1.0" step="0.01" value="0.05" data-unit=" m" data-precision="2"><span class="val" id="rlu-vVal">0.05 m</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/rtabmap/mapData</code> node count — higher update thresholds = fewer nodes added per meter. RTABMap console logs show "node added" events. <code>ros2 topic hz /rtabmap/odom</code> is constant but node insertion rate varies.</div>
     <div class="ex-what"><b>What changes:</b> spacing of nodes in RTABMap's database. Smaller = denser graph (more memory + better loop-closure odds); larger = sparser graph.</div>
     <div class="ex-up">↑ <b>LinearUpd 0.3 m:</b> sparse graph, smaller .db file. Good for long traverses.</div>
     <div class="ex-down">↓ <b>0.02 m:</b> very dense; database grows ~10× faster but loop closures are easier to find.</div>
@@ -1886,6 +1984,7 @@ h1 .sub {
     <div class="slider-row"><label>OptMaxErr</label><input type="range" id="ome-v" min="1.0" max="20" step="0.5" value="5.0" data-unit=" σ" data-precision="1"><span class="val" id="ome-vVal">5.0 σ</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> RTABMap console logs for graph optimization errors and rejected loop closures. <code>/rtabmap/mapGraph</code> visualization shows the pose graph. Memory usage via <code>top</code> over long sessions.</div>
     <div class="ex-what"><b>What changes:</b> how far and how aggressively RTABMap looks for loop closures. Lower OptMaxErr = stricter (fewer but more reliable closures).</div>
     <div class="ex-up">↑ <b>LocalRadius 5 m:</b> catches more closures in big rooms. <b>MaxRetr 20:</b> evaluate more candidates per node.</div>
     <div class="ex-down">↓ <b>OptMaxErr 1.0 σ:</b> very strict; rejects most candidates. Use in self-similar environments to prevent wrong closures.</div>
@@ -1912,6 +2011,7 @@ h1 .sub {
     <div class="slider-row"><label>MinCluster</label><input type="range" id="gmcs-v" min="1" max="30" step="1" value="5" data-unit="" data-precision="0"><span class="val" id="gmcs-vVal">5</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>/rtabmap/grid_map</code> (OccupancyGrid) in Foxglove/RViz — cell size visible as pixelation on edges. Small obstacles disappear when MinClusterSize is too high. Compare grid extent vs det_range.</div>
     <div class="ex-what"><b>What changes:</b> the 2D occupancy grid rasterized from the 3D cloud. Cell size determines map sharpness; MaxObstacleHeight controls Z gate for what counts as an obstacle on the 2D grid; MinClusterSize filters lone returns.</div>
     <div class="ex-up">↑ <b>MinClusterSize 15:</b> only large objects mark the grid; floor noise filtered out.</div>
     <div class="ex-down">↓ <b>CellSize 0.05 m:</b> sharper map but quadruple memory. <b>MinClusterSize 1:</b> every single point marks a cell — noisy.</div>
@@ -1937,6 +2037,7 @@ h1 .sub {
     <div class="slider-row"><label>MaxFeatures</label><input type="range" id="vmf-v" min="100" max="3000" step="50" value="1000" data-unit="" data-precision="0"><span class="val" id="vmf-vVal">1000</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> RTABMap console for "Not enough inliers" warnings — indicates MinInliers too high or poor visual features. <code>/rtabmap/odom_info</code> topic contains inlier counts per frame.</div>
     <div class="ex-what"><b>What changes:</b> stringency of visual loop closure matching. More inliers required = fewer but more reliable closures.</div>
     <div class="ex-up">↑ <b>MinInliers 40:</b> very strict; rare but high-quality closures. <b>MaxFeatures 2000:</b> dense feature extraction; helps in textured environments.</div>
     <div class="ex-down">↓ <b>MinInliers 8:</b> aggressive; can produce wrong closures in similar-looking views. <b>MaxFeatures 200:</b> sparse, fast feature extraction.</div>
@@ -1963,6 +2064,7 @@ h1 .sub {
     <div class="slider-row"><label>TimeThr</label><input type="range" id="rtt-v" min="0" max="2000" step="50" value="0" data-unit=" ms" data-precision="0"><span class="val" id="rtt-vVal">0 ms</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> RTABMap console logs show detection rate timing and memory management events. <code>top</code> for memory usage — MemoryThr caps the working set. <code>/rtabmap/mapData</code> node count over time.</div>
     <div class="ex-what"><b>What changes:</b> <code>DetectionRate</code> = how often RTABMap looks for loop closures (separate from node insertion). <code>MemoryThr/TimeThr</code> = memory management — when working memory is full, oldest nodes transfer to long-term storage on disk.</div>
     <div class="ex-up">↑ <b>DetectRate 3 Hz:</b> faster closure detection at the cost of CPU. <b>MemoryThr 500:</b> caps RAM growth — older nodes evicted to disk.</div>
     <div class="ex-down">↓ <b>DetectRate 0.2 Hz:</b> very lazy; closures missed if rover passes a landmark too fast. <b>TimeThr 200 ms:</b> hard cap on processing time per scan.</div>
@@ -1988,6 +2090,7 @@ h1 .sub {
     <div class="toggle-row"><input type="checkbox" id="rdb-v"><label for="rdb-v">delete_db_on_start</label></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> RTABMap console "Localization mode" or "Mapping mode" on startup. <code>~/.ros/rtabmap.db</code> file existence and size. <code>/tf</code> map→odom transform — in localization mode it jumps to match the loaded map.</div>
     <div class="ex-what"><b>What changes:</b> the runtime mode. <code>localization: true</code> = read-only relocalization on a prior map. <code>force_3dof: true</code> = zero out pitch/roll/z (you've decided floor is flat).</div>
     <div class="ex-up">↑ <b>force_3dof: true</b> on flat-floor indoor maps cuts pose drift dramatically — the EKF can't drift into the ceiling.</div>
     <div class="ex-down">↓ <b>delete_db_on_start: true</b> wipes work — only useful for testing fresh mapping.</div>
@@ -2011,6 +2114,7 @@ h1 .sub {
     <div class="slider-row" style="grid-template-columns: 80px 1fr 100px"><label>path</label><span style="color:#cbd5e1; font-family:'JetBrains Mono', monospace; font-size: 11px; padding: 4px 8px; background: rgba(30,41,59,0.6); border-radius: 4px;">~/.ros/rtabmap.db</span><span class="val">default</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>ls -lh</code> the database path to confirm size and last-modified time. RTABMap console logs the database path on startup. <code>rtabmap-databaseViewer</code> GUI opens the database for inspection.</div>
     <div class="ex-what"><b>What changes:</b> where the .db file is stored. Multi-map workflows can keep separate DBs per environment.</div>
     <div class="ex-up">↑ <b>Use named DBs:</b> <code>~/maps/livingroom.db</code>, <code>~/maps/garage.db</code> — keeps maps separate.</div>
     <div class="ex-down">↓ <b>Default path</b> is fine for single-environment use.</div>
@@ -2043,6 +2147,7 @@ h1 .sub {
     <div class="slider-row"><label>xfer_format</label><input type="range" id="mxf-v" min="0" max="1" step="1" value="0" data-unit="" data-precision="0"><span class="val" id="mxf-vVal">0</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>ros2 topic hz /livox/lidar</code> confirms the publish frequency. <code>ros2 topic bw /livox/lidar</code> shows bandwidth (differs between xfer_format modes). Livox driver console for connection status and config file load.</div>
     <div class="ex-what"><b>What changes:</b> rate of <code>/livox/lidar</code> output and its wire format. 10 Hz matches the Mid-360's optimal sweep cycle.</div>
     <div class="ex-up">↑ <b>publish_Hz 15:</b> faster updates but Livox starts dropping points (sensor's hardware sweep is ~10 Hz). <b>xfer_format 1:</b> Required for FAST-LIO's CustomMsg input path (3D stack); 2D stack uses PointCloud2 (format 0).</div>
     <div class="ex-down">↓ <b>publish_Hz 2:</b> very low update rate; pose accuracy degrades fast.</div>
@@ -2077,6 +2182,7 @@ h1 .sub {
     <div class="toggle-row"><input type="checkbox" id="dpc-v" checked><label for="dpc-v">pointcloud.enable</label></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>ros2 topic hz /d435_front/depth/image_rect_raw</code> confirms depth framerate. <code>/d435_front/depth/camera_info</code> shows resolution. <code>/d435_front/depth/color/points</code> (if enabled) for the aligned pointcloud. <code>realsense-viewer</code> GUI for live sensor diagnostics.</div>
     <div class="ex-what"><b>What changes:</b> resolution/framerate of depth stream, whether depth is warped to match color, and whether a colored pointcloud is produced.</div>
     <div class="ex-up">↑ <b>1280x720x30:</b> sharp depth, ideal for far obstacles. CPU + USB bandwidth spike. <b>align_depth ON:</b> required by RTABMap (depth and color must be in the same frame).</div>
     <div class="ex-down">↓ <b>424x240x15:</b> very low res, useful for compute-constrained scenarios. <b>align_depth OFF:</b> CPU saving if you only want raw depth (no RTABMap).</div>
@@ -2112,6 +2218,7 @@ h1 .sub {
     <div class="slider-row"><label>stats_period</label><input type="range" id="wsp-v" min="1" max="60" step="1" value="5" data-unit=" s" data-precision="0"><span class="val" id="wsp-vVal">5 s</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>ros2 topic hz /imu/data</code> confirms output rate. <code>ros2 topic echo /imu/data --field linear_acceleration</code> for live values (should be ~9.81 m/s² in z when level). witmotion_driver console logs stats every stats_period_sec.</div>
     <div class="ex-what"><b>What changes:</b> serial speed, IMU publication rate, and how often the driver logs throughput.</div>
     <div class="ex-up">↑ <b>baud 460800+:</b> required for 200 Hz output rate. <b>output_Hz 100-200:</b> high-rate attitude updates.</div>
     <div class="ex-down">↓ <b>output_Hz 0:</b> uses device's EEPROM-configured rate (set via WitMotion's PC tool). <b>baud 9600:</b> slow and reliable, can't carry high-rate data.</div>
@@ -2145,6 +2252,7 @@ h1 .sub {
     <div class="slider-row"><label>z_max</label><input type="range" id="vzx-v" min="-3" max="3" step="0.1" value="3.0" data-unit=" m" data-precision="1"><span class="val" id="vzx-vVal">3.0 m</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> The configured output topic (e.g. <code>/viz_cloud_clipped</code>) in Foxglove/RViz — compare against the raw input topic to see which points were Z-clipped. Useful for clean visualization without the floor/ceiling.</div>
     <div class="ex-what"><b>What changes:</b> Z slice for the visualization-only republished cloud. Setting <code>viz_z_max</code> just above the rover's antenna height removes the ceiling for top-down floor-plan views in Foxglove.</div>
     <div class="ex-up">↑ <b>viz_z_max 1.5:</b> keeps walls + tables but cuts ceilings/fans. <b>viz_z_max 3.0</b> (default): no clip.</div>
     <div class="ex-down">↓ <b>viz_z_max 0.5:</b> only chair-leg-height returns; pure floor plan.</div>
@@ -2178,6 +2286,7 @@ h1 .sub {
     <div class="slider-row"><label>max_wz</label><input type="range" id="ymw-v" min="0.1" max="5.0" step="0.1" value="1.0" data-unit=" rad/s" data-precision="1"><span class="val" id="ymw-vVal">1.0 rad/s</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> <code>ros2 topic echo /cmd_vel</code> vs the actual serial commands logged by yahboom_bridge_node. The bridge clamps commands to these limits. Physical rover speed should plateau at max values. <code>/odom</code> velocity feedback confirms clamping.</div>
     <div class="ex-what"><b>What changes:</b> hard cap at the bridge. Nav2 can request 2 m/s, the bridge clips to <code>max_vx</code> before sending to motors. <b>Second line of defense</b> against runaway speeds even if Nav2 config is wrong.</div>
     <div class="ex-up">↑ <b>max_vx 1.5:</b> needed for fast outdoor mapping; rover stability becomes the constraint (not Nav2).</div>
     <div class="ex-down">↓ <b>max_vx 0.2:</b> kid-safe / demo mode; rover crawls.</div>
@@ -2202,6 +2311,7 @@ h1 .sub {
     <div class="slider-row" style="grid-template-columns: 80px 1fr 100px"><label>car_type</label><select id="yctype-v" style="background:#1e293b; color:#cbd5e1; border:1px solid #334155; padding:4px"><option value="1" selected>1 - X3 mecanum</option><option value="2">2 - X3 PLUS</option><option value="4">4 - X1</option><option value="5">5 - R2</option></select><span class="val" id="yctype-vVal">X3 mecanum</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> Stop publishing <code>/cmd_vel</code> and watch the rover — it should stop within cmd_timeout seconds. yahboom_bridge_node console logs "Command timeout, sending zero" when it fires. car_type mismatch causes wrong wheel math — visible as curved driving on a straight command.</div>
     <div class="ex-what"><b>What changes:</b> safety stop timing and kinematic model. <code>cmd_timeout 0.5 s</code> means if /cmd_vel stops arriving, rover halts within 500 ms.</div>
     <div class="ex-up">↑ <b>cmd_timeout 2 s:</b> useful for unreliable wifi; rover keeps coasting instead of stopping at every dropout. <b>Risk: collision while disconnected.</b></div>
     <div class="ex-down">↓ <b>cmd_timeout 0.1 s:</b> very aggressive safety stop; jerky during normal Nav2 operation if the controller has small hiccups.</div>
@@ -2228,6 +2338,7 @@ h1 .sub {
     <div class="slider-row" style="grid-template-columns: 80px 1fr 100px"><label>port</label><span style="color:#cbd5e1; font-family:'JetBrains Mono', monospace; font-size: 11px; padding: 4px 8px; background: rgba(30,41,59,0.6); border-radius: 4px;">auto (/dev/myserial)</span><span class="val">default</span></div>
   </div>
   <div class="card-explain">
+    <div class="ex-observe">👁 <b>Where to look:</b> Send a positive <code>/cmd_vel.linear.x</code> — the rover should drive body-forward (toward D435). If it drives backward, invert_vx is wrong. <code>ls -la /dev/myserial</code> to confirm the symlink points to the correct USB device.</div>
     <div class="ex-what"><b>What changes:</b> axis inversions at the bridge. <code>invert_vx=true</code>: a +x cmd_vel from Nav2 becomes -x at the motor. Required when the controller board is mounted backwards relative to base_link.</div>
     <div class="ex-up">↑ <b>Toggle invert_vx/vy</b> until "drive forward" command actually drives forward in base_link. <b>Project memory: defaults are true/true</b> for the current Yahboom YB-ERF01 board orientation.</div>
     <div class="ex-down">↓ <b>Both false:</b> rover drives in the opposite direction Nav2 wants. Diagnostic: send a small +x cmd_vel and watch which way the rover goes.</div>
