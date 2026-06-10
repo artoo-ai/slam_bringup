@@ -236,14 +236,15 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
-        # inflation_radius reduced 0.30 → 0.15 to let the planner thread
-        # through narrow doorways/corridors. With robot_radius 0.18, the
-        # total forbidden zone from a wall is now 0.33 m, so corridors
-        # ≥ 0.66 m have a clear centerline. A typical interior doorway is
-        # ~0.76 m, so this leaves ~5 cm clearance per side — tight but
-        # navigable. Raise back to 0.20–0.25 if the rover starts clipping
-        # door frames.
-        inflation_radius: 0.15
+        # inflation_radius 0.15 → 0.20: at 0.15 the planner threaded paths
+        # so close to corners/door frames that laser-only odom error plus
+        # mecanum slip put the chassis into contact — the rover wedged
+        # itself into a corner mid-exploration. At 0.20 with robot_radius
+        # 0.18, a ~0.76 m doorway no longer has a zero-cost centerline,
+        # but the inflated band is non-lethal (decays via
+        # cost_scaling_factor) so plans still pass through, just centered.
+        # If doorway passage starts failing, drop back toward 0.15.
+        inflation_radius: 0.20
       always_send_full_costmap: True
 
   # In the 2D stack, slam_toolbox (localization mode) publishes map → odom
@@ -283,7 +284,7 @@ global_costmap:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
         # Match local_costmap inflation — see comment above for the math.
-        inflation_radius: 0.15
+        inflation_radius: 0.20
       always_send_full_costmap: True
 
 planner_server:

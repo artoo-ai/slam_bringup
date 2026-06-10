@@ -116,14 +116,40 @@ def _spawn_slam_toolbox(context, *args, **kwargs):
         ))]
 
     if mode == 'mapping':
-        return [Node(
+        # Resume support: mapping + map_file continues building an existing
+        # serialized graph instead of starting blank. map_start_at_dock
+        # anchors the resumed session to the graph's FIRST node, so the
+        # robot must be physically placed at the original session's
+        # starting position before launch.
+        overrides = {'use_sim_time': use_sim_time}
+        actions = []
+        if map_file:
+            data_path  = map_file + '.data'
+            graph_path = map_file + '.posegraph'
+            missing = [p for p in (data_path, graph_path) if not os.path.exists(p)]
+            if missing:
+                return [LogInfo(msg=(
+                    f"slam_2d.launch: ERROR — mapping resume requested but "
+                    f"serialized map files not found: {missing}. Pass "
+                    f"map_file:=<path without extension> pointing at a "
+                    f".data/.posegraph pair, or omit map_file for a fresh map."
+                ))]
+            overrides['map_file_name'] = map_file
+            overrides['map_start_at_dock'] = True
+            actions.append(LogInfo(msg=(
+                f'slam_2d.launch: mapping — resuming from '
+                f'{map_file}.{{data,posegraph}} (robot must start at the '
+                f'original session start pose)'
+            )))
+        actions.append(Node(
             package='slam_toolbox',
             executable='async_slam_toolbox_node',
             name='slam_toolbox',
             output='screen',
-            parameters=[params_file, {'use_sim_time': use_sim_time}],
+            parameters=[params_file, overrides],
             remappings=[('/scan', LaunchConfiguration('scan_topic'))],
-        )]
+        ))
+        return actions
 
     # Localization mode — validate the serialized pair is on disk.
     if not map_file:

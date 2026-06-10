@@ -25,6 +25,7 @@ ensure_foxglove
 # ── Parse args ──────────────────────────────────────────────
 RESUME=false
 TIME_LIMIT=15.0
+MAP_FILE=""
 SLAM_ARGS=()
 EXPLORE_ARGS=()
 
@@ -32,16 +33,33 @@ for arg in "$@"; do
   case "$arg" in
     resume:=true)   RESUME=true ;;
     resume:=false)  RESUME=false ;;
+    map_file:=*)    MAP_FILE="${arg#map_file:=}" ;;
     time_limit:=*)  TIME_LIMIT="${arg#time_limit:=}"
                     EXPLORE_ARGS+=("$arg") ;;
     *)              SLAM_ARGS+=("$arg") ;;
   esac
 done
 
+SLAM_MODE_ARG="mode:=mapping"
+
+# Resume: continue mapping from a serialized graph (slam_toolbox stays in
+# mapping mode; the launch file passes map_file_name + map_start_at_dock).
+# The resumed session anchors to the graph's FIRST node, so place the
+# robot at the original session's starting position before running this.
 if [ "$RESUME" = "true" ]; then
-  SLAM_MODE_ARG="mode:=mapping"
-else
-  SLAM_MODE_ARG="mode:=mapping"
+  if [ -z "$MAP_FILE" ]; then
+    MAP_FILE="$HOME/maps/explore_latest"
+  fi
+  MAP_FILE="${MAP_FILE/#\~/$HOME}"
+  if [ ! -f "$MAP_FILE.data" ] || [ ! -f "$MAP_FILE.posegraph" ]; then
+    echo "ERROR: resume requested but $MAP_FILE.data / .posegraph not found." >&2
+    echo "       Pass map_file:=<path without extension>, or run a fresh explore." >&2
+    exit 1
+  fi
+  SLAM_ARGS+=("map_file:=$MAP_FILE")
+elif [ -n "$MAP_FILE" ]; then
+  # map_file without resume:=true — pass through unchanged.
+  SLAM_ARGS+=("map_file:=$MAP_FILE")
 fi
 
 # ── Teardown ────────────────────────────────────────────────

@@ -209,6 +209,25 @@ class ExploreManager(Node):
         future = cli.call_async(req)
         rclpy.spin_until_future_complete(self, future, timeout_sec=30.0)
         self.get_logger().info(f'slam_toolbox map saved to {req.filename}')
+        self._update_latest_symlinks(req.filename)
+
+    def _update_latest_symlinks(self, basename):
+        """Point explore_latest.{data,posegraph} at the newest serialized
+        pair so `start_explore_2d.sh resume:=true` works without naming a
+        specific timestamped file."""
+        for ext in ('.data', '.posegraph'):
+            target = basename + ext
+            if not os.path.exists(target):
+                self.get_logger().warn(
+                    f'{target} missing after serialize — skipping explore_latest symlink')
+                continue
+            link = os.path.join(self._save_dir, f'explore_latest{ext}')
+            try:
+                if os.path.islink(link) or os.path.exists(link):
+                    os.remove(link)
+                os.symlink(target, link)
+            except OSError as exc:
+                self.get_logger().warn(f'could not update {link}: {exc}')
 
     def _navigate_home(self, retry=True):
         if not self._nav_client.wait_for_server(timeout_sec=10.0):
