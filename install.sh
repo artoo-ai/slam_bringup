@@ -151,6 +151,17 @@ clone_if_missing https://github.com/Ericsii/FAST_LIO_ROS2.git            FAST_LI
 # pin it as the third arg to clone_if_missing.
 clone_if_missing https://github.com/MAPIRlab/rf2o_laser_odometry.git     rf2o_laser_odometry
 
+# m-explore-ros2 (explore_lite) — frontier-exploration node. Reads the
+# occupancy grid and sends NavigateToPose goals to Nav2; driven by
+# launch/explore.launch.py + start_explore*.sh. slam_bringup declares
+# <exec_depend>explore_lite</exec_depend>, but explore_lite is NOT released
+# into the Humble apt index, so rosdep below cannot resolve it — we must
+# vendor it from source. (Without this clone, `rosdep install` aborts with
+# "Cannot locate rosdep definition for [explore_lite]" and nothing builds.)
+# The repo also ships a map_merge package for multi-robot map merging; we run
+# a single robot and don't use it, so it's skipped in the colcon build below.
+clone_if_missing https://github.com/robo-friends/m-explore-ros2.git      m-explore-ros2
+
 # livox_ros_driver2 ships package_ROS1.xml + package_ROS2.xml (dual-distro repo).
 # Upstream build.sh selects one before building; replicate that for colcon.
 LIVOX_DIR="$SRC_DIR/livox_ros_driver2"
@@ -300,7 +311,8 @@ colcon build --symlink-install \
     mecanum_drive_controller \
     yahboom_rosmaster_navigation \
     yahboom_rosmaster_system_tests \
-    yahboom_rosmaster
+    yahboom_rosmaster \
+    multirobot_map_merge
 
 cat <<EOF
 
