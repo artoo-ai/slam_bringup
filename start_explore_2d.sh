@@ -7,6 +7,8 @@
 #   ./start_explore_2d.sh resume:=true                               # continue ~/maps/explore_latest;
 #                                       # seeds the pose automatically from explore_latest.pose
 #                                       # (written by the previous session) if the file exists
+#   ./start_explore_2d.sh resume:=true start_at_dock:=true           # robot carried back to the
+#                                       # ORIGINAL start pose — ignore the .pose file
 #   ./start_explore_2d.sh resume:=true map_file:=~/maps/explore_latest \
 #       map_start_pose:=1.2,-0.4,3.14   # override: resume from an explicit map-frame pose
 #   ./start_explore_2d.sh time_limit:=30                             # 30-minute explore
@@ -31,6 +33,7 @@ RESUME=false
 TIME_LIMIT=15.0
 MAP_FILE=""
 MAP_START_POSE_SET=false
+START_AT_DOCK=false
 SLAM_ARGS=()
 EXPLORE_ARGS=()
 
@@ -45,9 +48,23 @@ for arg in "$@"; do
                     # Explicit seed pose wins over the auto-read .pose file.
                     MAP_START_POSE_SET=true
                     SLAM_ARGS+=("$arg") ;;
+    start_at_dock:=true)
+                    # "Robot is back at the ORIGINAL session start pose" —
+                    # skip the auto-read .pose file (which holds where the
+                    # robot ENDED last session) and use dock anchoring.
+                    # Handled here, NOT forwarded to the launch file.
+                    START_AT_DOCK=true ;;
+    start_at_dock:=false)
+                    START_AT_DOCK=false ;;
     *)              SLAM_ARGS+=("$arg") ;;
   esac
 done
+
+if [ "$MAP_START_POSE_SET" = "true" ] && [ "$START_AT_DOCK" = "true" ]; then
+  echo "ERROR: map_start_pose:=... and start_at_dock:=true are mutually exclusive" >&2
+  echo "       (one says 'I am HERE', the other says 'I am at the original start')." >&2
+  exit 1
+fi
 
 SLAM_MODE_ARG="mode:=mapping"
 
@@ -56,10 +73,12 @@ SLAM_MODE_ARG="mode:=mapping"
 # only corrects ~±0.25 m / ±20°; a 180° placement error is unrecoverable
 # and corrupts the graph with bad loop closures. Seed priority:
 #   1. explicit map_start_pose:=x,y,theta on the command line
-#   2. $MAP_FILE.pose — written continuously by the previous session's
+#   2. start_at_dock:=true — force dock anchoring, ignoring any .pose file
+#      (use when the robot was carried back to the original start pose)
+#   3. $MAP_FILE.pose — written continuously by the previous session's
 #      explore_manager, so it holds where the robot came to rest. Valid
 #      as long as the robot hasn't been moved since.
-#   3. dock anchoring (graph's FIRST node) — robot must physically sit at
+#   4. dock anchoring (graph's FIRST node) — robot must physically sit at
 #      the ORIGINAL session's start pose, same heading.
 if [ "$RESUME" = "true" ]; then
   if [ -z "$MAP_FILE" ]; then
@@ -74,7 +93,10 @@ if [ "$RESUME" = "true" ]; then
   SLAM_ARGS+=("map_file:=$MAP_FILE")
   # Let this session's explore_manager keep $MAP_FILE.pose current from launch.
   EXPLORE_ARGS+=("resume_map_file:=$MAP_FILE")
-  if [ "$MAP_START_POSE_SET" = "false" ] && [ -f "$MAP_FILE.pose" ]; then
+  if [ "$START_AT_DOCK" = "true" ]; then
+    echo "==> Resume: start_at_dock:=true — ignoring any $MAP_FILE.pose. The robot"
+    echo "    must sit at the ORIGINAL session's start pose, SAME heading (±20 cm / ±20°)."
+  elif [ "$MAP_START_POSE_SET" = "false" ] && [ -f "$MAP_FILE.pose" ]; then
     read -r POSE_X POSE_Y POSE_TH _ < "$MAP_FILE.pose"
     NUM_RE='^-?[0-9]+([.][0-9]+)?$'
     if [[ "$POSE_X" =~ $NUM_RE && "$POSE_Y" =~ $NUM_RE && "$POSE_TH" =~ $NUM_RE ]]; then

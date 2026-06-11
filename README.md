@@ -421,6 +421,82 @@ Nav2 plugins reference `map`, `odom`, and `base_link`. The `camera_init → odom
 - Recovery behaviors specific to a platform (Go2 stand-up sequence, mecanum gear shift, etc.) — extend `behavior_server.behavior_plugins` per platform.
 - Speed-limit zones / dynamic obstacle layers — add `costmap_filter` or `STVL` plugins as needed.
 
+### Autonomous exploration (`start_explore.sh` / `start_explore_2d.sh`)
+
+Frontier exploration on top of either SLAM stack. Both scripts are idempotent (full teardown of any running stack first, motors stopped before anything else) and run the same lifecycle:
+
+1. Start SLAM + Nav2
+2. Drive toward map frontiers (`explore_lite`) until the time limit or full coverage
+3. Serialize the map (`explore_manager`)
+4. Return to the start position
+5. Keep writing the robot's live map-frame pose to `<map>.pose` until you Ctrl-C (2D only)
+
+`start_explore_2d.sh` (slam_toolbox + rf2o) is the recommended path for the mecanum rover; `start_explore.sh` is the 3D twin (RTABMap + FAST-LIO2).
+
+**`start_explore_2d.sh` arguments:**
+
+| Arg | Default | Meaning |
+|---|---|---|
+| `time_limit:=N` | `15` | Exploration time limit in minutes. `0` = no limit, explore until no frontiers remain. |
+| `resume:=true` | `false` | Continue building an existing serialized graph instead of starting a fresh map. |
+| `map_file:=path` | `~/maps/explore_latest` | Serialized graph base path **without extension** (resolves `<path>.data` + `<path>.posegraph`). Only meaningful with `resume:=true`. |
+| `map_start_pose:=x,y,θ` | — | Explicit seed pose in the saved map's frame (meters, meters, radians). Overrides every other seeding method. |
+| `start_at_dock:=true` | `false` | "The robot is back at the ORIGINAL session's start pose" — forces dock anchoring and ignores any `.pose` file. Mutually exclusive with `map_start_pose`. |
+| anything else `key:=value` | — | Forwarded to `slam_2d.launch.py` (e.g. `rviz:=true`, `scan_max_height:=1.2`, `nav2_params_file:=...`). |
+
+**Resume pose seeding — how slam_toolbox finds out where the robot is.** It never figures this out on its own: it starts from a seed pose and the scan matcher can only correct **~±0.25 m / ±20°** from there. A robot placed farther off — or facing 180° the wrong way — is unrecoverable and corrupts the graph with bad loop closures. The script picks the seed in this priority order:
+
+| Priority | Source | When it applies |
+|---|---|---|
+| 1 | `map_start_pose:=x,y,θ` | You passed it explicitly. |
+| 2 | `start_at_dock:=true` | You passed it — dock anchoring (graph's first node), `.pose` file ignored. |
+| 3 | `$MAP_FILE.pose` auto-read | File exists and neither flag was passed. Written continuously by the previous session's `explore_manager`, so it holds where the robot **came to rest** — valid as long as nobody moved it since. |
+| 4 | Dock anchoring (fallback) | No `.pose` file exists. Robot must physically sit at the **original** session's start pose, same heading. |
+
+**Which command for which situation:**
+
+```bash
+# Fresh 15-minute exploration, new map
+./start_explore_2d.sh
+
+# Fresh, 30 minutes / until full coverage
+./start_explore_2d.sh time_limit:=30
+./start_explore_2d.sh time_limit:=0
+
+# Resume — robot was left exactly where the last session ended (the
+# normal case: it returned home, you Ctrl-C'd, it hasn't moved since)
+./start_explore_2d.sh resume:=true
+
+# Resume — robot was carried back to the ORIGINAL start pose (the "dock":
+# same spot, same heading as when the map was first started, ±20 cm / ±20°)
+./start_explore_2d.sh resume:=true start_at_dock:=true
+
+# Resume — robot is somewhere else and you know where (read x,y off the
+# saved map in RViz/Foxglove; θ in radians CCW from the original heading)
+./start_explore_2d.sh resume:=true map_start_pose:=1.2,-0.4,3.14
+
+# Resume a specific map instead of explore_latest
+./start_explore_2d.sh resume:=true map_file:=~/maps/explore_20260610_153000
+```
+
+**Files written to `~/maps/`** (override dir with `explore_params.yaml > map_save_dir`):
+
+- `explore_<timestamp>.data` + `.posegraph` — slam_toolbox serialized graph
+- `explore_<timestamp>.pose` — robot's last known map-frame pose (`x y θ`, plain text), refreshed every 2 s plus a final snapshot at shutdown
+- `explore_latest.{data,posegraph,pose}` — symlinks to the newest set, so plain `resume:=true` works without naming files
+
+**`start_explore.sh` (3D) arguments:**
+
+| Arg | Default | Meaning |
+|---|---|---|
+| `time_limit:=N` | `15` | Same as 2D. |
+| `resume:=true` | `false` | Keep `~/.ros/rtabmap.db` and continue it. Default (fresh) **deletes the DB** at launch. |
+| anything else `key:=value` | — | Forwarded to `slam.launch.py` (e.g. `force_3dof:=true`, `scan_max_height:=0.8`). |
+
+No pose seeding flags on the 3D path: RTABMap relocalizes by visual/scan loop closure on its own, so it doesn't need to be told where the robot starts.
+
+**Gotcha — the `.pose` file describes where the robot physically sits.** If you move the robot between sessions, seeding from it is wrong by exactly how far you moved it. Either put it back (within ~±20 cm / ±20°), use `start_at_dock:=true` at the original start pose, or pass `map_start_pose` yourself. The script prints which seed source it picked (and the `.pose` file's timestamp) at launch — read that line before walking away.
+
 ### Mecanum drive (Yahboom YB-ERF01)
 
 The mecanum UGV uses a Yahboom YB-ERF01-V3.0 board (STM32F103RCT6 + DRV8833) running ROSMASTER X3 firmware (`car_type=0x01` = 4-wheel mecanum). Wiring + Taranis SBUS RC config is documented in the Obsidian vault at *Robotics → Robots → Mecanum UGV → "Yahboom Mecanum Configuration - Motor Wiring and Taranis SBUS Setup"*. The driver path we use is **Path A — direct Python bridge** from *"Mecanum UGV - GitHub - AutomaticAddison ROSMASTER X3 ROS2"*: subscribe to `/cmd_vel`, call `Rosmaster_Lib.set_car_motion(vx, vy, wz)` over USB-serial. The STM32 firmware does the mecanum inverse kinematics internally.
