@@ -150,17 +150,20 @@ class MeasureLidarTilt(Node):
                   f"out of view?")
             return False
 
-        # RANSAC plane hypotheses, then pick the LOWEST well-supported one.
-        # Two selection rules were tried and rejected:
+        # RANSAC plane hypotheses, then pick the floor by EXPECTED HEIGHT.
+        # Three selection rules were tried and field-rejected:
         #   - densest z-bin: a tilted floor spreads across bins, loses to
         #     compact distractors (chair seats).
         #   - most inliers: from a ~0.33 m mount the floor is only visible
-        #     past ~2.6 m at grazing angle, so it's SPARSE — a couch seat
-        #     or bed top beats it on count (this returned "floor 0.081 m
-        #     below sensor" on the rover, refuted by tape measure).
-        # The floor's defining property is that it is the lowest horizontal
-        # plane in view, so: among hypotheses with real support (≥400 pts
-        # and ≥20% of the best count), take the lowest.
+        #     past ~2.6 m at grazing angle, so it's SPARSE — a couch/bed
+        #     out-votes it (returned "floor 0.081 m below sensor",
+        #     refuted by tape measure).
+        #   - lowest plane: mirrors/glass/TVs create coherent REFLECTION
+        #     ghost planes BELOW the real floor (returned a "floor"
+        #     2.38 m down, tilted 41°).
+        # The robust anchor is the tape-measured mount height passed as
+        # expected_height: the floor is the best-supported near-level
+        # plane within ±0.15 m of -expected_height.
         cx, cy, cz = x[cand], y[cand], z[cand]
         if cx.size > 30000:
             idx = np.random.default_rng(0).choice(cx.size, 30000, replace=False)
@@ -183,25 +186,43 @@ class MeasureLidarTilt(Node):
             d = nrm @ pts3[i]
             inliers = np.abs(pts3 @ nrm - d) < 0.015
             count = int(np.count_nonzero(inliers))
-            if count < 400:
+            if count < 300:
                 continue
             z_at_origin = d / nrm[2]
-            hypotheses.append((z_at_origin, count, inliers))
+            hypotheses.append((z_at_origin, count, inliers, abs(nrm[2])))
             best_count = max(best_count, count)
 
-        viable = [h for h in hypotheses if h[1] >= max(400, 0.2 * best_count)]
-        if not viable:
-            print(f"\nERROR: RANSAC found no horizontal plane with enough "
-                  f"support. Rerun on flat, open floor with a few meters "
-                  f"of clearance.")
+        # Mount tilt is realistically a few degrees; require near-level
+        # (≤8°) AND height within ±0.05 m of the tape-measured mount.
+        # The window is deliberately TIGHT — at ±0.15 a mixed plane
+        # slicing obliquely through couch + floor points out-voted the
+        # true floor at the window edge (synthetic test). A tape measure
+        # is good to a centimeter; trust it.
+        WIN = 0.05
+        level_min = math.cos(math.radians(8.0))
+        floor_hyps = [h for h in hypotheses
+                      if abs(h[0] + self.expected_height) <= WIN
+                      and h[3] >= level_min]
+        rejected = [h for h in hypotheses
+                    if abs(h[0] + self.expected_height) > WIN]
+        if rejected:
+            zs = sorted(set(f"{h[0]:+.1f}" for h in rejected))
+            print(f"  note: ignored plane(s) at z≈[{', '.join(zs)}] m — "
+                  f"furniture above, or mirror-reflection ghosts below "
+                  f"the real floor.")
+        if not floor_hyps:
+            print(f"\nERROR: no near-level plane found within ±0.15 m of "
+                  f"the expected floor (z = {-self.expected_height:.3f} m "
+                  f"below the sensor; param expected_height="
+                  f"{self.expected_height:.3f}).")
+            print("  - Is expected_height right? Tape-measure floor → "
+                  "Mid-360 optical center and pass -p expected_height:=X.")
+            print("  - Need a few meters of clear, flat floor in view — "
+                  "from this mount height the floor is only visible "
+                  f"beyond ≈{self.expected_height / math.tan(math.radians(7.2)):.1f} m.")
+            print("  - Try a longer capture: -p duration:=30.0")
             return False
-        z_floor, support, best_inliers = min(viable, key=lambda h: h[0])
-
-        higher = [h for h in viable if h[0] > z_floor + 0.10]
-        if higher:
-            print(f"  note: {len(higher)} higher horizontal plane(s) seen "
-                  f"(e.g. {max(h[0] for h in higher):+.3f} m vs floor "
-                  f"{z_floor:+.3f} m) — furniture, correctly ignored.")
+        z_floor, support, best_inliers, _ = max(floor_hyps, key=lambda h: h[1])
 
         fx, fy, fz = cx[best_inliers], cy[best_inliers], cz[best_inliers]
 
@@ -218,6 +239,18 @@ class MeasureLidarTilt(Node):
             fx, fy, fz = fx[keep], fy[keep], fz[keep]
 
         rms = float(np.sqrt(np.mean((fz - (a * fx + b * fy + c)) ** 2)))
+
+        # Re-validate after refinement: if the iterative fit walked out of
+        # the height window or tilted past 8°, the seed plane was mixed —
+        # don't report garbage with confidence.
+        if abs(-c - self.expected_height) > WIN or \
+                math.hypot(a, b) > math.tan(math.radians(8.0)):
+            print(f"\nERROR: refined plane drifted out of the expected-floor "
+                  f"window (height {-c:.3f} m vs expected "
+                  f"{self.expected_height:.3f} ± {WIN}). The scene is too "
+                  f"cluttered for a clean fit — rerun with more open floor "
+                  f"in view, or -p duration:=30.0.")
+            return False
 
         # Upward floor normal in the LIDAR frame.
         n = np.array([-a, -b, 1.0])

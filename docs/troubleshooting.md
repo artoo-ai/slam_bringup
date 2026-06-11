@@ -37,6 +37,11 @@ Entries are sorted roughly by severity / how often we've hit them.
 - [`./build.sh` errors: package not found](#buildsh-errors-package-not-found)
 - [CloudCompare shows just a "line" / sparse cloud after `export_map.sh`](#cloudcompare-shows-just-a-line--sparse-cloud-after-export_mapsh)
 - [`rtabmap-export` crashes with `--cam_projection` or `--mesh`](#rtabmap-export-crashes-with---cam_projection-or---mesh)
+- [2D map smears with ghost walls when the robot rotates](#2d-map-smears-with-ghost-walls-when-the-robot-rotates)
+- [Exploration stuck at startup — planner "failed to create plan", phantom obstacle ring](#exploration-stuck-at-startup--planner-failed-to-create-plan-phantom-obstacle-ring)
+- [2D stack: `/scan` stalls, rf2o "Waiting for laser_scans" floods, TF extrapolation errors](#2d-stack-scan-stalls-rf2o-waiting-for-laser_scans-floods-tf-extrapolation-errors)
+- [Resume from saved 2D map localizes wrong (sometimes 180° off)](#resume-from-saved-2d-map-localizes-wrong-sometimes-180-off)
+- [Phantom floor obstacles in `/scan` — lidar height or tilt wrong in URDF](#phantom-floor-obstacles-in-scan--lidar-height-or-tilt-wrong-in-urdf)
 
 ---
 
@@ -782,6 +787,113 @@ If still sparse, re-export with `--voxel-size 0.0` (no voxel downsampling) for m
 ```
 
 The wrapper script (`scripts/export_map.sh`) is tuned to a working flag combination by default.
+
+---
+
+## 2D map smears with ghost walls when the robot rotates
+
+**Symptom:** after an in-place spin (recovery behavior or goal-yaw correction), the slam_toolbox map shows the room's walls duplicated at multiple angles — sometimes a full ring of obstacles centered on the spin spot. Unrecoverable in-session.
+
+**Diagnose:**
+```bash
+# Compare commanded rotation vs what the laser odometry tracked:
+#   yahboom_bridge log:  cmd_vel → ... wz=+1.000
+#   rf2o log:            Laser odom [x,y,yaw] — is yaw actually changing ~1 rad/s?
+# Observed failure: wz=1.0 commanded, rf2o tracked 0.03 rad/s (97% missed).
+ros2 param get /controller_server FollowPath.max_vel_theta   # must be ≤ 0.6
+```
+
+**Cause:** `/scan` is a 100 ms pointcloud_to_laserscan aggregation of the Mid-360's non-repetitive sweep. At ≥1.0 rad/s each "scan" is internally smeared 6–9° and rf2o (already weakest on pure rotation) stops tracking. slam_toolbox then matches rotated scans against a stationary odom seed, overruns its ±20° correlation window, and commits misregistered nodes.
+
+**Fix:** rotation speed is capped at **0.6 rad/s** (≈3.4°/scan) across DWB `max_vel_theta`, behavior_server spin, and velocity_smoother (commit `773487f`). Do NOT raise it to "fix" slow yaw — mecanum stiction is handled by `acc_lim_theta: 5.0` (torque impulse). The durable fix is Option B (wheel odom + IMU EKF): a gyro tracks rotation that laser odom can't. A smeared map cannot be repaired — start a fresh one.
+
+**Related:** [DAILY_LOG 2026-06-10, Issue 4](DAILY_LOG.md).
+
+---
+
+## Exploration stuck at startup — planner "failed to create plan", phantom obstacle ring
+
+**Symptom:** `start_explore_2d.sh` barely progresses; logs flood with `GridBased: failed to create plan with tolerance 0.50`; robot spins in place (odom-arrow fans in RViz); costmap shows a speckle ring of obstacles surrounding the robot with inflation closing all free space.
+
+**Diagnose:**
+```bash
+# 1. Are the DEPLOYED params what you think? (stale build = old footprint)
+ros2 param get /local_costmap/local_costmap robot_radius     # expect 0.25
+# 2. See the costmaps — slam_2d.rviz has no costmap displays:
+./start_explore_2d.sh rviz:=true rviz_config:=$HOME/slam_ws/install/slam_bringup/share/slam_bringup/rviz/nav_2d.rviz
+# 3. Is the "ring" centered on a spot where the robot spun? → it's rotation
+#    smear (see entry above), not real obstacles.
+```
+
+**Causes (in observed order of likelihood):**
+1. **Rotation-smeared walls** painted at every angle during untracked spins — a ring centered on the spin spot. See the smear entry above. Vicious cycle: smear → phantom obstacles → planner failures → recovery spins → more smear.
+2. **Stale build** — config edits don't apply until `./build.sh` (launch reads the installed copy).
+3. Real clutter in the 0.15–0.45 m scan band (chair legs are legitimate obstacles).
+
+**Fix:** rebuild, fresh map, rotation cap in effect. If the ring reappears without any spinning, suspect floor returns instead (see the phantom-floor entry below).
+
+**Related:** [DAILY_LOG 2026-06-10, Issues 3–4](DAILY_LOG.md).
+
+---
+
+## 2D stack: `/scan` stalls, rf2o "Waiting for laser_scans" floods, TF extrapolation errors
+
+**Symptom:** multi-second stretches of `rf2o: Waiting for laser_scans....` with no odom updates between them; `explore_lite: Extrapolation Error ... into the future`; `local_costmap: Message Filter dropping message`; `BT tick rate 100.00 exceeded`; spin recovery `Exceeded time allowance`.
+
+**Diagnose:**
+```bash
+timeout 5 ros2 topic hz /scan        # should be ~10 Hz, steady
+sudo jtop                            # CPU clocks pinned? GUI processes eating cores?
+```
+
+**Cause:** CPU starvation on the Orin Nano. Observed contributors: RViz running on the Jetson (`rviz:=true`), `Jetson Clocks: inactive` (cores floating at 729 MHz–1.3 GHz), and a full desktop session (gnome-shell + Xorg + terminal + RustDesk ≈ one whole core). Note ~20 isolated "Waiting for laser_scans" lines per second is NORMAL (rf2o polls at 20 Hz, scans arrive at 10) — the problem is *gaps in the odom updates between them*.
+
+**Fix:**
+```bash
+sudo jetson_clocks                                   # before each session
+# never rviz:=true on the Jetson — use Foxglove; for real runs go headless:
+sudo systemctl set-default multi-user.target         # revert: graphical.target
+```
+
+**Related:** [Jetson CPU saturated](#jetson-cpu-saturated--controller-missing-rate-rtabmap-delay--1-s), [DAILY_LOG 2026-06-10, Issue 5](DAILY_LOG.md).
+
+---
+
+## Resume from saved 2D map localizes wrong (sometimes 180° off)
+
+**Symptom:** `start_explore_2d.sh resume:=true` (or `mode:=localization`) places the robot at the wrong pose; it spins without translating; loop-closure lines connect wrong places; map corrupts.
+
+**Cause:** slam_toolbox has NO global relocalization. It starts from a seed pose and the scan matcher corrects only ~±0.25 m / ±20°. The old hardwired `map_start_at_dock` seeded the graph's FIRST node (position AND heading) — a robot placed elsewhere, or facing 180° off, is unrecoverable.
+
+**Fix:** seed priority in `start_explore_2d.sh` (commits `a56e826`, `519c565`):
+1. `map_start_pose:=x,y,θ` — explicit map-frame pose (radians).
+2. `start_at_dock:=true` — robot carried back to the ORIGINAL session start pose (±20 cm / ±20°, same heading).
+3. `$MAP_FILE.pose` auto-read — written continuously by the previous session's explore_manager; valid if the robot hasn't been moved since it stopped.
+4. Dock-anchoring fallback (no `.pose` file exists).
+
+The script prints which seed it picked at launch — read that line. Full table in [README → Autonomous exploration](../README.md#autonomous-exploration-start_exploresh--start_explore_2dsh).
+
+---
+
+## Phantom floor obstacles in `/scan` — lidar height or tilt wrong in URDF
+
+**Symptom:** speckle obstacles appear in `/map` on open floor (often arc/ring patterns at a consistent range from the robot), even without any spinning.
+
+**Diagnose:**
+```bash
+# Robot stationary on open flat floor, Mid-360 driver running:
+./start_mid360.sh
+python3 scripts/measure_lidar_tilt.py
+# Trust the result ONLY if the height line says "consistent" with the URDF
+# (0.329 m on the mecanum). A mismatched height means the fit grabbed
+# furniture — or the URDF stack-up is wrong. Settle it with a tape measure.
+```
+
+**Cause:** the 0.15–0.45 m obstacle slice is measured in `base_link`, so it's only as good as the URDF: a mount tilt of θ leaks floor returns into the band beyond ≈ `0.15/sin(θ)` meters (2° → 4.3 m); a wrong mount height shifts the whole band (the mecanum URDF was 18.4 cm short until 2026-06-10 — commit `4258ef4` — which made knee-height obstacles invisible).
+
+**Fix:** tape-measure the plate height (mecanum: `base_link_to_plate_top` in `urdf/mecanum.urdf.xacro`, kept in lockstep with `PLATFORM_BRIDGES['mecanum']` in `launch/slam.launch.py`); apply the `livox_rpy` line the script prints if it reports a real tilt; `./build.sh`. Stopgap for dynamic pitch on the rubber isolators: `scan_z_min:=0.20`.
+
+**Related:** [Tilted point cloud / camera_init not level](#tilted-point-cloud--camera_init-not-level-with-floor), [DAILY_LOG 2026-06-10, Issues 6–7](DAILY_LOG.md).
 
 ---
 
