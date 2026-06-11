@@ -143,15 +143,19 @@ controller_server:
       min_vel_y: -0.3
       max_vel_x: 0.5
       max_vel_y: 0.3
-      # max_vel_theta + acc_lim_theta bumped (1.0 → 1.5, 3.2 → 5.0) so
-      # commanded yaw is more impulsive. The mecanum failure mode at goal
-      # is static friction holding the rollers — small commands don't break
-      # it, the wheels grab/slip, the rover oscillates around the heading.
-      # Bigger commanded velocity + faster acceleration = the controller
-      # demands enough wheel torque to actually break static friction in
-      # one shot. velocity_smoother + behavior_server limits below were
-      # raised to match so they don't re-clamp DWB's output.
-      max_vel_theta: 1.5
+      # max_vel_theta 1.5 → 0.6: ROTATION SPEED IS CAPPED BY THE LASER
+      # ODOMETRY, not the wheels. The /scan is a 100 ms aggregation of the
+      # Mid-360's sweeping pattern, so at 1.0+ rad/s each scan is smeared
+      # 6-9° internally and rf2o stops tracking rotation almost entirely
+      # (observed: commanded wz=1.0, rf2o reported 0.03 rad/s). slam_toolbox
+      # then gets rotated scans with a stationary odom seed, its matcher
+      # blows past the ±20° search window, and the map smears with ghost
+      # walls. 0.6 rad/s ≈ 3.4°/scan — trackable. The stiction problem is
+      # handled by acc_lim_theta 5.0 (torque impulse), NOT top speed; do
+      # not raise this past ~0.8 unless odometry stops being laser-only
+      # (Option B wheel+IMU EKF). velocity_smoother + behavior_server
+      # limits below match.
+      max_vel_theta: 0.6
       min_speed_xy: 0.0
       max_speed_xy: 0.5
       min_speed_theta: 0.0
@@ -340,12 +344,13 @@ behavior_server:
     transform_tolerance: 0.1
     use_sim_time: false
     simulate_ahead_time: 2.0
-    # Raised to match DWB FollowPath max_vel_theta / acc_lim_theta — see
-    # the comment above max_vel_theta for the mecanum-impulse rationale.
-    # min_rotational_vel 0.4 → 0.5 so the spin recovery behavior also
-    # commands an impulsive yaw rather than crawling.
-    max_rotational_vel: 1.5
-    min_rotational_vel: 0.5
+    # Tracks DWB FollowPath max_vel_theta — see the rotation-smear comment
+    # there. Spin recoveries are the WORST offender for map smear (long
+    # sustained rotation), so they get the same 0.6 rad/s ceiling. min 0.4
+    # keeps the spin impulsive enough to break mecanum stiction; the
+    # rotational_acc_lim 5.0 provides the torque impulse.
+    max_rotational_vel: 0.6
+    min_rotational_vel: 0.4
     rotational_acc_lim: 5.0
 
 waypoint_follower:
@@ -366,12 +371,12 @@ velocity_smoother:
     scale_velocities: False
     feedback: "OPEN_LOOP"
     # Y axis enabled for mecanum. Numbers track DWB FollowPath limits
-    # above (theta raised 1.0 → 1.5, accel 3.2 → 5.0 so velocity_smoother
-    # doesn't re-clamp DWB's impulsive yaw commands at goal). If you swap
-    # to a diff-drive platform, zero the Y entries in a per-platform
-    # override file.
-    max_velocity: [0.5, 0.3, 1.5]
-    min_velocity: [-0.26, -0.3, -1.5]
+    # above (theta capped at 0.6 for laser-odometry rotation tracking —
+    # see the max_vel_theta comment; accel stays 5.0 so the smoother
+    # doesn't soften the stiction-breaking impulse). If you swap to a
+    # diff-drive platform, zero the Y entries in a per-platform override.
+    max_velocity: [0.5, 0.3, 0.6]
+    min_velocity: [-0.26, -0.3, -0.6]
     max_accel: [2.5, 2.0, 5.0]
     max_decel: [-2.5, -2.0, -5.0]
     odom_topic: "/odom"
