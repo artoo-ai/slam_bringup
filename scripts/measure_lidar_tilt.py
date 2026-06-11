@@ -91,7 +91,11 @@ class MeasureLidarTilt(Node):
         super().__init__("measure_lidar_tilt")
         self.declare_parameter("duration", 10.0)
         self.declare_parameter("topic", "/livox/lidar")
+        # URDF-claimed lidar optical-center height, for the sanity check:
+        # mecanum = base_link_to_plate_top 0.29210 + livox z 0.03661.
+        self.declare_parameter("expected_height", 0.32871)
         self.duration = self.get_parameter("duration").value
+        self.expected_height = self.get_parameter("expected_height").value
         topic = self.get_parameter("topic").value
 
         self.xs, self.ys, self.zs = [], [], []
@@ -134,22 +138,29 @@ class MeasureLidarTilt(Node):
         z = np.concatenate(self.zs)
         r_xy = np.hypot(x, y)
 
-        # Floor candidates: below the sensor, past the blind ring, near
-        # enough that walls/furniture dominate less. The floor must be the
-        # densest low-z population for the fit to lock on.
-        cand = (z < -0.05) & (r_xy > 0.4) & (r_xy < 6.0)
+        # Candidates: below the sensor, past the blind ring. Range cap is
+        # generous (10 m) because from a ~0.33 m mount the Mid-360's -7.2°
+        # FOV edge only reaches the floor beyond ~2.6 m — capping at 6 m
+        # nearly excluded the floor on the rover (lesson from 2026-06-10:
+        # the fit returned a furniture plane 0.081 m below the sensor).
+        cand = (z < -0.05) & (r_xy > 0.4) & (r_xy < 10.0)
         if np.count_nonzero(cand) < 500:
             print(f"\nERROR: only {np.count_nonzero(cand)} candidate floor "
                   f"points (need ≥500). Is the lidar too low, or the floor "
                   f"out of view?")
             return False
 
-        # RANSAC the floor plane. A z-histogram lock-on does NOT work here:
-        # the tilted floor we're trying to measure spreads across many z
-        # bins (±28 cm over 6 m at 2.7°) while a chair seat or table top
-        # concentrates in two — density picks the distractor. RANSAC picks
-        # the plane with the most total support, and the floor is always
-        # the most numerous below-sensor surface on open ground.
+        # RANSAC plane hypotheses, then pick the LOWEST well-supported one.
+        # Two selection rules were tried and rejected:
+        #   - densest z-bin: a tilted floor spreads across bins, loses to
+        #     compact distractors (chair seats).
+        #   - most inliers: from a ~0.33 m mount the floor is only visible
+        #     past ~2.6 m at grazing angle, so it's SPARSE — a couch seat
+        #     or bed top beats it on count (this returned "floor 0.081 m
+        #     below sensor" on the rover, refuted by tape measure).
+        # The floor's defining property is that it is the lowest horizontal
+        # plane in view, so: among hypotheses with real support (≥400 pts
+        # and ≥20% of the best count), take the lowest.
         cx, cy, cz = x[cand], y[cand], z[cand]
         if cx.size > 30000:
             idx = np.random.default_rng(0).choice(cx.size, 30000, replace=False)
@@ -157,9 +168,9 @@ class MeasureLidarTilt(Node):
         pts3 = np.column_stack([cx, cy, cz])
 
         rng = np.random.default_rng(1)
-        best_inliers = None
+        hypotheses = []   # (z_at_origin, count, inlier_mask)
         best_count = 0
-        for _ in range(300):
+        for _ in range(500):
             i, j, k = rng.choice(pts3.shape[0], 3, replace=False)
             v1, v2 = pts3[j] - pts3[i], pts3[k] - pts3[i]
             nrm = np.cross(v1, v2)
@@ -172,14 +183,25 @@ class MeasureLidarTilt(Node):
             d = nrm @ pts3[i]
             inliers = np.abs(pts3 @ nrm - d) < 0.015
             count = int(np.count_nonzero(inliers))
-            if count > best_count:
-                best_count = count
-                best_inliers = inliers
-        if best_inliers is None or best_count < 500:
-            print(f"\nERROR: RANSAC found no horizontal plane "
-                  f"(best support {best_count} points). Rerun on flat, "
-                  f"open floor.")
+            if count < 400:
+                continue
+            z_at_origin = d / nrm[2]
+            hypotheses.append((z_at_origin, count, inliers))
+            best_count = max(best_count, count)
+
+        viable = [h for h in hypotheses if h[1] >= max(400, 0.2 * best_count)]
+        if not viable:
+            print(f"\nERROR: RANSAC found no horizontal plane with enough "
+                  f"support. Rerun on flat, open floor with a few meters "
+                  f"of clearance.")
             return False
+        z_floor, support, best_inliers = min(viable, key=lambda h: h[0])
+
+        higher = [h for h in viable if h[0] > z_floor + 0.10]
+        if higher:
+            print(f"  note: {len(higher)} higher horizontal plane(s) seen "
+                  f"(e.g. {max(h[0] for h in higher):+.3f} m vs floor "
+                  f"{z_floor:+.3f} m) — furniture, correctly ignored.")
 
         fx, fy, fz = cx[best_inliers], cy[best_inliers], cz[best_inliers]
 
@@ -218,7 +240,10 @@ class MeasureLidarTilt(Node):
         print(f"  floor points used    : {fx.size}")
         print(f"  fit RMS residual     : {rms * 1000:.1f} mm "
               f"({'good' if rms < 0.015 else 'NOISY — rerun on flat open floor'})")
-        print(f"  lidar height (floor) : {height:.3f} m")
+        dh = height - self.expected_height
+        print(f"  lidar height (floor) : {height:.3f} m "
+              f"(URDF says {self.expected_height:.3f} — "
+              f"{'consistent' if abs(dh) < 0.03 else f'OFF BY {dh:+.3f} m — fix the URDF stack-up or this fit grabbed furniture'})")
         print(f"  roll                 : {math.degrees(roll):+.2f}°")
         print(f"  pitch                : {math.degrees(pitch):+.2f}°")
         print(f"  total tilt           : {tilt:.2f}°")

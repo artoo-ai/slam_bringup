@@ -71,12 +71,12 @@ PLATFORM_BRIDGES = {
     'bench_fixture': (0.0, 0.0, -0.244280, 0.0, 0.0, 0.0),
 
     # Mecanum UGV (Yahboom YB-ERF01-V3.0 chassis, ROSMASTER X3 firmware).
-    # PLACEHOLDER offset — measure from the wheel-bottom contact point
-    # (= base_link in the Yahboom URDF convention) up to the top of the
-    # sensor plate, then add the plate-top → livox_frame offset (36.61 mm
-    # per Livox datasheet). Until measured, falls back to the bench-fixture
-    # number minus an estimated 100 mm chassis height. Re-measure before
-    # trusting the map z-axis.
+    # Plate top tape-measured at 11.5 in = 0.29210 m above the floor
+    # (2026-06-10; the old -0.144280 placeholder was 18.4 cm short).
+    # body Z = plate_top 0.29210 + plate-top → livox_frame 0.03661
+    # (Livox datasheet) = 0.328710. Kept in lockstep with
+    # base_link_to_plate_top in urdf/mecanum.urdf.xacro — update BOTH
+    # if re-measured.
     #
     # Yaw = 0: base_link stays aligned with the URDF (sensors at +X of
     # base_link). The YB-ERF01 firmware drives +vx in the OPPOSITE
@@ -86,7 +86,7 @@ PLATFORM_BRIDGES = {
     # costmap, footprint orientation, and /scan frame consistent with
     # physical reality — rotating base_link here flipped them all
     # 180° and broke navigation.
-    'mecanum':   (0.0, 0.0, -0.144280, 0.0, 0.0, 0.0),
+    'mecanum':   (0.0, 0.0, -0.328710, 0.0, 0.0, 0.0),
 
     # Stubs — fill in once each platform's URDF + measured plate offsets
     # are landed. Until then `platform:=<name>` will exit with a clear

@@ -8,16 +8,17 @@
 
   Stack-up (from base_link upward):
     base_link             Z = 0           (wheel contact / floor)
-        ↑ ~0.107670 m     chassis + sensor mast (UNMEASURED — placeholder)
-    sensor_plate          Z = 0.107670    (top of plate)
+        ↑ 0.29210 m       chassis + sensor mast (tape-measured 11.5 in,
+                          2026-06-10; replaces the old 0.107670
+                          placeholder that was off by 18.4 cm)
+    sensor_plate          Z = 0.29210     (top of plate)
         → see sensors_common.urdf.xacro for everything above this point
+          (livox_frame optical center lands at 0.29210 + 0.03661
+           = 0.32871 m above the floor)
 
-  IMPORTANT: 0.107670 m is a PLACEHOLDER derived from slam.launch.py's
-  PLATFORM_BRIDGES mecanum entry (body → base_link = -0.144280 m) minus
-  the plate-top → livox_frame Z offset (36.61 mm per Livox datasheet).
-  Re-measure base_link → sensor-plate-top with calipers and update both
-  this xacro AND PLATFORM_BRIDGES['mecanum'] in slam.launch.py before
-  trusting the map z-axis.
+  Kept in lockstep with PLATFORM_BRIDGES['mecanum'] in slam.launch.py
+  (body → base_link = -(plate_top + 0.03661) = -0.328710 m). If you
+  re-measure with calipers, update BOTH places.
 
   The chassis visual below is cosmetic only (RViz). Yahboom X3 outer
   dimensions are approximate; they don't affect SLAM math, only what
@@ -27,9 +28,9 @@
 
   <xacro:include filename="$(find slam_bringup)/urdf/sensors_common.urdf.xacro"/>
 
-  <!-- Approximate Yahboom X3 chassis bbox — REPLACE with measured values
-       once a tape measure is in hand. -->
-  <xacro:property name="base_link_to_plate_top" value="0.107670"/>
+  <!-- Plate height tape-measured 11.5 in (2026-06-10). Chassis bbox below
+       is still approximate (cosmetic only). -->
+  <xacro:property name="base_link_to_plate_top" value="0.29210"/>
   <xacro:property name="chassis_length"         value="0.280"/>
   <xacro:property name="chassis_width"          value="0.230"/>
   <xacro:property name="chassis_height"         value="0.090"/>
