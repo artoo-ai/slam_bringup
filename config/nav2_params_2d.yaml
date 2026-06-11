@@ -18,7 +18,8 @@
 # Cmd output: /cmd_vel (geometry_msgs/Twist) — consumed by yahboom_bridge
 # on the mecanum platform.
 #
-# Footprint: circular, radius 0.4 m. Tune per-platform via:
+# Footprint: circular, radius 0.25 m (chassis 0.18 + off-center fixture
+# overhang margin — see robot_radius comments below). Tune per-platform via:
 #   ./start_nav_2d.sh nav2_params_file:=/path/to/platform_params_2d.yaml
 
 bt_navigator:
@@ -208,13 +209,18 @@ local_costmap:
       width: 6
       height: 6
       resolution: 0.05
-      # robot_radius matches the Yahboom YB-ERF01 X3 mecanum's actual
-      # bounding circle — chassis is ~27×24 cm, so √((0.135)² + (0.12)²)
-      # ≈ 0.18 m. Old 0.25 was a generic indoor default; combined with
-      # inflation_radius 0.30 it left a 0.55 m forbidden zone from every
-      # wall and refused to plan through doorways < 1.10 m wide. Override
-      # per-platform if your rover is bigger.
-      robot_radius: 0.18
+      # robot_radius 0.18 → 0.25. The bare chassis bounding circle is
+      # ~0.18 m (27×24 cm → √((0.135)² + (0.12)²)), but the sensor fixture
+      # rides OFF-CENTER on the rover, so part of it extends past 0.18
+      # from base_link — at 0.18 the planner hugged corners/door frames
+      # and the overhanging side clipped them. 0.25 buys ~7 cm of overhang
+      # margin while keeping a 0.76 m doorway passable (0.76 − 2×0.25 =
+      # 0.26 m free corridor for the path centerline). To refine: measure
+      # the max horizontal distance from base_link origin to the farthest
+      # fixture corner and set robot_radius to exactly that. The precise
+      # alternative is an asymmetric `footprint:` polygon instead of
+      # robot_radius.
+      robot_radius: 0.25
       plugins: ["obstacle_layer", "inflation_layer"]
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
@@ -236,15 +242,16 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
-        # inflation_radius 0.15 → 0.20: at 0.15 the planner threaded paths
-        # so close to corners/door frames that laser-only odom error plus
-        # mecanum slip put the chassis into contact — the rover wedged
-        # itself into a corner mid-exploration. At 0.20 with robot_radius
-        # 0.18, a ~0.76 m doorway no longer has a zero-cost centerline,
-        # but the inflated band is non-lethal (decays via
-        # cost_scaling_factor) so plans still pass through, just centered.
-        # If doorway passage starts failing, drop back toward 0.15.
-        inflation_radius: 0.20
+        # inflation_radius 0.20 → 0.30, tracking robot_radius 0.18 → 0.25
+        # (inflation must exceed robot_radius or the soft-cost band
+        # vanishes). History: 0.15 → 0.20 after the rover wedged into a
+        # corner — laser-only odom error plus mecanum slip ate the whole
+        # margin. With the off-center fixture now covered by robot_radius
+        # 0.25, this leaves a 5 cm decaying band beyond the lethal zone.
+        # A ~0.76 m doorway centerline (0.38 m from each jamb) sits past
+        # the 0.30 band, so it still has a zero-cost centerline. If
+        # doorway passage starts failing, drop back toward 0.26.
+        inflation_radius: 0.30
       always_send_full_costmap: True
 
   # In the 2D stack, slam_toolbox (localization mode) publishes map → odom
@@ -260,8 +267,9 @@ global_costmap:
       global_frame: map
       robot_base_frame: base_link
       use_sim_time: false
-      # Match local_costmap robot_radius (Yahboom mecanum bounding circle).
-      robot_radius: 0.18
+      # Match local_costmap robot_radius (chassis 0.18 + off-center
+      # fixture overhang margin — see local_costmap comment for the math).
+      robot_radius: 0.25
       resolution: 0.05
       track_unknown_space: true
       # IMPORTANT: obstacle_layer is INTENTIONALLY OMITTED from the
@@ -284,7 +292,7 @@ global_costmap:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
         # Match local_costmap inflation — see comment above for the math.
-        inflation_radius: 0.20
+        inflation_radius: 0.30
       always_send_full_costmap: True
 
 planner_server:

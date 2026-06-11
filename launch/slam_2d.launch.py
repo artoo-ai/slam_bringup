@@ -90,6 +90,31 @@ def _option_b_warning(context, *args, **kwargs):
     return []
 
 
+def _parse_start_pose(raw):
+    """Parse map_start_pose:='x,y,theta' into [x, y, theta] (floats, theta
+    in radians, map frame). Accepts comma- and/or space-separated values
+    with optional surrounding brackets. Returns None for empty input;
+    raises ValueError with a usable message otherwise.
+    """
+    cleaned = raw.strip().strip('[]').replace(',', ' ')
+    if not cleaned.strip():
+        return None
+    parts = cleaned.split()
+    if len(parts) != 3:
+        raise ValueError(
+            f"map_start_pose:='{raw}' — expected exactly 3 numbers "
+            f"'x,y,theta' (meters, meters, radians in the map frame), "
+            f"got {len(parts)}."
+        )
+    try:
+        return [float(p) for p in parts]
+    except ValueError:
+        raise ValueError(
+            f"map_start_pose:='{raw}' — values must be numbers "
+            f"(x, y in meters; theta in radians, map frame)."
+        )
+
+
 def _spawn_slam_toolbox(context, *args, **kwargs):
     """Pick mapping vs localization mode and validate map_file at launch.
 
@@ -108,6 +133,18 @@ def _spawn_slam_toolbox(context, *args, **kwargs):
     )
     use_sim_time = LaunchConfiguration('use_sim_time').perform(context).lower() in ('1', 'true', 'yes')
     params_file = LaunchConfiguration('slam_params_file').perform(context)
+    try:
+        start_pose = _parse_start_pose(
+            LaunchConfiguration('map_start_pose').perform(context)
+        )
+    except ValueError as e:
+        return [LogInfo(msg=f'slam_2d.launch: ERROR — {e}')]
+    if start_pose is not None and not map_file:
+        return [LogInfo(msg=(
+            'slam_2d.launch: ERROR — map_start_pose only makes sense when '
+            'loading a saved graph. Pass map_file:=<path without extension> '
+            'alongside it (resume or localization).'
+        ))]
 
     if mode not in ('mapping', 'localization'):
         return [LogInfo(msg=(
@@ -117,10 +154,23 @@ def _spawn_slam_toolbox(context, *args, **kwargs):
 
     if mode == 'mapping':
         # Resume support: mapping + map_file continues building an existing
-        # serialized graph instead of starting blank. map_start_at_dock
-        # anchors the resumed session to the graph's FIRST node, so the
-        # robot must be physically placed at the original session's
-        # starting position before launch.
+        # serialized graph instead of starting blank.
+        #
+        # Seed pose matters MORE than you'd think: the Karto scan matcher
+        # only searches ±correlation_search_space_dimension/2 (±0.25 m) and
+        # ±coarse_search_angle_offset (±20°) around the seed. A robot
+        # placed farther off — or facing the wrong way — can NEVER be
+        # recovered; every new node is misregistered and loop closures
+        # link the wrong places (the "bad lines" in RViz/Foxglove).
+        #
+        # Two seeding options:
+        #   default            -> map_start_at_dock anchors to the graph's
+        #                         FIRST node; robot must physically sit at
+        #                         the original session's start pose, same
+        #                         heading (±20 cm / ±20°).
+        #   map_start_pose:=…  -> seed at an explicit x,y,theta in the map
+        #                         frame; resume from anywhere you can
+        #                         measure off the saved map.
         overrides = {'use_sim_time': use_sim_time}
         actions = []
         if map_file:
@@ -135,12 +185,23 @@ def _spawn_slam_toolbox(context, *args, **kwargs):
                     f".data/.posegraph pair, or omit map_file for a fresh map."
                 ))]
             overrides['map_file_name'] = map_file
-            overrides['map_start_at_dock'] = True
-            actions.append(LogInfo(msg=(
-                f'slam_2d.launch: mapping — resuming from '
-                f'{map_file}.{{data,posegraph}} (robot must start at the '
-                f'original session start pose)'
-            )))
+            if start_pose is not None:
+                overrides['map_start_at_dock'] = False
+                overrides['map_start_pose'] = start_pose
+                actions.append(LogInfo(msg=(
+                    f'slam_2d.launch: mapping — resuming from '
+                    f'{map_file}.{{data,posegraph}} seeded at map-frame pose '
+                    f'x={start_pose[0]:.3f} y={start_pose[1]:.3f} '
+                    f'theta={start_pose[2]:.3f} rad'
+                )))
+            else:
+                overrides['map_start_at_dock'] = True
+                actions.append(LogInfo(msg=(
+                    f'slam_2d.launch: mapping — resuming from '
+                    f'{map_file}.{{data,posegraph}} (robot must start at the '
+                    f'original session start pose, same heading — or pass '
+                    f'map_start_pose:=x,y,theta)'
+                )))
         actions.append(Node(
             package='slam_toolbox',
             executable='async_slam_toolbox_node',
@@ -176,8 +237,12 @@ def _spawn_slam_toolbox(context, *args, **kwargs):
         'use_sim_time':       use_sim_time,
         'mode':               'localization',
         'map_file_name':      map_file,
-        'map_start_at_dock':  True,
     }
+    if start_pose is not None:
+        overrides['map_start_at_dock'] = False
+        overrides['map_start_pose'] = start_pose
+    else:
+        overrides['map_start_at_dock'] = True
 
     return [
         LogInfo(msg=f"slam_2d.launch: localization — loading {map_file}.{{data,posegraph}}"),
@@ -237,6 +302,15 @@ def generate_launch_description():
                     '~/maps/livingroom.data + ~/maps/livingroom.posegraph. '
                     'Required when mode:=localization. Save these from RViz '
                     'via the SlamToolbox panel "Serialize Map" button.',
+    )
+    map_start_pose_arg = DeclareLaunchArgument(
+        'map_start_pose', default_value='',
+        description='Seed pose "x,y,theta" (meters, meters, radians) in the '
+                    'saved map\'s frame for resume/localization. Overrides '
+                    'map_start_at_dock so the robot does NOT have to start '
+                    'at the original session\'s start pose. The scan matcher '
+                    'only corrects ~±0.25 m / ±20° from this seed, so it '
+                    'must be roughly right — especially the heading.',
     )
     nav2_arg = DeclareLaunchArgument(
         'nav2', default_value='false',
@@ -427,7 +501,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         platform_arg, use_sim_time_arg, rviz_arg, rviz_config_arg,
-        mode_arg, map_file_arg,
+        mode_arg, map_file_arg, map_start_pose_arg,
         nav2_arg, nav2_params_arg, nav2_autostart_arg,
         use_wheel_odom_arg, use_imu_ekf_arg,
         livox_topic_arg, scan_topic_arg, odom_topic_arg, target_frame_arg,

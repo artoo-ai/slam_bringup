@@ -40,6 +40,13 @@ def generate_launch_description():
         'return_home', default_value='true',
         description='Navigate back to starting position when exploration ends.',
     )
+    resume_map_file_arg = DeclareLaunchArgument(
+        'resume_map_file', default_value='',
+        description='Serialized graph basename (no extension) this session '
+                    'resumed from. Enables explore_manager pose-file tracking '
+                    '(<basename>.pose) from launch instead of waiting for the '
+                    'first serialize. Set by start_explore_2d.sh on resume:=true.',
+    )
 
     explore_lite_node = Node(
         package='explore_lite',
@@ -62,6 +69,7 @@ def generate_launch_description():
                 'slam_mode': LaunchConfiguration('slam_mode'),
                 'time_limit_minutes': LaunchConfiguration('time_limit'),
                 'return_home': LaunchConfiguration('return_home'),
+                'resume_map_file': LaunchConfiguration('resume_map_file'),
             },
         ],
     )
@@ -71,6 +79,7 @@ def generate_launch_description():
         slam_mode_arg,
         time_limit_arg,
         return_home_arg,
+        resume_map_file_arg,
         explore_lite_node,
         explore_manager_node,
     ])

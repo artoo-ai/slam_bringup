@@ -11,6 +11,7 @@ Lifecycle:
 """
 
 import json
+import math
 import os
 import time
 from enum import Enum, auto
@@ -50,6 +51,12 @@ class ExploreManager(Node):
         self.declare_parameter('return_home', True)
         self.declare_parameter('status_publish_rate', 0.2)
         self.declare_parameter('slam_mode', '3d')
+        # Basename (no extension) of the serialized graph this session
+        # RESUMED from, if any. Set by start_explore_2d.sh on resume:=true.
+        # When set, the current map frame is valid against that graph from
+        # launch, so pose-file tracking starts immediately instead of
+        # waiting for this session's own serialize.
+        self.declare_parameter('resume_map_file', '')
 
         self._time_limit_s = self.get_parameter('time_limit_minutes').value * 60.0
         self._patience_s = self.get_parameter('frontier_done_patience').value
@@ -60,6 +67,13 @@ class ExploreManager(Node):
         self._return_home = self.get_parameter('return_home').value
         self._status_rate = self.get_parameter('status_publish_rate').value
         self._slam_mode = self.get_parameter('slam_mode').value
+        _resume_map = os.path.expanduser(
+            self.get_parameter('resume_map_file').value.strip()
+        )
+        # Pose-file tracking: which graph basename the CURRENT map frame is
+        # valid against. None until a graph exists for this frame (resumed
+        # session: from launch; fresh session: after the first serialize).
+        self._pose_basename = _resume_map or None
 
         self._state = State.WAITING
         self._start_time = None
@@ -85,6 +99,7 @@ class ExploreManager(Node):
         )
 
         self._check_timer = self.create_timer(5.0, self._check_loop)
+        self._pose_file_timer = self.create_timer(2.0, self._write_pose_file)
         status_period = 1.0 / self._status_rate if self._status_rate > 0 else 5.0
         self._status_timer = self.create_timer(status_period, self._publish_status)
 
@@ -209,13 +224,55 @@ class ExploreManager(Node):
         future = cli.call_async(req)
         rclpy.spin_until_future_complete(self, future, timeout_sec=30.0)
         self.get_logger().info(f'slam_toolbox map saved to {req.filename}')
+        # The current map frame now has a graph on disk — start (or retarget)
+        # pose-file tracking to the new basename, and write one immediately
+        # so the .pose exists before the symlink pass below.
+        self._pose_basename = req.filename
+        self._write_pose_file()
         self._update_latest_symlinks(req.filename)
 
+    def _write_pose_file(self):
+        """Persist the robot's live map-frame pose as <basename>.pose
+        ("x y theta", meters/radians), next to the serialized graph the
+        pose is valid against.
+
+        start_explore_2d.sh reads this on resume:=true and passes it to
+        slam_toolbox as map_start_pose — so a robot simply left where the
+        last session ended relocalizes correctly without being carried
+        back to the dock. Runs every 2 s (plus once on shutdown), so the
+        file tracks the robot through return-home and holds its final
+        resting pose. Only valid while a matching graph exists on disk:
+        from launch when this session resumed one (resume_map_file), or
+        after this session serializes its own. 2D only — the 3D path
+        (RTABMap) does its own relocalization.
+        """
+        if self._slam_mode != '2d' or not self._pose_basename:
+            return
+        try:
+            t = self._tf_buffer.lookup_transform('map', 'base_link', rclpy.time.Time())
+        except TransformException:
+            return
+        q = t.transform.rotation
+        yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y),
+                         1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+        path = self._pose_basename + '.pose'
+        tmp = path + '.tmp'
+        try:
+            with open(tmp, 'w') as f:
+                f.write(f'{t.transform.translation.x:.4f} '
+                        f'{t.transform.translation.y:.4f} {yaw:.4f}\n')
+            os.replace(tmp, path)
+        except OSError as exc:
+            self.get_logger().warn(
+                f'could not write pose file {path}: {exc}',
+                throttle_duration_sec=30.0,
+            )
+
     def _update_latest_symlinks(self, basename):
-        """Point explore_latest.{data,posegraph} at the newest serialized
-        pair so `start_explore_2d.sh resume:=true` works without naming a
-        specific timestamped file."""
-        for ext in ('.data', '.posegraph'):
+        """Point explore_latest.{data,posegraph,pose} at the newest
+        serialized set so `start_explore_2d.sh resume:=true` works without
+        naming a specific timestamped file."""
+        for ext in ('.data', '.posegraph', '.pose'):
             target = basename + ext
             if not os.path.exists(target):
                 self.get_logger().warn(
@@ -323,6 +380,9 @@ def main(args=None):
     except KeyboardInterrupt:
         node.get_logger().info('Shutting down — stopping robot.')
         node._stop_robot()
+        # Final pose snapshot so the .pose file holds where the robot
+        # actually came to rest, not the last 2 s timer tick.
+        node._write_pose_file()
     finally:
         node.destroy_node()
         rclpy.try_shutdown()
