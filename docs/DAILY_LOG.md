@@ -12,6 +12,25 @@ pick up. Update this file as problems arise, not after the fact.
 
 ## 2026-06-11 — First trustworthy tilt reading: ~7°
 
+### Issue 8 (OPEN) — Repeatedly wedges against the table/cabinet cluster
+
+- **Symptom:** explore run reaches ~9.5k free cells (map clean — rotation
+  cap working, no smear ring) but the rover repeatedly drives into and
+  stalls against the same mid-size table + small cabinet (and the gap
+  between them).
+- **Leading hypothesis:** the STILL-UNAPPLIED 7° tilt skews the 0.15–0.45
+  obstacle slice ±0.12 m per meter of range — phantom floor on the
+  down-tilt side, **blindness to real obstacles on the up-tilt side**
+  (returns pushed below 0.15 and dropped). Directional blindness → plans
+  into furniture on that side. Apply the tilt fix BEFORE further tuning.
+- **Second thread (classic 2D-slice gap):** tables are legs-only in the
+  costmap. Pending measurement: at what height does the rover contact
+  the table/cabinet (leg/face = in-band → flicker problem; apron or top
+  edge above 0.45 = invisible → raise scan_z_max; plinth below 0.15 =
+  lower scan_z_min after tilt fix).
+- **Next actions:** (1) second-spot tilt confirmation → apply livox_rpy →
+  build; (2) tape-measure the contact height; (3) rerun the same area.
+
 - Jetson synced; the final (expected-height) `measure_lidar_tilt.py` ran
   clean: height **0.323 m vs URDF 0.329 — consistent**, RMS 8.2 mm,
   **roll +4.57°, pitch +5.29°, total 6.99°**.
