@@ -369,6 +369,22 @@ def generate_launch_description():
         'scan_z_min', default_value='0.15',
         description='Lower Z (m, base_link frame) of the 3D→2D projection band.',
     )
+    scan_low_z_min_arg = DeclareLaunchArgument(
+        'scan_low_z_min', default_value='0.05',
+        description='Lower Z (m, base_link) of the LOW obstacle band '
+                    '(/scan_low, costmap-only). Catches ankle-height clutter '
+                    '(dog bowls ~0.06-0.10 m) that the main scan_z_min=0.15 '
+                    'band cannot see. Kept separate from /scan so low-band '
+                    'floor noise never reaches rf2o or slam_toolbox.',
+    )
+    low_obstacle_scan_arg = DeclareLaunchArgument(
+        'low_obstacle_scan', default_value='true',
+        description='Spawn the second pointcloud_to_laserscan producing '
+                    '/scan_low (band scan_low_z_min..scan_z_min) for the '
+                    'local costmap low_obstacle_layer. Disable only for '
+                    'debugging — the costmap layer logs missing-topic '
+                    'warnings without it.',
+    )
     z_max_arg = DeclareLaunchArgument(
         'scan_z_max', default_value='0.45',
         description='Upper Z (m, base_link frame) of the 3D→2D projection band.',
@@ -445,6 +461,45 @@ def generate_launch_description():
         ],
     )
 
+    # ---------- low obstacle band (3D → 2D, costmap-only) ----------
+    # Second projection over [scan_low_z_min, scan_z_min] → /scan_low.
+    # Exists because ankle-height clutter (dog bowls, shoes) sits BELOW the
+    # main band, and because of Mid-360 geometry: from the 0.329 m mount
+    # with a -7.2° lower FOV edge, a 0.07 m obstacle is only visible from
+    # ≥ ~2 m away — it must be marked during approach and REMEMBERED.
+    # That's why /scan_low feeds its OWN costmap layer (low_obstacle_layer
+    # in nav2_params_2d.yaml): if it shared the main obstacle layer, the
+    # main /scan's clearing rays (which pass over the bowl and return from
+    # surfaces beyond) would raytrace the bowl's cell empty just as the
+    # robot got close. NOT consumed by rf2o or slam_toolbox — the low band
+    # carries floor-noise risk that odometry/SLAM must never see.
+    p2l_low_node = Node(
+        package='pointcloud_to_laserscan',
+        executable='pointcloud_to_laserscan_node',
+        name='livox_to_scan_low',
+        output='screen',
+        parameters=[{
+            'target_frame':      target_frame,
+            'transform_tolerance': 0.05,
+            'min_height':        LaunchConfiguration('scan_low_z_min'),
+            'max_height':        LaunchConfiguration('scan_z_min'),
+            'angle_min':         -3.14159,
+            'angle_max':          3.14159,
+            'angle_increment':    0.0087,    # ~0.5°
+            'scan_time':          0.1,       # 10 Hz
+            'range_min':         LaunchConfiguration('scan_range_min'),
+            'range_max':          4.5,       # marking band only — see costmap
+            'use_inf':            True,
+            'inf_epsilon':        1.0,
+            'use_sim_time':       use_sim_time,
+        }],
+        remappings=[
+            ('cloud_in', livox_topic),
+            ('scan',     '/scan_low'),
+        ],
+        condition=IfCondition(LaunchConfiguration('low_obstacle_scan')),
+    )
+
     # ---------- rf2o_laser_odometry (laser-only odom, Option A) ----------
     # Publishes /odom + odom→base_link TF from successive scans. No wheels,
     # no IMU. This is the "vacuum-equivalent" odometry source for Option A.
@@ -506,11 +561,13 @@ def generate_launch_description():
         use_wheel_odom_arg, use_imu_ekf_arg,
         livox_topic_arg, scan_topic_arg, odom_topic_arg, target_frame_arg,
         z_min_arg, z_max_arg, range_min_arg, range_max_arg,
+        scan_low_z_min_arg, low_obstacle_scan_arg,
         slam_params_arg,
         *drive_args,
         option_b_notice,
         perception,
         p2l_node,
+        p2l_low_node,
         rf2o_node,
         slam_toolbox_node,
         nav2,

@@ -225,7 +225,15 @@ local_costmap:
       # alternative is an asymmetric `footprint:` polygon instead of
       # robot_radius.
       robot_radius: 0.25
-      plugins: ["obstacle_layer", "inflation_layer"]
+      # low_obstacle_layer is a SEPARATE ObstacleLayer instance, not a
+      # second source inside obstacle_layer, on purpose: sources within
+      # one layer share a grid, so the main /scan's clearing rays (which
+      # pass OVER a dog bowl and return from surfaces beyond) would
+      # raytrace the bowl's cell empty exactly as the robot approaches.
+      # Separate layers combine by maximum — low-band marks survive
+      # high-band clearing. inflation_layer stays last so it inflates
+      # the combined result.
+      plugins: ["obstacle_layer", "low_obstacle_layer", "inflation_layer"]
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
@@ -242,6 +250,29 @@ local_costmap:
           raytrace_max_range: 15.0
           raytrace_min_range: 0.0
           obstacle_max_range: 10.0
+          obstacle_min_range: 0.0
+      low_obstacle_layer:
+        # Ankle-height clutter (dog bowls ~0.06-0.10 m, shoes) from
+        # /scan_low — the 0.05..0.15 m band published by livox_to_scan_low
+        # in slam_2d.launch.py. Mid-360 geometry means these are only
+        # visible ≥ ~2 m out (0.329 m mount, -7.2° lower FOV edge), so
+        # marks made on approach must persist while the robot closes in.
+        # Clearing here comes only from /scan_low's own returns, which is
+        # rare by design; stale marks age out as the rolling window moves.
+        # obstacle_max_range 4.0 keeps transient low-band floor noise
+        # (accel pitch on the rubber isolators) from marking at distance.
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: True
+        observation_sources: scan_low
+        scan_low:
+          topic: /scan_low
+          max_obstacle_height: 0.5
+          clearing: True
+          marking: True
+          data_type: "LaserScan"
+          raytrace_max_range: 4.5
+          raytrace_min_range: 0.0
+          obstacle_max_range: 4.0
           obstacle_min_range: 0.0
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"

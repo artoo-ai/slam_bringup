@@ -12,6 +12,37 @@ pick up. Update this file as problems arise, not after the fact.
 
 ## 2026-06-12 — Tilt saga resolved: mount is LEVEL, the script was lying
 
+### MILESTONE — exploration works end-to-end
+
+Full exploration runs are completing: map stays crisp through recovery
+spins (0.6 rad/s cap), steady free-cell growth, no smear. Remaining
+failures are obstacle-perception gaps, not SLAM/planning.
+
+### Issue 11 — Runs into dog bowls (below-band obstacles)
+
+- **Symptom:** rover hits dog bowls in the kitchen; they never appear in
+  the costmap.
+- **Root cause (two-part):** (1) bowl rims (~0.06–0.10 m) sit BELOW the
+  0.15 m obstacle-slice floor — invisible by configuration. (2) Mid-360
+  geometry: from the 0.329 m mount with a −7.2° lower FOV edge, a 0.07 m
+  obstacle is only visible from ≥ ~2 m away; closer in, the beams pass
+  over it. Worse, the main /scan's clearing rays (passing over the bowl,
+  returning from cabinets beyond) raytrace the bowl's cell EMPTY during
+  approach if it shares the obstacle layer.
+- **Fix:** second pointcloud_to_laserscan (`/scan_low`, band
+  0.05–0.15 m, costmap-only — never fed to rf2o/slam_toolbox) + a
+  SEPARATE `low_obstacle_layer` in the local costmap so high-band
+  clearing can't erase low-band marks (layers combine by maximum).
+  `obstacle_max_range: 4.0` keeps transient accel-pitch floor noise from
+  marking at distance.
+- **Residual limitation:** bowls are marked on approach and remembered;
+  a bowl that appears (or is nudged by the dog) inside the ~2 m blind
+  cone can still be hit. The real fix for ankle-height clutter is the
+  D435 depth camera as a second observation source — Option B-era work.
+- **Status:** committed; needs pull + build + fresh run. If bowl rims
+  measure < 5 cm, lower `scan_low_z_min` accordingly (floor-noise
+  tradeoff).
+
 ### Issue 9 (RESOLVED — script artifact, NOT mechanical) — "wandering 7° tilt"
 
 **Resolution:** Rico measured with a digital angle gauge: plate 0.3–1°
