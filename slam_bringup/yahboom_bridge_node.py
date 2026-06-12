@@ -34,6 +34,7 @@ import math
 import sys
 
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from geometry_msgs.msg import Twist
@@ -175,9 +176,16 @@ def main():
     node = YahboomBridge()
     try:
         rclpy.spin(node)
+    except (KeyboardInterrupt, ExternalShutdownException):
+        # ros2 launch SIGINT: spin raises ExternalShutdownException with
+        # the context ALREADY shut down. Swallow it so destroy_node (which
+        # zeroes the motors) still runs, and use try_shutdown — calling
+        # rclpy.shutdown() here died with "rcl_shutdown already called"
+        # and exit code 1 on every Ctrl-C (field, 2026-06-12).
+        pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        rclpy.try_shutdown()
 
 
 if __name__ == '__main__':

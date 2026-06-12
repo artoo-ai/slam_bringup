@@ -18,6 +18,34 @@ Full exploration runs are completing: map stays crisp through recovery
 spins (0.6 rad/s cap), steady free-cell growth, no smear. Remaining
 failures are obstacle-perception gaps, not SLAM/planning.
 
+### Issue 17 — Ctrl-C leaves zombie processes; no kill_explore_2d.sh
+
+- **Symptom:** Ctrl-C on start_explore_2d.sh prints shutdown errors;
+  repeated Ctrl-C strands processes that must be hunted with ps.
+- **Root causes (4):**
+  1. explore_lite's `respawn=true` (Issue 13 fix) races Humble launch
+     shutdown — the log showed `explore-1: process started` AFTER all
+     other nodes finished: launch resurrected the node mid-teardown, so
+     the wrapper never exited and orphans kept respawning.
+  2. yahboom_bridge main() called `rclpy.shutdown()` after launch had
+     already shut the context down → `rcl_shutdown already called`,
+     exit 1 — and clean shutdown is what zeroes the motors.
+  3. explore_manager didn't catch ExternalShutdownException → exit 1,
+     final .pose snapshot skipped.
+  4. The trap re-entered on every additional Ctrl-C (no once-guard, no
+     trap disable), interrupting its own `wait`.
+- **Fixes:** new `kill_explore_2d.sh` — the missing rescue script AND
+  the single source of truth for teardown (start script now delegates):
+  motors first, **launch parents before node children** (a dead parent
+  can't respawn), layer kill scripts, fail-closed verify with SIGKILL
+  escalation. start script's cleanup(): once-guard + trap disabled
+  during shutdown + bounded 20 s wait + always-sweep. Both nodes catch
+  (KeyboardInterrupt, ExternalShutdownException) and use try_shutdown —
+  bridge still zeroes motors, manager still writes the final .pose.
+- **Contract now:** ONE Ctrl-C = full ordered shutdown (~10-20 s);
+  extra Ctrl-Cs are absorbed. Manual rescue any time:
+  `./kill_explore_2d.sh`.
+
 ### Issue 16 — Plows into the dog bowls on the SECOND approach
 
 - **Symptom:** sees the bowls initially (turns away), comes back, drives

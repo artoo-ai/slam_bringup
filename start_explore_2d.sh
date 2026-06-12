@@ -135,74 +135,18 @@ elif [ -n "$MAP_FILE" ]; then
 fi
 
 # ── Teardown ────────────────────────────────────────────────
-# Idempotency + safety contract. Two failure modes this guards against:
-#
-#  1. Overlapping stacks. This block used to run the kill_*.sh scripts with
-#     `2>/dev/null` and IGNORE their exit codes, so a failed teardown was
-#     silent and we'd launch a second (or third) stack on top. Multiple
-#     slam_toolbox/rf2o nodes then publish conflicting map->odom / odom->base
-#     TFs, the robot's pose flip-flops, and Nav2 aborts every goal. Now we
-#     honor exit codes, kill RViz (no kill_*.sh covers it), and VERIFY the
-#     graph is clear before launching — aborting loudly if not.
-#
-#  2. Motor runaway. The Yahboom board has no command timeout of its own; it
-#     coasts on the last velocity until something sends zero. The bridge zeroes
-#     the motors on SIGINT (destroy_node) and on a /cmd_vel watchdog timeout —
-#     but ONLY if /dev/myserial actually points at the board. So we stop the
-#     motors FIRST, gracefully (SIGINT the bridge) and then directly over
-#     /dev/myserial, before any SIGKILL that could strand a latched command.
-source "$SCRIPT_DIR/kill_helpers.sh"
-
-# (2) Stop motors before anything else. SIGINT the bridge so its destroy_node
-#     zeroes the board; wait for it to drain; then command zero directly in
-#     case no bridge was running (or it had already been hard-killed).
-pkill -SIGINT -f 'slam_bringup.yahboom_bridge_node\|/yahboom_bridge' 2>/dev/null
-sleep 2
-python3 - <<'PYSTOP' 2>/dev/null || true
-import time
-try:
-    from Rosmaster_Lib import Rosmaster
-    bot = Rosmaster(com="/dev/myserial")
-    bot.create_receive_threading()
-    for _ in range(20):
-        bot.set_car_motion(0.0, 0.0, 0.0)
-        time.sleep(0.05)
-except Exception:
-    pass
-PYSTOP
-
-# (1a) Kill any OTHER start_explore_2d.sh wrappers (never ourselves) so a
-#      prior run's wait/trap can't resurrect children mid-teardown.
-for _pid in $(pgrep -f start_explore_2d.sh 2>/dev/null); do
-  [ "$_pid" != "$$" ] && [ "$_pid" != "$PPID" ] && kill -9 "$_pid" 2>/dev/null
-done
-
-# (1b) Run the layer teardowns, honoring exit codes (no more silent 2>/dev/null).
-TEARDOWN_OK=1
-"$SCRIPT_DIR/kill_explore.sh"  || TEARDOWN_OK=0
-"$SCRIPT_DIR/kill_nav.sh"      || TEARDOWN_OK=0
-"$SCRIPT_DIR/kill_nav_2d.sh"   || TEARDOWN_OK=0
-"$SCRIPT_DIR/kill_rtabmap.sh"  || TEARDOWN_OK=0
-"$SCRIPT_DIR/kill_fast_lio.sh" || TEARDOWN_OK=0
-"$SCRIPT_DIR/kill_viz_clip.sh" || TEARDOWN_OK=0
-"$SCRIPT_DIR/kill_sensors.sh"  || TEARDOWN_OK=0
-nuke_processes 'rviz2' 'RViz'  || TEARDOWN_OK=0   # no dedicated kill_*.sh covers RViz
-
-# (1c) Fail-closed guard: never launch on top of a survivor.
-_STACK_PAT='rf2o_laser_odometry_node\|async_slam_toolbox_node\|localization_slam_toolbox\|nav2_\|controller_server\|planner_server\|bt_navigator\|behavior_server\|smoother_server\|velocity_smoother\|waypoint_follower\|lifecycle_manager\|lib/explore_lite/explore\|explore_manager\|ros2 launch slam_bringup'
-_SURVIVORS="$(pgrep -af "$_STACK_PAT" 2>/dev/null | grep -v start_explore_2d.sh)"
-if [ -n "$_SURVIVORS" ]; then
-  echo "" >&2
-  echo "==> ABORT: a previous stack survived teardown — refusing to launch a" >&2
-  echo "    second stack on top (overlapping stacks corrupt TF and abort every" >&2
-  echo "    Nav2 goal). Surviving processes:" >&2
-  echo "$_SURVIVORS" | sed 's/^/      /' >&2
-  echo "    Clear them and retry, e.g.:" >&2
-  echo "      pkill -9 -f 'rf2o|slam_toolbox|nav2_|rviz2|explore'   # or reboot" >&2
+# Idempotency + safety contract, delegated to kill_explore_2d.sh (single
+# source of truth, also the manual rescue script). It stops the motors
+# FIRST, kills the ros2 launch PARENTS before node children (explore_lite
+# runs with respawn=true — killing children first just resurrects them),
+# runs the layer teardowns, and fails closed with SIGKILL escalation if
+# anything survives. Refuse to launch on top of survivors.
+if ! "$SCRIPT_DIR/kill_explore_2d.sh"; then
+  echo "==> ABORT: teardown left survivors — refusing to launch a second" >&2
+  echo "    stack on top (overlapping stacks corrupt TF and abort every" >&2
+  echo "    Nav2 goal). See output above; clear them and retry." >&2
   exit 1
 fi
-[ "$TEARDOWN_OK" -ne 1 ] && \
-  echo "==> Note: a kill_*.sh returned non-zero but no stack processes remain — continuing." >&2
 echo "==> Teardown verified clean — no prior stack running."
 
 # ── Launch 2D SLAM + Nav2 in background ────────────────────
@@ -226,13 +170,31 @@ ros2 launch slam_bringup explore.launch.py \
 EXPLORE_PID=$!
 
 # ── Wait for either to exit ───────────────────────────────
+# Ctrl-C contract: ONE Ctrl-C triggers a full ordered shutdown. Further
+# Ctrl-Cs are absorbed (the trap is disabled inside cleanup) — they used
+# to re-enter the handler mid-`wait`, strand the ros2 launch trees, and
+# explore_lite's respawn=true then resurrected nodes forever until the
+# user hunted them with ps (field, 2026-06-12). The final
+# kill_explore_2d.sh sweep handles respawn parents, motors, and any node
+# wedged in shutdown.
+CLEANED_UP=0
 cleanup() {
+    [ "$CLEANED_UP" -eq 1 ] && return
+    CLEANED_UP=1
+    trap '' SIGINT SIGTERM    # absorb further Ctrl-C — it cannot speed this up
     echo ""
-    echo "==> Shutting down exploration..."
+    echo "==> Shutting down exploration (takes ~10-20 s; additional Ctrl-C is ignored)..."
     kill -SIGINT "$EXPLORE_PID" 2>/dev/null
-    sleep 2
     kill -SIGINT "$SLAM_PID" 2>/dev/null
-    wait
+    # Bounded wait for both launch trees to exit gracefully.
+    for _ in $(seq 1 20); do
+        kill -0 "$EXPLORE_PID" 2>/dev/null || kill -0 "$SLAM_PID" 2>/dev/null || break
+        sleep 1
+    done
+    # Sweep: respawn parents, stragglers, motors. Always run — cheap when
+    # everything already exited cleanly.
+    "$SCRIPT_DIR/kill_explore_2d.sh" || true
+    echo "==> Shutdown complete."
 }
 trap cleanup SIGINT SIGTERM
 

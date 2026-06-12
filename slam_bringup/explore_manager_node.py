@@ -20,6 +20,7 @@ from enum import Enum, auto
 import numpy as np
 
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.action import ActionClient
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
@@ -504,9 +505,15 @@ def main(args=None):
     node = ExploreManager()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
-        node.get_logger().info('Shutting down — stopping robot.')
-        node._stop_robot()
+    except (KeyboardInterrupt, ExternalShutdownException):
+        # ExternalShutdownException = ros2 launch SIGINT path (context
+        # already down — publishing may fail, hence best-effort guards).
+        # Without catching it the node exited 1 and SKIPPED the final
+        # pose snapshot (field, 2026-06-12).
+        try:
+            node._stop_robot()
+        except Exception:
+            pass
         # Final pose snapshot so the .pose file holds where the robot
         # actually came to rest, not the last 2 s timer tick.
         node._write_pose_file()
