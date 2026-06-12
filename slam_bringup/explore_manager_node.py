@@ -22,11 +22,13 @@ import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
-from action_msgs.msg import GoalStatus
+from rclpy.qos import (QoSProfile, ReliabilityPolicy, DurabilityPolicy,
+                       HistoryPolicy)
+from action_msgs.msg import GoalStatus, GoalStatusArray
 from geometry_msgs.msg import PoseStamped, Twist
 from nav_msgs.msg import OccupancyGrid
 from nav2_msgs.action import NavigateToPose
-from std_msgs.msg import String
+from std_msgs.msg import Bool, String
 from std_srvs.srv import Empty
 from tf2_ros import Buffer, TransformListener, TransformException
 
@@ -57,6 +59,18 @@ class ExploreManager(Node):
         # launch, so pose-file tracking starts immediately instead of
         # waiting for this session's own serialize.
         self.declare_parameter('resume_map_file', '')
+        # Stall watchdog. explore_lite quits PERMANENTLY when it transiently
+        # finds zero frontiers (race with map updates) or blacklists every
+        # frontier — and never retries. This manager's own frontier count
+        # (computed from /map) then stays > 0, so the session would idle in
+        # EXPLORING forever (field-observed 2026-06-12: robot parked in the
+        # kitchen, "EXPLORING", nav idle). After stall_timeout seconds with
+        # no active NavigateToPose goal, kick explore_lite via
+        # /explore/resume (restarts its frontier search against the
+        # now-bigger map); after max_stall_kicks fruitless kicks, finish
+        # the session gracefully (save + return home) instead of idling.
+        self.declare_parameter('stall_timeout', 45.0)
+        self.declare_parameter('max_stall_kicks', 2)
 
         self._time_limit_s = self.get_parameter('time_limit_minutes').value * 60.0
         self._patience_s = self.get_parameter('frontier_done_patience').value
@@ -74,6 +88,11 @@ class ExploreManager(Node):
         # valid against. None until a graph exists for this frame (resumed
         # session: from launch; fresh session: after the first serialize).
         self._pose_basename = _resume_map or None
+        self._stall_timeout = self.get_parameter('stall_timeout').value
+        self._max_stall_kicks = int(self.get_parameter('max_stall_kicks').value)
+        self._nav_goal_active = False
+        self._nav_last_active = None   # monotonic ts a nav goal was last active
+        self._stall_kicks = 0
 
         self._state = State.WAITING
         self._start_time = None
@@ -91,6 +110,25 @@ class ExploreManager(Node):
 
         self._map_sub = self.create_subscription(
             OccupancyGrid, '/map', self._map_cb, 10
+        )
+
+        # Watch Nav2's goal status stream — "is ANYONE commanding motion?"
+        # explore_lite sends its goals here, so an empty/terminal status
+        # list while EXPLORING means the explorer has gone dormant. QoS
+        # must match the action server's status publisher (reliable,
+        # transient-local).
+        self._nav_status_sub = self.create_subscription(
+            GoalStatusArray, '/navigate_to_pose/_action/status',
+            self._nav_status_cb,
+            QoSProfile(depth=10,
+                       history=HistoryPolicy.KEEP_LAST,
+                       reliability=ReliabilityPolicy.RELIABLE,
+                       durability=DurabilityPolicy.TRANSIENT_LOCAL),
+        )
+        # explore_lite listens on /explore/resume (std_msgs/Bool): true
+        # restarts its planning timer + frontier search.
+        self._explore_resume_pub = self.create_publisher(
+            Bool, '/explore/resume', 1
         )
 
         self._nav_client = ActionClient(
@@ -126,6 +164,57 @@ class ExploreManager(Node):
         has_unknown_neighbor[:, :-1] |= unknown[:, 1:]
 
         self._frontier_count = int(np.count_nonzero(free & has_unknown_neighbor))
+
+    def _nav_status_cb(self, msg: GoalStatusArray):
+        active = any(
+            s.status in (GoalStatus.STATUS_ACCEPTED,
+                         GoalStatus.STATUS_EXECUTING,
+                         GoalStatus.STATUS_CANCELING)
+            for s in msg.status_list
+        )
+        self._nav_goal_active = active
+        if active:
+            self._nav_last_active = time.monotonic()
+
+    def _nav_idle_seconds(self):
+        """Seconds since any NavigateToPose goal was active. Measured from
+        exploration start if no goal has EVER been active (explore_lite
+        broken/never launched — the watchdog must catch that too)."""
+        if self._nav_goal_active:
+            return 0.0
+        ref = self._nav_last_active if self._nav_last_active is not None \
+            else self._start_time
+        if ref is None:
+            return 0.0
+        return time.monotonic() - ref
+
+    def _check_stall(self):
+        """EXPLORING but nobody is commanding motion → explore_lite went
+        dormant (transient zero-frontier quit, or full blacklist). Kick it
+        awake; if kicks don't take, finish the session instead of idling
+        out the clock."""
+        idle_s = self._nav_idle_seconds()
+        if idle_s < self._stall_timeout or self._frontier_count == 0:
+            return
+        if self._stall_kicks < self._max_stall_kicks:
+            self._stall_kicks += 1
+            self.get_logger().warn(
+                f'Exploration stalled: no nav goal for {idle_s:.0f}s with '
+                f'{self._frontier_count} frontier cells left — kicking '
+                f'explore_lite via /explore/resume '
+                f'(kick {self._stall_kicks}/{self._max_stall_kicks}).'
+            )
+            self._explore_resume_pub.publish(Bool(data=True))
+            # Restart the idle clock so the next kick (or give-up) waits a
+            # full stall_timeout for this one to take effect.
+            self._nav_last_active = time.monotonic()
+        else:
+            self.get_logger().warn(
+                f'Exploration stalled again after {self._stall_kicks} kicks '
+                f'(frontiers likely unreachable or blacklisted) — finishing '
+                f'session: saving map and returning home.'
+            )
+            self._transition_to_saving()
 
     def _record_home_pose(self):
         try:
@@ -175,6 +264,8 @@ class ExploreManager(Node):
                     return
             else:
                 self._zero_frontier_since = None
+
+            self._check_stall()
 
     def _transition_to_saving(self):
         self._state = State.SAVING
@@ -360,6 +451,13 @@ class ExploreManager(Node):
             'time_remaining_s': round(remaining, 1) if remaining >= 0 else None,
             'frontier_count': self._frontier_count,
             'free_cells_mapped': self._free_cells,
+            # Watchdog visibility: "what is the robot thinking" fields.
+            # nav_goal_active False + nav_idle_s climbing while EXPLORING
+            # = explore_lite has gone dormant; stall_kicks counts revival
+            # attempts before the session is finished gracefully.
+            'nav_goal_active': self._nav_goal_active,
+            'nav_idle_s': round(self._nav_idle_seconds(), 1),
+            'stall_kicks': self._stall_kicks,
         }
         if self._home_pose:
             status['home_pose'] = {

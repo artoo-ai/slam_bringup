@@ -18,6 +18,28 @@ Full exploration runs are completing: map stays crisp through recovery
 spins (0.6 rad/s cap), steady free-cell growth, no smear. Remaining
 failures are obstacle-perception gaps, not SLAM/planning.
 
+### Issue 12 — Sits idle in EXPLORING forever (explore_lite/manager deadlock)
+
+- **Symptom:** robot parked in the kitchen for minutes, /explore/status
+  still EXPLORING (470 s elapsed, 429 frontiers). Robot GUI showed the
+  smoking gun: **nav: idle** — no active Nav2 goal at all. (Dog-bowl
+  avoidance worked — Issue 11 fix confirmed in the same run.)
+- **Root cause:** deadlock between two nodes with different "done"
+  definitions. explore_lite quits PERMANENTLY when it transiently finds
+  zero frontiers (race with map updates) or has blacklisted every
+  frontier — it never retries. explore_manager computes its OWN frontier
+  count from /map (still 429 > 0), so its zero-frontier finish condition
+  never fires. Nobody commands motion; the session idles out the clock.
+- **Fix:** stall watchdog in explore_manager: subscribes to
+  /navigate_to_pose/_action/status; if EXPLORING with frontiers left and
+  no active goal for stall_timeout (45 s), kicks explore_lite via
+  /explore/resume (restarts its frontier search against the now-bigger
+  map — cures the transient-zero-frontier quit). After max_stall_kicks
+  (2) fruitless kicks, finishes the session gracefully (save map +
+  return home) instead of idling. New /explore/status JSON fields for
+  the GUI: nav_goal_active, nav_idle_s, stall_kicks.
+- **Status:** committed; pull + build + rerun.
+
 ### Issue 11 — Runs into dog bowls (below-band obstacles)
 
 - **Symptom:** rover hits dog bowls in the kitchen; they never appear in
