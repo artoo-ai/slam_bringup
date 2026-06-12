@@ -10,6 +10,36 @@ pick up. Update this file as problems arise, not after the fact.
 
 ---
 
+## 2026-06-11 — First trustworthy tilt reading: ~7°
+
+- Jetson synced; the final (expected-height) `measure_lidar_tilt.py` ran
+  clean: height **0.323 m vs URDF 0.329 — consistent**, RMS 8.2 mm,
+  **roll +4.57°, pitch +5.29°, total 6.99°**.
+- Implication: at 7°, floor returns leak into the 0.15–0.45 m obstacle
+  band beyond ≈ **1.2 m** — the floor-leak hypothesis from yesterday is
+  partially REHABILITATED. The phantom speckle/ring had two real causes:
+  rotation smear (fixed by the 0.6 rad/s cap) AND floor leak from mount
+  tilt (fix pending). Likely physical cause: off-center fixture on
+  unevenly compressed rubber isolators.
+- Note: the script reads the raw lidar topic, so it reports physical tilt
+  regardless of URDF — post-fix verification is map quality, not a rerun
+  of the script.
+
+### Open threads
+
+- [ ] Confirm the 7° is mount tilt, not parking-spot tilt: flat open
+      floor, roll to a second spot + heading, rerun — agree within ~0.5°
+      → paste `livox_rpy 0.079793 0.092401 0.0`, `./build.sh`.
+      (If the plate itself is tilted, the rotation arguably belongs on
+      the `base_link_to_sensor_plate` joint so the IMU/D435 inherit it —
+      fine to defer until Option B uses the plate IMU.)
+- [ ] Fresh explore after the rpy lands: speckle beyond ~1.2 m should be
+      gone; spins no longer smear (0.6 cap). If clean, field-test resume.
+- Carried from 2026-06-10: exact `robot_radius` measurement, Option B
+  decision. Repo sync + tilt rerun are DONE.
+
+---
+
 ## 2026-06-10 — The exploration debugging marathon
 
 Context: `start_explore_2d.sh` (2D stack: Mid-360 → pointcloud_to_laserscan
