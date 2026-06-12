@@ -18,6 +18,37 @@ Full exploration runs are completing: map stays crisp through recovery
 spins (0.6 rad/s cap), steady free-cell growth, no smear. Remaining
 failures are obstacle-perception gaps, not SLAM/planning.
 
+### Issue 18 — Marking-only low layer poisoned the local costmap; robot
+### parks despite a planned path
+
+- **Symptom:** amber global plan down the hallway renders, robot won't
+  follow it; "planner cannot find a path ×35"; spin recoveries pulse
+  cmd ~0.5 rad/s with zero odom response; "exploration stalled" alerts.
+- **Evidence (live websocket probe):** costmap_local had **4,590
+  permanent lethal cells (32% of the 6×6 m window)** vs 907 occupied in
+  the entire map; nearest lethal 0.16 m from the robot — INSIDE the
+  0.25 m footprint radius. The Issue 16 marking-only change made every
+  transient low-band floor return (accel pitch on the isolators)
+  immortal.
+- **Why the path renders but isn't followed:** the GLOBAL plan comes
+  from the global costmap (static map — phantom-free); FOLLOWING it
+  needs DWB to find collision-free local trajectories in the LOCAL
+  costmap, where every candidate started inside phantom lethal. The
+  spin recoveries also abort instantly for the same reason (simulated
+  rotation collides with the phantom 0.16 m away) — the cmd pulses with
+  no rotation are aborted attempts, not stiction.
+- **Fix — geometry-aware annuli** (from the 0.329 m mount, real low
+  obstacles can only return at ~1.5–2.6 m): marking accepts 1.5–4.0 m
+  (closer = physically impossible = phantom, rejected at source);
+  clearing operates 2.0–4.5 m (distant phantoms raytraced away); inner
+  2.0 m is a sanctuary — no clearing of any kind, so bowl marks survive
+  the blind approach, and it self-heals as cells leave the sanctuary
+  when the robot moves. footprint_clearing stays off.
+- **Confirmed working meanwhile:** scan_low channel live at 7 Hz; GUI
+  red marks include REAL clutter (camera shows objects on the floor
+  under the table next to the chair).
+- **Status:** committed; pull + build + fresh run.
+
 ### Issue 17 — Ctrl-C leaves zombie processes; no kill_explore_2d.sh
 
 - **Symptom:** Ctrl-C on start_explore_2d.sh prints shutdown errors;
