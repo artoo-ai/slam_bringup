@@ -327,6 +327,16 @@ def generate_launch_description():
         'nav2_autostart', default_value='true',
         description='If true, lifecycle_manager activates Nav2 nodes immediately.',
     )
+    d435_arg = DeclareLaunchArgument(
+        'd435', default_value='false',
+        description='Bring up the D435 front camera for a live view (light '
+                    'profiles: 640x480x15 color, 424x240x15 depth — the Orin '
+                    'is CPU-tight). Not used by Option A SLAM. WATCH THE '
+                    'VIEWER SIDE: view via the GUI bridge MJPEG inset or a '
+                    'compressed topic; subscribing to image_raw over WiFi '
+                    '(100+ Mbps) saturates the link and starves the GUI '
+                    'bridge websocket.',
+    )
 
     # Option A vs Option B selectors. Both default false — Option A is the
     # baseline. Today, flipping either to true just logs a notice (see
@@ -415,9 +425,12 @@ def generate_launch_description():
     target_frame = LaunchConfiguration('target_frame')
 
     # ---------- Perception (URDF + sensors) ----------
-    # Mid-360 in PointCloud2 mode (xfer_format=0). D435 OFF — Option A doesn't
-    # use it. WitMotion OFF — Option B's IMU EKF would turn this on, but the
-    # EKF isn't wired yet, so leave it off to save CPU + USB.
+    # Mid-360 in PointCloud2 mode (xfer_format=0). D435 optional (d435:=true)
+    # — Option A SLAM doesn't use it; it exists for the live camera view
+    # (GUI MJPEG inset / Foxglove compressed). Profiles are deliberately
+    # light (640x480x15 color, 424x240x15 depth) — the Orin is CPU-tight
+    # and the full 848x480x30 pair costs real margin. WitMotion OFF —
+    # Option B's IMU EKF would turn this on, but the EKF isn't wired yet.
     perception = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(str(launch_dir / 'perception.launch.py')),
         launch_arguments={
@@ -429,8 +442,10 @@ def generate_launch_description():
             'lidar_xfer_format': '0',         # PointCloud2 (NOT CustomMsg)
             'enable_witmotion':  'false',
             'enable_mid360':     'true',
-            'enable_d435':       'false',     # Option A is laser-only
+            'enable_d435':       LaunchConfiguration('d435'),
             'enable_rear':       'false',
+            'd435_color_profile': '640x480x15',
+            'd435_depth_profile': '424x240x15',
         }.items(),
     )
 
@@ -557,7 +572,7 @@ def generate_launch_description():
     return LaunchDescription([
         platform_arg, use_sim_time_arg, rviz_arg, rviz_config_arg,
         mode_arg, map_file_arg, map_start_pose_arg,
-        nav2_arg, nav2_params_arg, nav2_autostart_arg,
+        nav2_arg, nav2_params_arg, nav2_autostart_arg, d435_arg,
         use_wheel_odom_arg, use_imu_ekf_arg,
         livox_topic_arg, scan_topic_arg, odom_topic_arg, target_frame_arg,
         z_min_arg, z_max_arg, range_min_arg, range_max_arg,

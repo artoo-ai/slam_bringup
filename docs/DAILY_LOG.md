@@ -18,6 +18,25 @@ Full exploration runs are completing: map stays crisp through recovery
 spins (0.6 rad/s cap), steady free-cell growth, no smear. Remaining
 failures are obstacle-perception gaps, not SLAM/planning.
 
+### Issue 14 — GUI bridge websocket starved when viewing the camera
+
+- **Symptom:** GUI showed "rgb · stalled — reconnecting", drop counts and
+  gap chips while the D435 was up (started manually via start_d435.sh
+  after the explore stack).
+- **Root cause:** NOT the d435 launch itself (start_d435.sh is benign —
+  it only tears down a prior d435 instance). The damage is viewer-side:
+  subscribing to /d435_front/camera/color/image_raw in Foxglove on the
+  Mac pulls RAW frames over WiFi — 848×480×3 B × 30 fps ≈ 290 Mbit/s —
+  saturating the link the GUI bridge websocket shares.
+- **Fix/practice:** D435 is now integrated into start_explore_2d.sh
+  (d435:=true default, off via d435:=false) at LIGHT profiles
+  (640x480x15 color, 424x240x15 depth) threaded through
+  slam_2d → perception → sensors → d435 launch files. View the camera
+  via the GUI bridge's MJPEG inset (JPEG, a few Mbit/s) or a compressed
+  topic — never image_raw over WiFi.
+- **Watch:** D435 adds ~10-20% CPU on the Orin. If pose rate sags below
+  ~8 Hz in the GUI, run d435:=false.
+
 ### Issue 13 — Incomplete coverage: never explored hallway/bedrooms/kitchen
 
 - **Symptom:** session ended (watchdog finish worked) with most of the

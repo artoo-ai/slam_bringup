@@ -31,6 +31,19 @@ def generate_launch_description():
         default_value='d435i',
         description='Rear camera device_type',
     )
+    color_profile_arg = DeclareLaunchArgument(
+        'color_profile',
+        default_value='848x480x30',
+        description='rgb_camera.color_profile (WxHxFPS). The 2D explore '
+                    'stack passes 640x480x15 — live-view quality at a '
+                    'fraction of the USB/CPU cost on the Orin.',
+    )
+    depth_profile_arg = DeclareLaunchArgument(
+        'depth_profile',
+        default_value='848x480x30',
+        description='depth_module.depth_profile (WxHxFPS). The 2D explore '
+                    'stack passes 424x240x15.',
+    )
 
     slam = LaunchConfiguration('slam_mode')
 
@@ -86,8 +99,8 @@ def generate_launch_description():
                 # whichever the running node declares wins.
                 'pointcloud__neon_.enable':   pc_enable,
                 'pointcloud.enable':          pc_enable,
-                'depth_module.depth_profile': '848x480x30',
-                'rgb_camera.color_profile':   '848x480x30',
+                'depth_module.depth_profile': LaunchConfiguration('depth_profile'),
+                'rgb_camera.color_profile':   LaunchConfiguration('color_profile'),
             }],
         )
 
@@ -106,6 +119,8 @@ def generate_launch_description():
         enable_rear_arg,
         device_type_front_arg,
         device_type_rear_arg,
+        color_profile_arg,
+        depth_profile_arg,
         front,
         rear,
     ])

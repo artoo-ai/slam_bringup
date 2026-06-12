@@ -89,6 +89,8 @@ def generate_launch_description():
         DeclareLaunchArgument('enable_mid360',      default_value='true'),
         DeclareLaunchArgument('enable_d435',        default_value='true'),
         DeclareLaunchArgument('enable_witmotion',   default_value='true'),
+        DeclareLaunchArgument('d435_color_profile', default_value='848x480x30'),
+        DeclareLaunchArgument('d435_depth_profile', default_value='848x480x30'),
     ]
 
     # ---------- robot_description = xacro <urdf/<platform>.urdf.xacro> ----------
@@ -125,6 +127,8 @@ def generate_launch_description():
             'enable_mid360':     LaunchConfiguration('enable_mid360'),
             'enable_d435':       LaunchConfiguration('enable_d435'),
             'enable_witmotion':  LaunchConfiguration('enable_witmotion'),
+            'd435_color_profile': LaunchConfiguration('d435_color_profile'),
+            'd435_depth_profile': LaunchConfiguration('d435_depth_profile'),
         }.items(),
     )
 

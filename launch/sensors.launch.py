@@ -54,6 +54,14 @@ def generate_launch_description():
             'enable_witmotion', default_value='true',
             description='Set false to skip the WitMotion driver',
         ),
+        DeclareLaunchArgument(
+            'd435_color_profile', default_value='848x480x30',
+            description='Forwarded to d435.launch.py rgb_camera.color_profile',
+        ),
+        DeclareLaunchArgument(
+            'd435_depth_profile', default_value='848x480x30',
+            description='Forwarded to d435.launch.py depth_module.depth_profile',
+        ),
     ]
 
     mid360 = GroupAction(
@@ -69,8 +77,10 @@ def generate_launch_description():
         actions=[IncludeLaunchDescription(
             PythonLaunchDescriptionSource(str(launch_dir / 'd435.launch.py')),
             launch_arguments={
-                'slam_mode':   LaunchConfiguration('slam_mode'),
-                'enable_rear': LaunchConfiguration('enable_rear'),
+                'slam_mode':     LaunchConfiguration('slam_mode'),
+                'enable_rear':   LaunchConfiguration('enable_rear'),
+                'color_profile': LaunchConfiguration('d435_color_profile'),
+                'depth_profile': LaunchConfiguration('d435_depth_profile'),
             }.items(),
         )],
     )

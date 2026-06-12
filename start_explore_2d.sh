@@ -13,6 +13,8 @@
 #       map_start_pose:=1.2,-0.4,3.14   # override: resume from an explicit map-frame pose
 #   ./start_explore_2d.sh time_limit:=30                             # 30-minute explore
 #   ./start_explore_2d.sh time_limit:=0                              # full coverage
+#   ./start_explore_2d.sh d435:=false                                # skip the live camera
+#                                       # (D435 is ON by default at light 15 fps profiles)
 #
 # The robot will:
 #   1. Start 2D SLAM + Nav2
@@ -34,6 +36,7 @@ TIME_LIMIT=15.0
 MAP_FILE=""
 MAP_START_POSE_SET=false
 START_AT_DOCK=false
+D435_SET=false
 SLAM_ARGS=()
 EXPLORE_ARGS=()
 
@@ -56,9 +59,20 @@ for arg in "$@"; do
                     START_AT_DOCK=true ;;
     start_at_dock:=false)
                     START_AT_DOCK=false ;;
+    d435:=*)        D435_SET=true
+                    SLAM_ARGS+=("$arg") ;;
     *)              SLAM_ARGS+=("$arg") ;;
   esac
 done
+
+# Live camera view ON by default for exploration runs (light 15 fps
+# profiles). Override with d435:=false if CPU margin gets tight — watch
+# the GUI's pose-rate readout. NEVER view image_raw over WiFi (saturates
+# the link and starves the GUI bridge); use the GUI MJPEG inset or a
+# compressed topic.
+if [ "$D435_SET" = "false" ]; then
+  SLAM_ARGS+=("d435:=true")
+fi
 
 if [ "$MAP_START_POSE_SET" = "true" ] && [ "$START_AT_DOCK" = "true" ]; then
   echo "ERROR: map_start_pose:=... and start_at_dock:=true are mutually exclusive" >&2
