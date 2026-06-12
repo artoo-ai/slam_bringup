@@ -10,6 +10,36 @@ pick up. Update this file as problems arise, not after the fact.
 
 ---
 
+## 2026-06-12 — Tilt confirmation FAILED: the mount is moving
+
+### Issue 9 (OPEN) — Fixture tilt is ~7° in magnitude but wanders in direction
+
+- **Evidence:** two valid script runs (height cross-check passing/near),
+  same ~7° magnitude, DIFFERENT direction: run 1 roll +4.57° /
+  pitch +5.29°; run 2 roll −6.10° / pitch −3.59°. A rigid mount cannot
+  do that — roll/pitch in the lidar frame are independent of robot
+  position/heading on flat floor.
+- **Interpretation:** the fixture physically leans ~7° in whatever
+  direction it last settled. Prime suspect: the off-center fixture on
+  ~23 mm compressed-rubber isolators (`rubber_compressed`,
+  sensors_common.urdf.xacro) — 7° across the plate ≈ 26 mm differential,
+  more than the rubber's travel → a crushed/loose isolator or the plate
+  pivoting on its bolts. Run 2's height read 3.5 cm high (lean geometry
+  or a rug under the measurement spot).
+- **Consequence:** NO static `livox_rpy` can fix a moving transform —
+  neither reading was applied. A wandering tilt also retroactively
+  explains Issue 8's behavior: the costmap's blind side and the
+  phantom-floor side move between runs.
+- **Next actions:** (1) physically rock the plate / bubble level —
+  confirm mechanical play; (2) check wiki mount specs, then fix
+  mechanically (rigid standoffs or re-torqued isolators — the 2D stack
+  prefers rigid + vibration over soft + wandering); (3) after the
+  mechanical fix, re-measure tilt in two spots; apply `livox_rpy` only
+  when the two readings agree within ~0.5°; (4) then revisit Issue 8
+  (table/cabinet contact height).
+
+---
+
 ## 2026-06-11 — First trustworthy tilt reading: ~7°
 
 ### Issue 8 (OPEN) — Repeatedly wedges against the table/cabinet cluster
