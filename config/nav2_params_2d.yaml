@@ -274,16 +274,23 @@ local_costmap:
         # Ankle-height clutter (dog bowls ~0.06-0.10 m, shoes) from
         # /scan_low — the 0.05..0.15 m band published by livox_to_scan_low
         # in slam_2d.launch.py. Mid-360 geometry means these are only
-        # visible ≥ ~2 m out (0.329 m mount, -7.2° lower FOV edge), so
-        # marks made on approach must persist while the robot closes in.
-        # Same mark/clear split as obstacle_layer, with a longer marking
-        # memory (5 s) because low objects leave view entirely inside
-        # ~2 m. obstacle_max_range 4.0 keeps transient low-band floor
-        # noise (accel pitch on the rubber isolators) from marking at
-        # distance.
+        # visible in a ~2.0-2.6 m annulus (0.329 m mount, -7.2° lower FOV
+        # edge): marked on approach, then NEVER seen again as the robot
+        # closes in. So this layer is MARKING-ONLY — no clearing source
+        # and no footprint clearing. Field lesson (2026-06-12, the
+        # dog-bowl plow): with clearing enabled the rover marked the
+        # bowls, turned away, came back inside the blind annulus, the
+        # marks got erased (low-band raytrace transients + footprint
+        # clearing once it overlapped), and it pushed the bowls across
+        # the floor. Low objects don't move themselves; stale marks age
+        # out as the 6 m rolling window scrolls. Trade-off: if the dog
+        # drags a bowl mid-run, its ghost blocks that spot until the
+        # robot ranges away. obstacle_max_range 4.0 keeps transient
+        # accel-pitch floor noise from marking at distance.
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
-        observation_sources: scan_low_mark scan_low_clear
+        footprint_clearing_enabled: False
+        observation_sources: scan_low_mark
         scan_low_mark:
           topic: /scan_low
           max_obstacle_height: 0.5
@@ -293,15 +300,6 @@ local_costmap:
           data_type: "LaserScan"
           obstacle_max_range: 4.0
           obstacle_min_range: 0.0
-        scan_low_clear:
-          topic: /scan_low
-          max_obstacle_height: 0.5
-          clearing: True
-          marking: False
-          observation_persistence: 0.0
-          data_type: "LaserScan"
-          raytrace_max_range: 4.5
-          raytrace_min_range: 0.0
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0

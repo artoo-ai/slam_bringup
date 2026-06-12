@@ -18,6 +18,32 @@ Full exploration runs are completing: map stays crisp through recovery
 spins (0.6 rad/s cap), steady free-cell growth, no smear. Remaining
 failures are obstacle-perception gaps, not SLAM/planning.
 
+### Issue 16 — Plows into the dog bowls on the SECOND approach
+
+- **Symptom:** sees the bowls initially (turns away), comes back, drives
+  straight through them, pushes them, wheels slip on the spilled water.
+- **Root cause:** bowls are only visible in the ~2.0–2.6 m annulus, so
+  the second approach (starting closer) produces NO new marks — survival
+  of the first-pass marks is everything, and two mechanisms erased them:
+  (1) `scan_low_clear` raytrace — transient low-band floor returns punch
+  rays through the bowl cell; (2) `footprint_clearing_enabled` (default
+  true) — the costmap deletes cells under the robot's own footprint, so
+  the moment it overlaps the bowl the evidence vanishes and nothing
+  vetoes pushing onward. The global planner is bowl-blind by design
+  (global costmap = static slam map, which only sees the 0.15+ band), so
+  the local marks are the ONLY veto.
+- **Fix:** low_obstacle_layer is now MARKING-ONLY: clearing source
+  removed, `footprint_clearing_enabled: False`. Stale marks age out via
+  the 6 m rolling window. Trade-off documented in the config: a bowl the
+  dog drags mid-run leaves a ghost until the robot ranges away.
+- **Water:** invisible to every sensor on the rover; the mitigation is
+  not hitting the bowls. If the feeding area is fixed, a Nav2 keepout
+  zone over it (saved-map filter) is the durable option — candidate for
+  a later session.
+- **Validation:** watch the GUI Low Obstacles layer + Costmap (local) on
+  the next approach — red dots at 2-2.6 m, then a lethal cluster that
+  must now SURVIVE all the way through contact range.
+
 ### Issue 15 — Jams against chair legs (thin-obstacle costmap flicker)
 
 - **Symptom:** rover wedged against a chair; GUI cloud shows the seat/
