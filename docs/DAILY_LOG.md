@@ -10,9 +10,52 @@ pick up. Update this file as problems arise, not after the fact.
 
 ---
 
-## 2026-06-12 — Tilt confirmation FAILED: the mount is moving
+## 2026-06-12 — Tilt saga resolved: mount is LEVEL, the script was lying
 
-### Issue 9 (OPEN) — Fixture tilt is ~7° in magnitude but wanders in direction
+### Issue 9 (RESOLVED — script artifact, NOT mechanical) — "wandering 7° tilt"
+
+**Resolution:** Rico measured with a digital angle gauge: plate 0.3–1°
+across many spots/orientations, floor 0.3°, 2040 beams 0.25°, isolators
+springy but returning instantly, all isolator bolts uniform and bottomed
+out. **The mount is level.** The mechanical hypothesis below is dead, and
+so is the floor-leak theory in ALL its forms (at ≤1°, leak onset ≥8.6 m —
+beyond indoor ranges). `livox_rpy` stays `0 0 0`. A third script run
+(roll −4.93°, pitch −2.55°) had meanwhile produced a third direction —
+consistent with a scene-limited fit, not a physical tilt.
+
+**Lesson:** the physical gauge is the authority. Three plane fits with
+good RMS and passing height checks were all wrong about orientation —
+RMS and support measure self-consistency, not truth.
+
+### Issue 10 — Tilt script: single fits can't be trusted → repeatability built in
+
+- **Fix (Rico's suggestion):** the script now splits the capture into 10
+  time-slices, fits each independently, prints the full table (height,
+  roll, pitch, support, azimuth coverage, range span per slice), and
+  issues a verdict: spread ≤ ±0.5° in roll AND pitch → STABLE, paste
+  line printed; otherwise **UNSTABLE — no paste line, explicit "do not
+  apply"**. Also: `debug_dump:=/path.npz` saves candidates + inliers +
+  plane for offline analysis of bad fits.
+- Validated synthetically: constant-tilt scene → STABLE ±0.01°;
+  wandering-direction scene (replicates the field failure) → UNSTABLE
+  ±4°, refused.
+- **Open:** WHY the real scene yields direction-wandering fits is still
+  undiagnosed (sparse grazing-incidence floor + something). If it ever
+  matters, capture a debug_dump and analyze offline — but with the gauge
+  verdict in hand, the mount needs no correction and this is curiosity,
+  not a blocker.
+
+### Refocus
+
+With tilt/floor-leak eliminated, **Issue 8 (table/cabinet entrapment) is
+the live thread** and is now purely the 2D-slice problem: measure at what
+height the rover contacts the table/cabinet (leg/face in-band → flicker;
+apron/top above 0.45 → raise scan_z_max; plinth below 0.15 → lower
+scan_z_min).
+
+### Issue 9 original notes (superseded, kept for the record)
+
+#### Fixture tilt is ~7° in magnitude but wanders in direction
 
 - **Evidence:** two valid script runs (height cross-check passing/near),
   same ~7° magnitude, DIFFERENT direction: run 1 roll +4.57° /
