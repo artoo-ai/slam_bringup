@@ -341,6 +341,26 @@ class MeasureLidarTilt(Node):
             print("=" * 72)
             return False
 
+        # Slice agreement alone can't certify truth — slices share the
+        # scene, so a scene-systematic bias (e.g. grazing multipath on a
+        # narrow visible floor ring) is common-mode across all of them.
+        # Field case 2026-06-12: slices agreed near ±1° at 11/24 azimuth
+        # coverage while a physical gauge read level. Demand wide support
+        # before trusting agreement.
+        med_az = float(np.median([r["az_sectors"] for r in sub]))
+        med_rspan = float(np.median([r["r_span"] for r in sub]))
+        if med_az < 14 or med_rspan < 1.5:
+            print(f"VERDICT: CONSISTENT BUT POORLY CONSTRAINED — slices "
+                  f"agree (±{max(std_roll, std_pitch):.2f}°) but median "
+                  f"coverage is only {med_az:.0f}/24 azimuth sectors over "
+                  f"{med_rspan:.1f} m of range.")
+            print("  Agreement from a narrow visible floor ring can be a "
+                  "shared scene bias, not the mount. DO NOT apply. "
+                  "Re-measure somewhere the floor is visible most of the "
+                  "way around (≥14/24) — or trust your angle gauge.")
+            print("=" * 72)
+            return False
+
         dh = full["height"] - self.expected_height
         height_ok = abs(dh) < 0.03
         print(f"VERDICT: STABLE (spread ±{max(std_roll, std_pitch):.2f}°)")
