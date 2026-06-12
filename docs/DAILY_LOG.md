@@ -18,6 +18,27 @@ Full exploration runs are completing: map stays crisp through recovery
 spins (0.6 rad/s cap), steady free-cell growth, no smear. Remaining
 failures are obstacle-perception gaps, not SLAM/planning.
 
+### Issue 15 — Jams against chair legs (thin-obstacle costmap flicker)
+
+- **Symptom:** rover wedged against a chair; GUI cloud shows the seat/
+  backrest clearly but the costmap reads the leg cells as free.
+- **Root cause:** legs (2-4 cm) ARE inside the 0.15–0.45 band, but the
+  Mid-360's non-repetitive pattern only hits them in some 100 ms scans;
+  every scan that misses raytraces through the leg cell to the wall
+  behind and clears the mark → flicker → DWB threads through during a
+  cleared moment.
+- **Fix:** split each obstacle source into marking + clearing pairs:
+  `scan_mark` (marking only, `observation_persistence: 2.0` — any leg
+  return in the last 2 s keeps marking; clearing runs first per costmap
+  update so persistent marks always win) + `scan_clear` (latest scan
+  only, so dynamics like the dog still vacate in ~2 s). Same split on
+  /scan_low with 5 s persistence (low objects leave view entirely
+  inside ~2 m).
+- **Status:** committed; pull + build. Note: the chair seat edge at
+  ~0.45 m sits right at the band top — if jams persist at THIS chair
+  specifically, measure the seat height; scan_z_max may need to go to
+  0.5 (with max_obstacle_height raised to match).
+
 ### Issue 14 — GUI bridge websocket starved when viewing the camera
 
 - **Symptom:** GUI showed "rgb · stalled — reconnecting", drop counts and

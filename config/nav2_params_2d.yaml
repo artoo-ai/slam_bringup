@@ -237,43 +237,71 @@ local_costmap:
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
-        observation_sources: scan
-        scan:
+        # Mark/clear SPLIT with marking persistence — the thin-obstacle
+        # (chair leg) fix. Legs are 2-4 cm; the Mid-360's non-repetitive
+        # pattern only clips them in SOME 100 ms scans, and every scan
+        # that misses raytraces through the leg cell to the wall behind,
+        # clearing the mark — the leg flickers and DWB threads through it
+        # (field: rover jammed against a chair whose legs read free,
+        # 2026-06-12). scan_mark buffers 2 s of scans so any return in
+        # the window keeps marking (clearing runs first in each costmap
+        # update, marks reapply after → persistent marks win); scan_clear
+        # clears from the latest scan only, so dynamics (the dog) still
+        # vacate within ~2 s.
+        observation_sources: scan_mark scan_clear
+        scan_mark:
           topic: /scan
-          # max_obstacle_height matches the upper end of nav2.launch.py's
-          # pointcloud→laserscan slice. Set higher than scan_max_height
-          # only wastes CPU; set lower silently drops legit obstacles.
+          # max_obstacle_height matches the upper end of the pointcloud→
+          # laserscan slice. Higher only wastes CPU; lower silently drops
+          # legit obstacles.
+          max_obstacle_height: 0.5
+          clearing: False
+          marking: True
+          observation_persistence: 2.0
+          data_type: "LaserScan"
+          obstacle_max_range: 10.0
+          obstacle_min_range: 0.0
+        scan_clear:
+          topic: /scan
           max_obstacle_height: 0.5
           clearing: True
-          marking: True
+          marking: False
+          observation_persistence: 0.0
           data_type: "LaserScan"
           raytrace_max_range: 15.0
           raytrace_min_range: 0.0
-          obstacle_max_range: 10.0
-          obstacle_min_range: 0.0
       low_obstacle_layer:
         # Ankle-height clutter (dog bowls ~0.06-0.10 m, shoes) from
         # /scan_low — the 0.05..0.15 m band published by livox_to_scan_low
         # in slam_2d.launch.py. Mid-360 geometry means these are only
         # visible ≥ ~2 m out (0.329 m mount, -7.2° lower FOV edge), so
         # marks made on approach must persist while the robot closes in.
-        # Clearing here comes only from /scan_low's own returns, which is
-        # rare by design; stale marks age out as the rolling window moves.
-        # obstacle_max_range 4.0 keeps transient low-band floor noise
-        # (accel pitch on the rubber isolators) from marking at distance.
+        # Same mark/clear split as obstacle_layer, with a longer marking
+        # memory (5 s) because low objects leave view entirely inside
+        # ~2 m. obstacle_max_range 4.0 keeps transient low-band floor
+        # noise (accel pitch on the rubber isolators) from marking at
+        # distance.
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
-        observation_sources: scan_low
-        scan_low:
+        observation_sources: scan_low_mark scan_low_clear
+        scan_low_mark:
+          topic: /scan_low
+          max_obstacle_height: 0.5
+          clearing: False
+          marking: True
+          observation_persistence: 5.0
+          data_type: "LaserScan"
+          obstacle_max_range: 4.0
+          obstacle_min_range: 0.0
+        scan_low_clear:
           topic: /scan_low
           max_obstacle_height: 0.5
           clearing: True
-          marking: True
+          marking: False
+          observation_persistence: 0.0
           data_type: "LaserScan"
           raytrace_max_range: 4.5
           raytrace_min_range: 0.0
-          obstacle_max_range: 4.0
-          obstacle_min_range: 0.0
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
