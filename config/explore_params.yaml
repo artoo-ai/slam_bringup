@@ -9,12 +9,20 @@
 explore_lite:
   ros__parameters:
     costmap_topic: /map
-    min_frontier_size: 0.75
+    # 0.75 → 0.4: live-map analysis (2026-06-12) showed reachable frontier
+    # clusters of 0.45–0.85 m being skipped — doorways and hallway mouths
+    # fragment frontiers below the old cutoff, so whole rooms were never
+    # attempted. 0.4 m still rejects single-cell noise.
+    min_frontier_size: 0.4
     potential_scale: 3.0
     gain_scale: 1.0
     transform_tolerance: 0.3
     planner_frequency: 0.33
-    progress_timeout: 30.0
+    # 30 → 45 s: the mecanum maneuvers slowly in tight zones (impulsive
+    # yaw at 0.6 rad/s cap + recoveries); at 30 s it was blacklisting
+    # frontiers it merely approached slowly. The blacklist is permanent
+    # per node lifetime, so each premature entry costs a room.
+    progress_timeout: 45.0
     visualize_frontiers: true
     robot_base_frame: base_link
 

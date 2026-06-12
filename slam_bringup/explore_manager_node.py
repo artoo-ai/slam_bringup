@@ -13,6 +13,7 @@ Lifecycle:
 import json
 import math
 import os
+import subprocess
 import time
 from enum import Enum, auto
 
@@ -65,12 +66,14 @@ class ExploreManager(Node):
         # (computed from /map) then stays > 0, so the session would idle in
         # EXPLORING forever (field-observed 2026-06-12: robot parked in the
         # kitchen, "EXPLORING", nav idle). After stall_timeout seconds with
-        # no active NavigateToPose goal, kick explore_lite via
-        # /explore/resume (restarts its frontier search against the
-        # now-bigger map); after max_stall_kicks fruitless kicks, finish
-        # the session gracefully (save + return home) instead of idling.
+        # no active NavigateToPose goal: kick 1 publishes /explore/resume;
+        # kicks 2+ RESTART the explore_lite process (clears its permanent
+        # frontier blacklist; the launch runs it with respawn=True). After
+        # max_stall_kicks fruitless revivals, finish the session gracefully
+        # (save + return home) instead of idling. Default 3 = one resume +
+        # two blacklist-clearing restarts.
         self.declare_parameter('stall_timeout', 45.0)
-        self.declare_parameter('max_stall_kicks', 2)
+        self.declare_parameter('max_stall_kicks', 3)
 
         self._time_limit_s = self.get_parameter('time_limit_minutes').value * 60.0
         self._patience_s = self.get_parameter('frontier_done_patience').value
@@ -190,29 +193,55 @@ class ExploreManager(Node):
 
     def _check_stall(self):
         """EXPLORING but nobody is commanding motion → explore_lite went
-        dormant (transient zero-frontier quit, or full blacklist). Kick it
-        awake; if kicks don't take, finish the session instead of idling
-        out the clock."""
+        dormant. Escalating revival ladder:
+
+          kick 1   — /explore/resume. Cheap; cures the transient
+                     zero-frontier quit (race with map updates). Does NOT
+                     clear the frontier blacklist.
+          kick 2+  — SIGINT the explore_lite process. Its blacklist is
+                     permanent for the node's lifetime, and field data
+                     (2026-06-12) showed 175/387 frontier cells REACHABLE
+                     yet ignored — blacklisted during earlier furniture
+                     fights. explore.launch.py runs the node with
+                     respawn=True, so it comes back blacklist-free and
+                     re-evaluates the whole (now larger) map.
+          beyond max_stall_kicks — finish the session gracefully.
+        """
         idle_s = self._nav_idle_seconds()
         if idle_s < self._stall_timeout or self._frontier_count == 0:
             return
         if self._stall_kicks < self._max_stall_kicks:
             self._stall_kicks += 1
-            self.get_logger().warn(
-                f'Exploration stalled: no nav goal for {idle_s:.0f}s with '
-                f'{self._frontier_count} frontier cells left — kicking '
-                f'explore_lite via /explore/resume '
-                f'(kick {self._stall_kicks}/{self._max_stall_kicks}).'
-            )
-            self._explore_resume_pub.publish(Bool(data=True))
-            # Restart the idle clock so the next kick (or give-up) waits a
-            # full stall_timeout for this one to take effect.
+            if self._stall_kicks == 1:
+                self.get_logger().warn(
+                    f'Exploration stalled: no nav goal for {idle_s:.0f}s '
+                    f'with {self._frontier_count} frontier cells left — '
+                    f'kicking explore_lite via /explore/resume '
+                    f'(kick 1/{self._max_stall_kicks}).'
+                )
+                self._explore_resume_pub.publish(Bool(data=True))
+            else:
+                self.get_logger().warn(
+                    f'Still stalled — restarting explore_lite to clear its '
+                    f'frontier blacklist (kick '
+                    f'{self._stall_kicks}/{self._max_stall_kicks}; respawn '
+                    f'relaunches it).'
+                )
+                try:
+                    subprocess.run(
+                        ['pkill', '-INT', '-f', 'lib/explore_lite/explore'],
+                        timeout=5.0, check=False,
+                    )
+                except (subprocess.TimeoutExpired, OSError) as exc:
+                    self.get_logger().error(f'explore_lite restart failed: {exc}')
+            # Restart the idle clock so the next escalation (or give-up)
+            # waits a full stall_timeout for this one to take effect.
             self._nav_last_active = time.monotonic()
         else:
             self.get_logger().warn(
-                f'Exploration stalled again after {self._stall_kicks} kicks '
-                f'(frontiers likely unreachable or blacklisted) — finishing '
-                f'session: saving map and returning home.'
+                f'Exploration stalled after {self._stall_kicks} revival '
+                f'attempts (remaining frontiers likely unreachable) — '
+                f'finishing session: saving map and returning home.'
             )
             self._transition_to_saving()
 

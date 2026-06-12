@@ -48,11 +48,18 @@ def generate_launch_description():
                     'first serialize. Set by start_explore_2d.sh on resume:=true.',
     )
 
+    # respawn=True is load-bearing: explore_lite's frontier BLACKLIST is
+    # permanent for the node's lifetime and /explore/resume does NOT clear
+    # it. explore_manager's stall watchdog escalates from a resume kick to
+    # SIGINT-ing this process — respawn brings it back blacklist-free and
+    # it re-evaluates the (now larger) map from scratch.
     explore_lite_node = Node(
         package='explore_lite',
         executable='explore',
         name='explore_lite',
         output='screen',
+        respawn=True,
+        respawn_delay=2.0,
         parameters=[
             LaunchConfiguration('explore_params_file'),
         ],

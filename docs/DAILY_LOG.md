@@ -18,6 +18,32 @@ Full exploration runs are completing: map stays crisp through recovery
 spins (0.6 rad/s cap), steady free-cell growth, no smear. Remaining
 failures are obstacle-perception gaps, not SLAM/planning.
 
+### Issue 13 — Incomplete coverage: never explored hallway/bedrooms/kitchen
+
+- **Symptom:** session ended (watchdog finish worked) with most of the
+  house unexplored — 376 frontier cells abandoned, unknown 21.5k cells
+  vs only 7.5k free.
+- **Investigation (LIVE map analysis over the GUI websocket):** pulled
+  the occupancy grid and computed frontier reachability vs robot radius:
+  **175/387 frontier cells were REACHABLE at the full 0.25 m radius**
+  and explore_lite still ignored them. Shrinking the radius barely helps
+  (190 at 0.20 m) → NOT a geometry/footprint problem. Home was also
+  reachable, so the return-home failure wasn't geometric either.
+- **Root causes:** (1) explore_lite's frontier blacklist is permanent
+  for the node's lifetime and /explore/resume does NOT clear it — the
+  watchdog's kicks revived a node that instantly re-quit against its own
+  blacklist. (2) `min_frontier_size: 0.75` skipped reachable frontier
+  clusters measuring 0.45–0.85 m (doorways fragment frontiers).
+  (3) `progress_timeout: 30` blacklisted frontiers while the mecanum
+  merely maneuvered slowly near furniture.
+- **Fixes:** explore_lite now runs with `respawn=True`; the watchdog
+  escalates — kick 1 = /explore/resume (cures transient-zero-frontier
+  quit), kicks 2+ = SIGINT explore_lite (respawn brings it back
+  blacklist-free to re-evaluate the grown map), then graceful finish
+  (max_stall_kicks 3). `min_frontier_size` 0.75 → 0.4,
+  `progress_timeout` 30 → 45.
+- **Status:** committed; pull + build + fresh full run.
+
 ### Issue 12 — Sits idle in EXPLORING forever (explore_lite/manager deadlock)
 
 - **Symptom:** robot parked in the kitchen for minutes, /explore/status
