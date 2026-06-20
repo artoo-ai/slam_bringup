@@ -16,6 +16,12 @@
           (livox_frame optical center lands at 0.29210 + 0.03661
            = 0.32871 m above the floor)
 
+  Lateral: the plate is mounted FLUSH to the FRONT-RIGHT corner (not
+  centered — a motor-controller connector blocks the center). The joint
+  carries an X/Y offset of +32.05 mm fwd / −45.15 mm right (estimate,
+  see plate_offset_* below). This is why base_link and sensor_plate do
+  NOT share an X/Y axis.
+
   Kept in lockstep with PLATFORM_BRIDGES['mecanum'] in slam.launch.py
   (body → base_link = -(plate_top + 0.03661) = -0.328710 m). If you
   re-measure with calipers, update BOTH places.
@@ -35,6 +41,27 @@
   <xacro:property name="chassis_width"          value="0.230"/>
   <xacro:property name="chassis_height"         value="0.090"/>
 
+  <!-- ===== Sensor-plate lateral offset (2026-06-20) =====
+       The plate is NOT centered: it's bolted FLUSH to the FRONT-RIGHT
+       corner of the chassis because a connector on the motor-controller
+       board fouls the centered position. Flush-to-corner means the plate
+       center sits (chassis_half − plate_half) off the chassis center on
+       each axis. REP-103 signs: front → +X, right → −Y.
+
+       plate_size_* are the plate's footprint (= the box drawn in
+       sensors_common.urdf.xacro, 215.9 × 139.7 mm). Long edge runs
+       fore-aft (along chassis X).
+
+       ⚠ ESTIMATE ONLY. These are derived from the *cosmetic* chassis
+       bbox (flagged approximate above) and assume base_link sits at the
+       true wheel/rotation center. Replace with a caliper measurement of
+       plate-center → wheel-center when you can — see docs/DAILY_LOG.md
+       2026-06-20. Current estimate: +32.05 mm fwd, −45.15 mm right. -->
+  <xacro:property name="plate_size_x"   value="0.2159"/>
+  <xacro:property name="plate_size_y"   value="0.1397"/>
+  <xacro:property name="plate_offset_x" value="${ (chassis_length - plate_size_x)/2}"/>
+  <xacro:property name="plate_offset_y" value="${-(chassis_width  - plate_size_y)/2}"/>
+
   <link name="base_link">
     <visual>
       <origin xyz="0 0 ${chassis_height/2}" rpy="0 0 0"/>
@@ -50,7 +77,7 @@
   <joint name="base_link_to_sensor_plate" type="fixed">
     <parent link="base_link"/>
     <child  link="sensor_plate"/>
-    <origin xyz="0 0 ${base_link_to_plate_top}" rpy="0 0 0"/>
+    <origin xyz="${plate_offset_x} ${plate_offset_y} ${base_link_to_plate_top}" rpy="0 0 0"/>
   </joint>
 
 </robot>

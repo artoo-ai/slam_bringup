@@ -10,6 +10,107 @@ pick up. Update this file as problems arise, not after the fact.
 
 ---
 
+## 2026-06-20 — URDF: unmodeled sensor-plate corner offset
+
+### Build/URDF discrepancy — plate is corner-mounted, URDF said centered
+
+**Symptom.** While building a 3D URDF viewer
+(`docs/visualizations/urdf_3d_viewer.html`) it surfaced that the
+`base_link → sensor_plate` joint in `mecanum.urdf.xacro` carried
+`xyz="0 0 0.29210"` — i.e. zero X/Y offset, plate directly above
+base_link center.
+
+**Investigation.** Physically the plate could not be centered: a
+connector on the motor-controller (YB-ERF01) board fouls the centered
+position, so the plate is bolted FLUSH into the **front-right** corner of
+the chassis, sharing one corner + two edges. That puts the Mid-360 / IMU /
+D435 several cm off the chassis (≈ rotation) center in both X and Y — an
+offset the URDF was not modelling.
+
+**Root cause.** TF lever-arm error. The 3D LIO map (FAST-LIO2) is built in
+sensor frames so it stays self-consistent, but everything that trusts
+`base_link` — Nav2 footprint/costmap placement, the map↔body relationship,
+in-place rotation geometry — inherited a constant lateral error that
+*rotates with the robot*. Most likely to bite during yaw, which this robot
+is already fragile on (rf2o 0.6 rad/s cap, mecanum yaw-stall).
+
+**Fix.** Added `plate_offset_x/y` xacro properties derived from the
+flush-corner geometry `(chassis_half − plate_half)` with REP-103 signs
+(front → +X, right → −Y), and threaded them into the joint origin.
+Estimate: **+32.05 mm fwd, −45.15 mm right**. Updated the embedded copy in
+the viewer to match. base_link stays at the wheel/rotation center; only
+the plate joint moved. Not yet committed; not yet deployed (`./build.sh`).
+
+**Status.** ⚠ Values are an ESTIMATE from the *cosmetic* chassis bbox and
+assume base_link is at the true wheel-center. Needs a caliper measurement
+of plate-center → wheel-center to confirm.
+
+**Open threads:**
+- [ ] Caliper-measure plate-center → wheel-center (X fwd, Y left), replace
+      the estimated `plate_offset_*` values.
+- [ ] Confirm base_link actually sits at the mecanum wheel/rotation center
+      (not just the cosmetic chassis-box center).
+- [ ] `./build.sh` on the Jetson, then `ros2 run tf2_ros tf2_echo
+      base_link livox_frame` to confirm the deployed offset.
+- [ ] Re-check Nav2 footprint/costmap behavior during in-place rotation
+      once the offset is deployed.
+
+---
+
+## 2026-06-13 — Docs: 3D-vs-2D SLAM explainer visuals
+
+### Docs — teaching figures for start_slam.sh vs start_slam_2d.sh
+
+Built research-paper-style figures plus an animated HTML explainer in
+`docs/visualizations/slam_3d_vs_2d/` to teach the difference between the
+two launch scripts (for the YouTube channel):
+
+- `fig1_perception_3d_vs_2d.png` — RViz 3D point cloud vs slam_toolbox
+  occupancy grid (what each stack actually keeps).
+- `fig2_slice_to_laserscan.png` — the z∈[0.15,0.45] extraction band
+  collapsing to a single `/scan` outline.
+- `fig3_sensor_placement.png` — §2.4 schematic: vacuum's low 2D lidar
+  (dense returns at nav height) vs mast 3D lidar (most beams hit
+  ceiling/empty space).
+- `slam_3d_vs_2d_explainer.html` — self-contained animated walkthrough
+  (3D cloud → band extract → 2D scan → occupancy grid) plus accurate
+  node/topic pipeline diagrams and a comparison table. Screen-recordable;
+  `#t=<0..1>` deep-links to a phase.
+
+Node/topic wiring pulled straight from `launch/slam.launch.py`,
+`launch/slam_2d.launch.py`, and `docs/why_slam_is_hard_and_how_to_simplify.md`.
+Stills generated with Nano Banana; diagrams/animation hand-built as
+HTML/SVG so the ROS identifiers render exactly.
+
+### Docs — rf2o + slam_toolbox reference (Obsidian) + scan_low in explainer
+
+Wrote a full rf2o / slam_toolbox reference note in the **Obsidian vault**
+(`rico/Robotics/SLAM/rf2o and slam_toolbox - 2D Laser Odometry and Graph
+SLAM Reference`) — not in repo `docs/` (Rico: "note" = Obsidian note;
+saved as memory). Covers standard-vs-community status (rf2o =
+community/source-build; slam_toolbox = ROS 2 standard), message-field
+topic outputs, configured params, sensors, alternatives, and a
+**robot_gui visualization** section (the GUI already ingests most 2D-stack
+topics via its `2d` bridge preset; `loop_closure`/`processing` are reserved
+channels; recommend dedicated rf2o + slam_toolbox panels via uPlot).
+
+Also reworked Figure 2's 2D lane in `slam_3d_vs_2d_explainer.html` after
+the duplicate-Mid-360 / "never sees /scan_low" terminal box confused the
+story: it now shows **one sensor → one `/livox/lidar` → branches to two
+`pointcloud_to_laserscan` nodes** → ① `/scan` (0.15–0.45) → rf2o+slam_toolbox,
+② `/scan_low` (0.05–0.15) → Nav2 local-costmap `low_obstacle_layer` only
+(obstacle avoidance, not SLAM). Added a standalone vector figure
+`fig4_2d_stack_dataflow.png` (+ `.html` source) of that combined flow —
+built as SVG, not Nano Banana, so the node/topic labels are exact.
+
+### Open threads
+
+- [ ] Optional: remove the earlier clickbait-style drafts in
+  `slam_3d_vs_2d/hero_what_robot_sees/` and `.../slice_concept/` if not
+  wanted (superseded by the research-style figures).
+
+---
+
 ## 2026-06-12 — Tilt saga resolved: mount is LEVEL, the script was lying
 
 ### MILESTONE — exploration works end-to-end
